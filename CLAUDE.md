@@ -347,6 +347,8 @@ Chat/Index, Profile/Notifications
 
 ## KNOWN ISSUES & GOTCHAS
 - [Infra] Project runs from WSL2 Ubuntu (`/home/tj/projects/nostosemr`). Docker Desktop WSL Integration must be enabled for Ubuntu (Settings → Resources → WSL Integration → Ubuntu). Always use Ubuntu terminal for docker compose commands — running from Windows PowerShell works but is 5-20x slower due to Windows↔WSL2 filesystem bridge.
+- [Security] `phpunit.xml` hardcodes an APP_KEY for testing (standard Laravel practice). This file IS committed to git. Always keep the phpunit.xml key DIFFERENT from the `.env` key — they should never match. If the `.env` key is rotated (`php artisan key:generate`), update phpunit.xml with a fresh independently-generated test key. GitGuardian monitors the repo and will alert if a real key leaks into committed files. To generate a test-only key: `docker compose exec -T laravel.test php -r "echo 'base64:'.base64_encode(random_bytes(32)).PHP_EOL;"`. To remove a secret from git history: `git filter-branch --force --index-filter 'git rm --cached --ignore-unmatch <file>' --prune-empty --tag-name-filter cat -- --all` then force-push. Note: requires clean working tree (stash first); storage permissions may need `wsl -u root chmod -R 777 storage/`.
+- [UI] All `<select>` elements get `padding-right: 2rem` via `resources/css/app.css` global rule (`@layer base`). This prevents the native browser dropdown arrow from overlapping text. Do NOT add per-element `pr-8` classes — the global rule covers everything.
 - [Infra] `php artisan optimize` (run by `start.sh`) creates `bootstrap/cache/config.php` caching `APP_ENV=local`. When tests run after optimize, `VerifyCsrfToken::runningUnitTests()` reads the cached 'local' env (not phpunit.xml's 'testing') → returns false → ALL POST/PATCH feature tests get 419. Fix: run `php artisan config:clear` before any test run that follows `artisan optimize`. Tests/TestCase.php also disables CSRF via `withoutMiddleware(VerifyCsrfToken::class)` as a safeguard for non-Docker runners, but this does NOT override the config cache issue.
 - [Infra] `routes/web.php` custom logout route at `/auth/logout` is named `auth.logout` (NOT `logout`). Fortify also registers a `/logout` route named `logout` — duplicate names cause route:cache to fail. The rename to `auth.logout` was applied 2026-03-21. Frontend uses hardcoded `/auth/logout` path so no JSX changes needed.
 - [Phase 1] node_modules are Linux-native (built inside Docker). Local Windows npm/vite builds fail.
@@ -1257,6 +1259,12 @@ Migrated project from Windows filesystem to WSL2 native filesystem to eliminate 
 **Memory/CLAUDE.md updates:** PROJECT IDENTITY section now documents WSL2 path. KEY DOCKER COMMANDS updated with `./start.sh` as preferred start method and `cd ~/projects/nostosemr` WSL2 workflow note. KNOWN ISSUES updated with WSL2 Docker integration requirement and route name note.
 
 **Result:** App running from WSL2. All 74 migrations applied. Build clean. Artisan optimized. Expected: significantly faster page load times in dev.
+
+### 2026-03-22 — Security Fix + UI Polish
+
+**APP_KEY exposure (GitGuardian alert):** `phpunit.xml` had APP_KEY hardcoded (standard Laravel practice, but the key matched `.env`). GitGuardian detected it after initial GitHub push. Fix: (1) rotated key via `php artisan key:generate`; (2) removed `.env` from git history via `git filter-branch` (`.env` was in stash only, not main branch commits); (3) updated `phpunit.xml` with a fresh independently-generated test-only key; (4) committed and pushed. Going forward: phpunit.xml test key must always differ from the `.env` production key.
+
+**Select dropdown arrow overlap:** All `<select>` elements across the app had text running under the native browser dropdown arrow. Fixed globally with one rule in `resources/css/app.css` (`@layer base { select { padding-right: 2rem; } }`). Rebuilt frontend. Committed and pushed.
 
 ### 2026-03-22 — Billing Nav Fixes + CSRF Root Cause
 
