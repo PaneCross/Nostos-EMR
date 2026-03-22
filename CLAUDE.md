@@ -541,12 +541,35 @@ Rules (enforced going forward — audit ran 2026-03-14, all gaps patched):
 **Run all commands from WSL2 Ubuntu terminal at `/home/tj/projects/nostosemr`** (not Windows PowerShell):
 - Start:       `./start.sh`  (preferred — runs docker compose up + waits for health + artisan optimize)
 - Start (manual): `docker compose up -d`
-- Tests:       `docker compose exec -T laravel.test php artisan test --parallel --processes=8`  (16 processes hits PostgreSQL max_locks_per_transaction with 50+ tables)
+- Tests:       `docker compose exec -T laravel.test php artisan config:clear && docker compose exec -T laravel.test php artisan test --parallel --processes=4`
 - Build UI:    `docker compose exec -T laravel.test npm run build`
 - Fresh seed:  `docker compose exec -T laravel.test php artisan migrate:fresh --seed --seeder=DemoEnvironmentSeeder`
 - Artisan:     `docker compose exec -T laravel.test php artisan <cmd>`
 - Optimize:    `docker compose exec -T laravel.test php artisan optimize`  (run after route/config changes; start.sh does this automatically)
 - WSL2 shell:  Open Ubuntu app from Start menu, then `cd ~/projects/nostosemr`
+
+## GIT & GITHUB
+- **Repository:** https://github.com/PaneCross/Nostos-EMR (public)
+- **GitHub account:** PaneCross
+- **gh CLI:** installed at `~/bin/gh` in WSL2 Ubuntu (not on system PATH — use full path `~/bin/gh`)
+- **Git root:** `/home/tj/projects/nostosemr` in WSL2 (initialized 2026-03-22; branch: main)
+- **WARNING:** `C:\Users\TJ` has a git repo initialized at the wrong level (home dir). Do NOT use it — always commit from WSL2.
+
+### Standard commit workflow (from WSL2):
+```bash
+cd ~/projects/nostosemr
+# If edits were made on the Windows path, sync first:
+cp '/mnt/c/Users/TJ/Desktop/PACE EMR/nostosemr/path/to/file' ~/projects/nostosemr/path/to/file
+git add <files>
+git commit -m "message"
+git push
+```
+
+### Sync all changed files from Windows → WSL2:
+```bash
+rsync -av --exclude=vendor --exclude=node_modules --exclude=public/build --exclude=.git \
+  '/mnt/c/Users/TJ/Desktop/PACE EMR/nostosemr/' ~/projects/nostosemr/
+```
 
 ## TEST STATUS
 - [2026-03-14] Phase 0 audit — 291 passing, 0 failing (64 deprecations, 78 PHPUnit deprecations — non-blocking)
