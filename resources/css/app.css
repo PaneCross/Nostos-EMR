@@ -5,8 +5,9 @@
 @layer base {
     html { font-family: 'Inter', system-ui, sans-serif; }
 
-    /* Prevent native dropdown arrow from overlapping option text */
-    select { padding-right: 2rem; }
+    /* Ensure Tailwind's custom SVG arrow never overlaps text.
+       px-* utility classes override @layer base, so !important is required here. */
+    select { padding-right: 2.5rem !important; }
 
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #f1f5f9; }
