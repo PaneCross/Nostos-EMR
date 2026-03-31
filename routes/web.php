@@ -521,6 +521,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/overdue',                       [GrievanceController::class, 'overdue'])->name('grievances.overdue');
         Route::get('/{grievance}',                   [GrievanceController::class, 'show'])->name('grievances.show');
         Route::put('/{grievance}',                   [GrievanceController::class, 'update'])->name('grievances.update');
+        Route::post('/{grievance}/start-review',      [GrievanceController::class, 'startReview'])->name('grievances.start-review');
         Route::post('/{grievance}/resolve',          [GrievanceController::class, 'resolve'])->name('grievances.resolve');
         Route::post('/{grievance}/escalate',         [GrievanceController::class, 'escalate'])->name('grievances.escalate');
         Route::post('/{grievance}/notify-participant',[GrievanceController::class, 'notifyParticipant'])->name('grievances.notify');

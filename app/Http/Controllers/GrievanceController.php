@@ -195,6 +195,24 @@ class GrievanceController extends Controller
     }
 
     /**
+     * Transition a grievance from 'open' → 'under_review'.
+     * No extra data required — QA admin clicking "Start Investigation".
+     */
+    public function startReview(Grievance $grievance): JsonResponse
+    {
+        $this->authorizeTenant($grievance);
+        $this->authorizeQaAdmin();
+
+        try {
+            $this->service->updateStatus($grievance, 'under_review', [], Auth::user());
+        } catch (LogicException $e) {
+            return response()->json(['message' => $e->getMessage()], 409);
+        }
+
+        return response()->json(['grievance' => $grievance->fresh()->toApiArray()]);
+    }
+
+    /**
      * Resolve a grievance with required resolution text and date.
      */
     public function resolve(ResolveGrievanceRequest $request, Grievance $grievance): JsonResponse
