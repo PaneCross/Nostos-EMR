@@ -83,7 +83,7 @@ Wave 3 (Phases W3-0 through W3-8): COMPLETE
 
 Wave 4 (Phases W4-0 through W4-9): IN PROGRESS
   W4-0  CLAUDE.md Wave 4 Update:          [x] COMPLETE — 2026-03-31
-  W4-1  Grievance & Consent Module:        [x] COMPLETE — 2026-03-31
+  W4-1  Grievance & Consent Module:        [x] COMPLETE — 2026-03-31 (+ User Designations system)
   W4-2  Encryption at Rest + BAA/SRA:      [ ] NOT STARTED
   W4-3  Demographics + Participant Fields:  [ ] NOT STARTED
   W4-4  Quick Wins — Vitals & Assessments: [ ] NOT STARTED
@@ -442,7 +442,7 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 - Known technical debt log: [x] COMPLETE — categorized by priority in HANDOFF.md
 - Environment setup verified from scratch: [ ] Not yet verified by independent developer
 
-## MIGRATIONS RUN (79 total, in order, all batch 1)
+## MIGRATIONS RUN (81 total, in order, all batch 1)
 1.  0001_01_01_000000_create_users_table
 2.  0001_01_01_000001_create_cache_table
 3.  0001_01_01_000002_create_jobs_table
@@ -522,6 +522,8 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 77. 2024_12_03_000001_add_metadata_to_emr_alerts_table
 78. 2025_01_04_000001_create_emr_grievances_table
 79. 2025_01_04_000002_create_emr_consent_records_table
+80. 2025_01_05_000001_add_designations_to_shared_users
+81. 2025_01_05_000002_add_escalated_to_user_id_to_emr_grievances
 
 ## MODELS (58)
 AdlRecord, AdlThreshold, Alert, Allergy, ApiToken, Appointment, Assessment, AuditLog,
@@ -660,6 +662,11 @@ Idt/Meetings, Scheduling/DayCenter, Reports/Index, ItAdmin/SystemSettings
 - [W4-1] Login route: Laravel's `auth` middleware redirects unauthenticated requests to the route named `login` which maps to `/login` (NOT `/auth/login`). Tests asserting unauthenticated redirects must use `assertRedirect('/login')`.
 - [W4-1] `emr_alerts` has NO `resource_id` or `resource_type` columns. All resource references are stored in the `metadata` JSONB column. Tests asserting grievance alert creation must use `alert_type`, `severity`, and `source_module` columns — not `resource_id`.
 - [W4-1] ConsentController uses nested routes (`/participants/{participant}/consents/{consent}`). No implicit Laravel scoped binding — `Participant` has no `consents()` relationship in this build. Cross-participant consent access is blocked by `authorizeConsent()` (checks `consent->participant_id === $participant->id` → 403).
+- [W4-1 Designations] User::DESIGNATIONS constant defines 6 valid designation keys: medical_director, program_director, compliance_officer, nursing_director, pharmacy_director, social_work_supervisor. These are accountability sub-roles used for targeted alerting — they do NOT affect RBAC access or department assignment.
+- [W4-1 Designations] `designations` is a JSONB column on `shared_users` with PostgreSQL DEFAULT '[]'. Cast as 'array' in User model. Use `$user->hasDesignation(string)` to check, `User::withDesignation(string)` scope to query. Validation MUST use 'present' (not 'required') to allow clearing to empty array [].
+- [W4-1 Designations] `escalated_to_user_id` FK on `emr_grievances` → `shared_users.id` with nullOnDelete(). Cross-tenant escalation assignees rejected with 422 in GrievanceController::escalate() (checks target user's tenant_id before validation).
+- [W4-1 Designations] GrievanceService::checkOverdue() and open() now look up the active compliance_officer designation holder before creating alerts; includes name in alert message and compliance_officer_id in metadata JSONB. This is an additive enhancement to existing workflows — no breaking changes.
+- [W4-1 Designations] GET /grievances/escalation-staff is a static route. MUST be declared before /{grievance} in routes/web.php — otherwise "escalation-staff" matches as a Grievance model binding ID and causes a PostgreSQL bigint parse error. Currently in correct order.
 - [W3-4] Care plan save silently failed: original catch block was `catch { /* ignore */ }`. Fixed to capture error and display it via saveError state in CarePlanTab. Plan must be draft or under_review — approved plans are read-only (Edit button hidden, plan.status check added).
 - [W3-4] Tab URL sync: tabs are pure client-side state. switchTab() calls window.history.replaceState to update ?tab= param without Inertia reload. Server ignores the ?tab param entirely — always renders Participants/Show component.
 - [Phase 5A] ConflictDetectionService uses half-open interval comparison: existing.start < new.end AND existing.end > new.start. This means adjacent appointments (end = next start) do NOT conflict — correct PACE scheduling behavior (back-to-back appointments are allowed).
@@ -868,6 +875,7 @@ rsync -av --exclude=vendor --exclude=node_modules --exclude=public/build --exclu
 - [2026-03-24] W3-1 — test run pending (expected: 1065+ passing, 0 failing — adds ThemePreferenceTest with 8 tests).
 - [2026-03-31] W4-0 — 1181 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). Wave 4 baseline confirmed. Fixed 3 pre-existing test issues: QaMetricsServiceTest hospitalization boundary (subMonth→subMonths(2)), ComingSoonBannerTest clinical/orders test updated for live page (W3-8), DashboardActionabilityTest enrollment referral created_at (subDays(2) on Tuesday fell before week start → use startOfWeek+1h).
 - [2026-03-31] W4-1 — 1218 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). Grievance & Consent Module complete. BLOCKER-02 resolved.
+- [2026-03-31] W4-1 User Designations add-on — 1232 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). User Designations system complete. Migrations 80–81. 14 new tests (UserDesignationTest).
 - [2026-03-26] W3-2 — 1091 passing, 0 failing. Build clean. Adds NavRoutingTest (13 tests) + DayCenterAttendanceTest (12 tests) + Day Center attendance module + Reports page + System Settings page. Bugs fixed: scopeForSite null type hint, payer_id column DNE, pace_contract column DNE (mapped to cms_contract_id), ComingSoonBannerTest stale assertions for 3 now-live pages + /idt/minutes redirect target.
 - [2026-03-27] W3-4 — 1137 passing, 0 failing. Build clean. Adds FacesheetTest (6 tests) + ParticipantTabRoutingTest (22 tests). Show.tsx: print CSS fixed (visibility approach — position:fixed caused blank print), two-row tab layout (CLINICAL blue / ADMIN slate), switchTab() for URL sync via window.history.replaceState, valid tab list updated with immunizations/procedures/sdoh (Phase 11B), ParticipantHeader onTabChange prop + Care Plan/Schedule header buttons fixed, advance directive DNR/POLST/No Directive badges in sticky header flags row, CarePlanTab save error state (catch block no longer silent), editability guard on Edit button (hidden for active/archived plans). Bugs fixed: cross-tenant returns 403 not 404 (authorizeForTenant uses abort_if(..., 403)), PHPUnit @dataProvider converted to #[DataProvider] attribute.
 - [2026-03-27] W3-5 — 1155 passing, 0 failing. Build clean. Adds ChatSearchTest (10 tests) + ChatNotificationTest (8 tests). Migration 77: metadata JSONB on emr_alerts. Bugs fixed: DM search was calling /it-admin/users (403 for non-IT-admin) → replaced with /chat/users/search endpoint; urgent messages never created alerts (code comment but no implementation) → fixed.
@@ -1363,6 +1371,37 @@ Based on the audit above, Phase 9B (Encounter Data & Billing Infrastructure) sho
 ---
 
 ## SESSION LOG
+
+### 2026-03-31 — W4-1 User Designations Add-On (appended to W4-1 session)
+
+Built a User Designations system — accountability sub-roles for targeted alerting and workflow routing. Fully integrated with existing grievance and alert workflows.
+
+**Migrations (80–81):**
+- Migration 80: `designations` JSONB DEFAULT '[]' on `shared_users` (after `notification_preferences`)
+- Migration 81: `escalated_to_user_id` nullable FK → `shared_users.id` with nullOnDelete() on `emr_grievances`
+
+**Model changes:**
+- `User.php`: DESIGNATIONS constant (6 keys), DESIGNATION_LABELS map, `designations` in $fillable + $casts as 'array', `hasDesignation()` helper, `scopeWithDesignation()` (whereJsonContains), `designationLabel()` static
+- `Grievance.php`: `escalated_to_user_id` in $fillable, `escalatedTo()` BelongsTo, `toApiArray()` includes escalated_to_name
+
+**New endpoint:** `PATCH /it-admin/users/{user}/designations` (ItAdminController::updateDesignations) — IT admin only; validates against User::DESIGNATIONS; audit-logged. Bug fixed: 'required' → 'present' to allow clearing to `[]`.
+
+**New endpoint:** `GET /grievances/escalation-staff` (GrievanceController::escalationStaff) — QA admin only; returns active users with compliance_officer/medical_director/program_director designations in same tenant. Static route declared before /{grievance} (critical ordering).
+
+**GrievanceService wired to designations:**
+- `open()`: looks up compliance_officer designation holder; includes name in urgent alert message + `compliance_officer_id` in metadata
+- `checkOverdue()`: same compliance_officer lookup; adds officer name to both urgent_overdue and standard_overdue alert messages + metadata
+- `createEscalationAlert()` (new private): uses named `escalated_to_user_id` if provided (named reviewer satisfies 42 CFR §460.120 CMS survey requirement); falls back to active compliance_officer; falls back to alert without named person
+
+**GrievanceController::escalate()** validates `escalated_to_user_id` for tenant isolation (422 if cross-tenant/inactive); passes to service; returns grievance with `escalatedTo` eager-loaded.
+
+**ItAdmin/Users.tsx** rewritten: ShieldCheckIcon + ChevronDown/Up icons, designation badge chips per user row, per-row expandable checkbox panel (dark: `dark:bg-indigo-950/20`, indigo badges `dark:bg-indigo-900/50 dark:text-indigo-300`), optimistic UI toggle with revert on failure, `designationLabels` prop from server.
+
+**Grievances/Show.tsx** updated: `EscalationStaff` interface, useEffect loads escalation staff when QA+open/under_review status, optional "Assign to" select in escalation form, "Assigned: [name]" ShieldCheckIcon badge in escalation display section.
+
+**Test file:** `tests/Feature/UserDesignationTest.php` — 14 tests covering full CRUD, model scopes, endpoint access control, cross-tenant isolation, escalation FK storage, alert creation, and IT Admin users page prop.
+
+**Result:** 1232 tests, 0 failures. Build clean. Migrations 80–81 confirmed.
 
 ### 2026-03-31 — W4-1 Complete — Grievance & Consent Module (BLOCKER-02)
 

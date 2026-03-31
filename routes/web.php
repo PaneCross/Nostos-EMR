@@ -513,12 +513,14 @@ Route::middleware('auth')->group(function () {
     // ─── W4-1: Grievance Management (42 CFR §460.120–§460.121) ──────────────────
     // Grievance workflow: open → under_review → resolved/escalated/withdrawn.
     // Standard resolution: 30 days. Urgent: 72 hours.
-    // NOTE: GET /grievances/overdue MUST be declared before GET /grievances/{id}
-    // to prevent "overdue" matching Eloquent route model binding as an ID.
+    // NOTE: Static string routes (/overdue, /escalation-staff) MUST be declared
+    // before /{grievance} to prevent matching as Eloquent route model binding IDs.
     Route::prefix('grievances')->group(function () {
         Route::get('/',                              [GrievanceController::class, 'index'])->name('grievances.index');
         Route::post('/',                             [GrievanceController::class, 'store'])->name('grievances.store');
         Route::get('/overdue',                       [GrievanceController::class, 'overdue'])->name('grievances.overdue');
+        // Returns designation holders for the escalate-to dropdown (QA admin only)
+        Route::get('/escalation-staff',              [GrievanceController::class, 'escalationStaff'])->name('grievances.escalation-staff');
         Route::get('/{grievance}',                   [GrievanceController::class, 'show'])->name('grievances.show');
         Route::put('/{grievance}',                   [GrievanceController::class, 'update'])->name('grievances.update');
         Route::post('/{grievance}/start-review',      [GrievanceController::class, 'startReview'])->name('grievances.start-review');
@@ -726,6 +728,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/users/{user}/deactivate',     [ItAdminController::class, 'deactivateUser'])->name('it-admin.users.deactivate');
         Route::post('/users/{user}/reactivate',     [ItAdminController::class, 'reactivateUser'])->name('it-admin.users.reactivate');
         Route::post('/users/{user}/reset-access',   [ItAdminController::class, 'resetAccess'])->name('it-admin.users.reset-access');
+        // Designation management — assigns accountability roles for targeted alerting
+        Route::patch('/users/{user}/designations',  [ItAdminController::class, 'updateDesignations'])->name('it-admin.users.designations');
         // Audit log viewer
         Route::get('/audit',                      [ItAdminController::class, 'audit'])->name('it-admin.audit');
         Route::get('/audit/log',                  [ItAdminController::class, 'auditLog'])->name('it-admin.audit.log');

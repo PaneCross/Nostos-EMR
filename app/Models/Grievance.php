@@ -84,7 +84,8 @@ class Grievance extends Model
         'filed_by_name', 'filed_by_type', 'filed_at', 'received_by_user_id',
         'category', 'description',
         'status', 'priority', 'assigned_to_user_id',
-        'investigation_notes', 'resolution_text', 'resolution_date', 'escalation_reason',
+        'investigation_notes', 'resolution_text', 'resolution_date',
+        'escalation_reason', 'escalated_to_user_id',
         'participant_notified_at', 'notification_method',
         'cms_reportable', 'cms_reported_at',
     ];
@@ -124,6 +125,17 @@ class Grievance extends Model
     public function assignedTo(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to_user_id');
+    }
+
+    /**
+     * The specific staff member this escalation was directed to.
+     * Populated when a QA admin escalates and selects a named designation holder
+     * (e.g. Compliance Officer, Medical Director).
+     * CMS surveys ask for a named reviewer on escalated grievances.
+     */
+    public function escalatedTo(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'escalated_to_user_id');
     }
 
     // ── Scopes ────────────────────────────────────────────────────────────────
@@ -233,6 +245,11 @@ class Grievance extends Model
             'resolution_date'          => $this->resolution_date?->toDateString(),
             'is_urgent_overdue'        => $this->isUrgentOverdue(),
             'is_standard_overdue'      => $this->isStandardOverdue(),
+            // Named escalation assignee (null if escalated to a department only)
+            'escalated_to_user_id'     => $this->escalated_to_user_id,
+            'escalated_to_name'        => $this->escalatedTo
+                ? $this->escalatedTo->first_name . ' ' . $this->escalatedTo->last_name
+                : null,
             'created_at'               => $this->created_at?->toDateTimeString(),
         ];
     }

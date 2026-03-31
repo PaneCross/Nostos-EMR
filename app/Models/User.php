@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -14,6 +15,40 @@ class User extends Authenticatable
     use HasFactory, Notifiable;
 
     protected $table = 'shared_users';
+
+    // ── Designations ──────────────────────────────────────────────────────────
+
+    /**
+     * Sub-role designations — identify specific functional accountability roles
+     * within a department. Used for targeted alerting and workflow routing.
+     *
+     * Unlike departments (which control access), designations control WHO gets
+     * notified for specific events. A user may hold multiple designations.
+     * Designations are assigned by IT Admin.
+     *
+     * Example use cases:
+     *   medical_director    → notified on SDR critical escalations, clinical grievances
+     *   compliance_officer  → notified on grievance escalations, CMS incidents
+     *   nursing_director    → notified on nursing-related QA alerts
+     *   pharmacy_director   → notified on critical drug interaction alerts
+     */
+    public const DESIGNATIONS = [
+        'medical_director',
+        'program_director',
+        'compliance_officer',
+        'nursing_director',
+        'pharmacy_director',
+        'social_work_supervisor',
+    ];
+
+    public const DESIGNATION_LABELS = [
+        'medical_director'       => 'Medical Director',
+        'program_director'       => 'Program Director',
+        'compliance_officer'     => 'Compliance Officer',
+        'nursing_director'       => 'Nursing Director',
+        'pharmacy_director'      => 'Pharmacy Director',
+        'social_work_supervisor' => 'Social Work Supervisor',
+    ];
 
     protected $fillable = [
         'tenant_id',
@@ -31,6 +66,7 @@ class User extends Authenticatable
         'provisioned_at',
         'notification_preferences',
         'theme_preference',
+        'designations',
     ];
 
     protected $hidden = [
@@ -45,6 +81,7 @@ class User extends Authenticatable
         'failed_login_attempts'      => 'integer',
         'notification_preferences'   => 'array',
         'theme_preference'           => 'string',
+        'designations'               => 'array',
     ];
 
     // Passwordless — no password column needed
@@ -123,6 +160,37 @@ class User extends Authenticatable
     public function isDeptSuperAdmin(): bool
     {
         return $this->department === 'super_admin';
+    }
+
+    // ── Designation helpers ───────────────────────────────────────────────────
+
+    /**
+     * Return true if this user holds the given designation key.
+     *
+     * @param  string  $designation  e.g. 'compliance_officer', 'medical_director'
+     */
+    public function hasDesignation(string $designation): bool
+    {
+        return in_array($designation, $this->designations ?? [], true);
+    }
+
+    /**
+     * Scope: users who hold a specific designation within a query.
+     *
+     * Usage:
+     *   User::where('tenant_id', $id)->withDesignation('compliance_officer')->first()
+     */
+    public function scopeWithDesignation(Builder $query, string $designation): Builder
+    {
+        return $query->whereJsonContains('designations', $designation);
+    }
+
+    /**
+     * Return the human-readable label for a designation key, or the key itself.
+     */
+    public static function designationLabel(string $designation): string
+    {
+        return self::DESIGNATION_LABELS[$designation] ?? $designation;
     }
 
     public function isLocked(): bool

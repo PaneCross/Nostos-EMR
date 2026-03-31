@@ -30,6 +30,7 @@ use App\Http\Requests\UpdateGrievanceRequest;
 use App\Models\AuditLog;
 use App\Models\Grievance;
 use App\Models\Participant;
+use App\Models\User;
 use App\Services\GrievanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -114,6 +115,43 @@ class GrievanceController extends Controller
     }
 
     /**
+     * JSON endpoint returning users with escalation-relevant designations.
+     * Used to populate the "Escalate To" dropdown in Grievances/Show.tsx.
+     *
+     * Returns users holding 'compliance_officer' or 'medical_director' designations
+     * within the current tenant. QA admin role required.
+     *
+     * GET /grievances/escalation-staff
+     */
+    public function escalationStaff(): JsonResponse
+    {
+        $this->authorizeQaAdmin();
+        $tenantId = Auth::user()->tenant_id;
+
+        $staff = User::where('tenant_id', $tenantId)
+            ->where('is_active', true)
+            ->where(function ($query) {
+                $query->whereJsonContains('designations', 'compliance_officer')
+                      ->orWhereJsonContains('designations', 'medical_director')
+                      ->orWhereJsonContains('designations', 'program_director');
+            })
+            ->orderBy('last_name')
+            ->get(['id', 'first_name', 'last_name', 'department', 'designations']);
+
+        return response()->json([
+            'staff' => $staff->map(fn($u) => [
+                'id'           => $u->id,
+                'name'         => "{$u->first_name} {$u->last_name}",
+                'department'   => $u->department,
+                'designations' => $u->designations ?? [],
+                'label'        => collect($u->designations ?? [])
+                    ->map(fn($d) => User::DESIGNATION_LABELS[$d] ?? $d)
+                    ->join(', '),
+            ])->values(),
+        ]);
+    }
+
+    /**
      * JSON endpoint for QA dashboard "overdue grievances" feed.
      * Requires QA admin role.
      */
@@ -145,6 +183,7 @@ class GrievanceController extends Controller
             'participant:id,mrn,first_name,last_name',
             'receivedBy:id,first_name,last_name',
             'assignedTo:id,first_name,last_name',
+            'escalatedTo:id,first_name,last_name,department,designations',
         ]);
 
         AuditLog::record(
@@ -231,19 +270,35 @@ class GrievanceController extends Controller
 
     /**
      * Escalate a grievance (unresolved, requires escalation_reason).
+     * Optionally targets a specific staff member via escalated_to_user_id.
+     * That user must be active and belong to the same tenant.
      */
     public function escalate(EscalateGrievanceRequest $request, Grievance $grievance): JsonResponse
     {
         $this->authorizeTenant($grievance);
         $this->authorizeQaAdmin();
 
+        $data = $request->validated();
+
+        // Validate escalated_to_user_id for tenant isolation — cannot target cross-tenant user
+        if (!empty($data['escalated_to_user_id'])) {
+            $targetUser = User::where('id', $data['escalated_to_user_id'])
+                ->where('tenant_id', Auth::user()->tenant_id)
+                ->where('is_active', true)
+                ->first();
+
+            if (!$targetUser) {
+                return response()->json(['message' => 'Selected user not found or not in your organization.'], 422);
+            }
+        }
+
         try {
-            $this->service->updateStatus($grievance, 'escalated', $request->validated(), Auth::user());
+            $this->service->updateStatus($grievance, 'escalated', $data, Auth::user());
         } catch (LogicException $e) {
             return response()->json(['message' => $e->getMessage()], 409);
         }
 
-        return response()->json(['grievance' => $grievance->fresh()->toApiArray()]);
+        return response()->json(['grievance' => $grievance->fresh()->load('escalatedTo')->toApiArray()]);
     }
 
     /**

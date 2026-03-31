@@ -5,7 +5,7 @@
 // Data: pre-loaded via Inertia (GrievanceController::show)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import AppShell from '@/Layouts/AppShell';
@@ -15,6 +15,7 @@ import {
     CheckCircleIcon,
     BellIcon,
     ArrowLeftIcon,
+    ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -39,10 +40,21 @@ interface GrievanceDetail {
     resolution_text:         string | null;
     resolution_date:         string | null;
     escalation_reason:       string | null;
+    escalated_to_user_id:    number | null;
+    escalated_to_name:       string | null;
     participant_notified_at: string | null;
     notification_method:     string | null;
     cms_reportable:          boolean;
     is_urgent_overdue:       boolean;
+}
+
+/** Staff member available for escalation assignment (has a relevant designation) */
+interface EscalationStaff {
+    id:           number;
+    name:         string;
+    department:   string;
+    designations: string[];
+    label:        string; // human-readable designation list
 }
 
 interface GrievancesShowProps extends PageProps {
@@ -75,11 +87,24 @@ function StatusBadge({ status, label }: { status: string; label: string }) {
 export default function GrievancesShow() {
     const { grievance, isQaAdmin, notificationMethods } = usePage<GrievancesShowProps>().props;
 
-    const [resolution, setResolution]     = useState({ resolution_text: '', resolution_date: '' });
-    const [escalation, setEscalation]     = useState({ escalation_reason: '' });
-    const [notifyMethod, setNotifyMethod] = useState('written');
-    const [error, setError]               = useState<string | null>(null);
-    const [loading, setLoading]           = useState(false);
+    const [resolution, setResolution]         = useState({ resolution_text: '', resolution_date: '' });
+    const [escalation, setEscalation]         = useState({ escalation_reason: '', escalated_to_user_id: '' });
+    const [notifyMethod, setNotifyMethod]     = useState('written');
+    const [error, setError]                   = useState<string | null>(null);
+    const [loading, setLoading]               = useState(false);
+    const [escalationStaff, setEscalationStaff] = useState<EscalationStaff[]>([]);
+    const [staffLoading, setStaffLoading]     = useState(false);
+
+    // Load escalation staff when the escalate panel would be shown (QA admin, not closed)
+    useEffect(() => {
+        if (!isQaAdmin || isClosed) return;
+        if (!['open', 'under_review'].includes(grievance.status)) return;
+        setStaffLoading(true);
+        axios.get('/grievances/escalation-staff')
+            .then(res => setEscalationStaff(res.data.staff ?? []))
+            .catch(() => {}) // non-blocking — escalation still works without staff list
+            .finally(() => setStaffLoading(false));
+    }, [isQaAdmin, isClosed, grievance.status]);
 
     const isClosed = ['resolved', 'withdrawn'].includes(grievance.status);
 
@@ -181,10 +206,19 @@ export default function GrievancesShow() {
                         </div>
                     )}
 
-                    {/* Escalation reason */}
+                    {/* Escalation reason + named assignee */}
                     {grievance.escalation_reason && (
                         <div className="bg-red-50 dark:bg-red-950/20 rounded-xl border border-red-200 dark:border-red-800 p-5">
-                            <h3 className="text-sm font-semibold text-red-800 dark:text-red-200 mb-2">Escalation Reason</h3>
+                            <div className="flex items-start justify-between mb-2">
+                                <h3 className="text-sm font-semibold text-red-800 dark:text-red-200">Escalation Reason</h3>
+                                {/* Named escalation assignee badge — satisfies CMS named-reviewer requirement */}
+                                {grievance.escalated_to_name && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs rounded font-medium">
+                                        <ShieldCheckIcon className="w-3 h-3" />
+                                        Assigned: {grievance.escalated_to_name}
+                                    </span>
+                                )}
+                            </div>
                             <p className="text-sm text-red-700 dark:text-red-300 whitespace-pre-wrap">{grievance.escalation_reason}</p>
                         </div>
                     )}
@@ -240,13 +274,43 @@ export default function GrievancesShow() {
                                 <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">Escalate</h3>
                                 <textarea
                                     value={escalation.escalation_reason}
-                                    onChange={e => setEscalation({ escalation_reason: e.target.value })}
-                                    placeholder="Reason for escalation (required)…"
+                                    onChange={e => setEscalation(s => ({ ...s, escalation_reason: e.target.value }))}
+                                    placeholder="Reason for escalation (required)..."
                                     rows={2}
                                     className="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 mb-2 resize-none"
                                 />
+                                {/* Staff dropdown: designees available for direct assignment */}
+                                <div className="mb-2">
+                                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
+                                        Assign to (optional)
+                                    </label>
+                                    {staffLoading ? (
+                                        <p className="text-xs text-gray-400 dark:text-slate-500">Loading staff...</p>
+                                    ) : escalationStaff.length > 0 ? (
+                                        <select
+                                            value={escalation.escalated_to_user_id}
+                                            onChange={e => setEscalation(s => ({ ...s, escalated_to_user_id: e.target.value }))}
+                                            className="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700"
+                                        >
+                                            <option value="">-- No specific assignee --</option>
+                                            {escalationStaff.map(s => (
+                                                <option key={s.id} value={s.id}>
+                                                    {s.name}{s.label ? ` (${s.label})` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <p className="text-xs text-gray-400 dark:text-slate-500 italic">
+                                            No designated compliance officers or medical directors found.
+                                            Assign designations in IT Admin to enable this.
+                                        </p>
+                                    )}
+                                </div>
                                 <button
-                                    onClick={() => action('escalate', escalation)}
+                                    onClick={() => action('escalate', {
+                                        escalation_reason:    escalation.escalation_reason,
+                                        escalated_to_user_id: escalation.escalated_to_user_id || null,
+                                    })}
                                     disabled={loading || !escalation.escalation_reason}
                                     className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg disabled:opacity-50"
                                 >

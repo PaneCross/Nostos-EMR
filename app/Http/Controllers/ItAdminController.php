@@ -154,10 +154,11 @@ class ItAdminController extends Controller
         $users = User::where('tenant_id', $tenantId)
             ->orderBy('last_name')
             ->orderBy('first_name')
-            ->get(['id', 'first_name', 'last_name', 'email', 'department', 'is_active', 'created_at']);
+            ->get(['id', 'first_name', 'last_name', 'email', 'department', 'is_active', 'created_at', 'designations']);
 
         return Inertia::render('ItAdmin/Users', [
-            'users' => $users,
+            'users'            => $users,
+            'designationLabels' => User::DESIGNATION_LABELS,
         ]);
     }
 
@@ -370,6 +371,41 @@ class ItAdminController extends Controller
         }
 
         return response($csv, 200, $headers);
+    }
+
+    /**
+     * Update the designations array for a user.
+     * Designations identify functional accountability roles used for targeted alerting.
+     * Only IT Admin may assign designations — they do not affect RBAC access.
+     *
+     * PATCH /it-admin/users/{user}/designations
+     */
+    public function updateDesignations(Request $request, User $user): JsonResponse
+    {
+        $this->requireItAdmin($request);
+        $tenantId = $request->user()->tenant_id;
+
+        abort_if($user->tenant_id !== $tenantId, 403, 'Access denied');
+
+        $validated = $request->validate([
+            'designations'   => ['present', 'array'],  // 'present' allows empty array (clear all); 'required' would reject []
+            'designations.*' => ['string', 'in:' . implode(',', User::DESIGNATIONS)],
+        ]);
+
+        $user->update(['designations' => array_values(array_unique($validated['designations']))]);
+
+        AuditLog::record(
+            action:       'it_admin.user.designations_updated',
+            resourceType: 'User',
+            resourceId:   $user->id,
+            tenantId:     $tenantId,
+            userId:       $request->user()->id,
+            newValues:    ['designations' => $user->designations],
+        );
+
+        return response()->json([
+            'user' => $user->only('id', 'first_name', 'last_name', 'department', 'designations'),
+        ]);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

@@ -85,18 +85,31 @@ class GrievanceService
         );
 
         // Urgent grievances require immediate notification to QA + IT Admin
-        // per CMS §460.120(c) — 72-hour resolution clock starts now
+        // per CMS §460.120(c) — 72-hour resolution clock starts now.
+        // If a compliance_officer designation holder exists, name them in the alert.
         if ($grievance->priority === 'urgent') {
+            $complianceOfficer = User::where('tenant_id', $participant->tenant_id)
+                ->withDesignation('compliance_officer')
+                ->where('is_active', true)
+                ->first();
+
+            $officerNote = $complianceOfficer
+                ? " Compliance Officer: {$complianceOfficer->first_name} {$complianceOfficer->last_name}."
+                : '';
+
             Alert::create([
                 'tenant_id'          => $participant->tenant_id,
                 'alert_type'         => 'grievance_urgent',
                 'title'              => "Urgent Grievance: {$grievance->categoryLabel()}",
                 'message'            => "Urgent grievance filed for {$participant->first_name} {$participant->last_name}. "
-                    . "Must be resolved within 72 hours per CMS §460.120(c).",
+                    . "Must be resolved within 72 hours per CMS §460.120(c).{$officerNote}",
                 'severity'           => 'critical',
                 'source_module'      => 'grievances',
                 'target_departments' => json_encode(['qa_compliance', 'it_admin']),
-                'metadata'           => json_encode(['grievance_id' => $grievance->id]),
+                'metadata'           => json_encode([
+                    'grievance_id'          => $grievance->id,
+                    'compliance_officer_id' => $complianceOfficer?->id,
+                ]),
             ]);
         }
 
@@ -131,10 +144,11 @@ class GrievanceService
         }
 
         $updates = array_merge(['status' => $newStatus], array_filter([
-            'resolution_text'    => $data['resolution_text'] ?? null,
-            'resolution_date'    => $data['resolution_date'] ?? null,
-            'escalation_reason'  => $data['escalation_reason'] ?? null,
-            'investigation_notes'=> $data['investigation_notes'] ?? null,
+            'resolution_text'       => $data['resolution_text'] ?? null,
+            'resolution_date'       => $data['resolution_date'] ?? null,
+            'escalation_reason'     => $data['escalation_reason'] ?? null,
+            'escalated_to_user_id'  => $data['escalated_to_user_id'] ?? null,
+            'investigation_notes'   => $data['investigation_notes'] ?? null,
         ], fn($v) => !is_null($v)));
 
         $grievance->update($updates);
@@ -147,6 +161,58 @@ class GrievanceService
             resourceId:   $grievance->id,
             description:  "Grievance status changed from '{$grievance->getOriginal('status')}' to '{$newStatus}'.",
         );
+
+        // When escalating: create a targeted alert to the named assignee (if set),
+        // plus a fallback to the compliance_officer designation and qa_compliance dept.
+        // CMS surveys require a named reviewer in the escalation chain.
+        if ($newStatus === 'escalated') {
+            $this->createEscalationAlert($grievance, $data, $actor);
+        }
+    }
+
+    /**
+     * Create a targeted alert when a grievance is escalated.
+     *
+     * If a specific escalated_to_user_id was provided, the alert message names
+     * that person and targets their department. A compliance_officer designation
+     * holder is also looked up as a fallback reference.
+     *
+     * CMS surveys ask "who reviewed this escalated grievance?" — this satisfies
+     * the named accountability requirement per 42 CFR §460.120.
+     */
+    private function createEscalationAlert(Grievance $grievance, array $data, User $actor): void
+    {
+        $assignedUser = null;
+        if (!empty($data['escalated_to_user_id'])) {
+            $assignedUser = User::find($data['escalated_to_user_id']);
+        }
+
+        // Fallback: find the compliance officer if no specific user was named
+        if (!$assignedUser) {
+            $assignedUser = User::where('tenant_id', $grievance->tenant_id)
+                ->withDesignation('compliance_officer')
+                ->where('is_active', true)
+                ->first();
+        }
+
+        $assigneeLine = $assignedUser
+            ? " Assigned to: {$assignedUser->first_name} {$assignedUser->last_name}."
+            : '';
+
+        Alert::create([
+            'tenant_id'          => $grievance->tenant_id,
+            'alert_type'         => 'grievance_escalated',
+            'title'              => "Grievance #{$grievance->id} Escalated",
+            'message'            => "Grievance #{$grievance->id} has been escalated.{$assigneeLine} "
+                . "Reason: {$grievance->escalation_reason}",
+            'severity'           => 'critical',
+            'source_module'      => 'grievances',
+            'target_departments' => json_encode(['qa_compliance', 'it_admin']),
+            'metadata'           => json_encode([
+                'grievance_id'         => $grievance->id,
+                'escalated_to_user_id' => $assignedUser?->id,
+            ]),
+        ]);
     }
 
     /**
@@ -185,6 +251,16 @@ class GrievanceService
         $urgentCount   = 0;
         $standardCount = 0;
 
+        // Look up compliance officer once per tenant for the overdue alert messages
+        $complianceOfficer = User::where('tenant_id', $tenantId)
+            ->withDesignation('compliance_officer')
+            ->where('is_active', true)
+            ->first();
+
+        $officerNote = $complianceOfficer
+            ? " Compliance Officer on file: {$complianceOfficer->first_name} {$complianceOfficer->last_name}."
+            : '';
+
         // ── Urgent overdue (>72h) → critical alert ─────────────────────────
         $urgentOverdue = Grievance::forTenant($tenantId)->urgentOverdue()->get();
         foreach ($urgentOverdue as $grievance) {
@@ -195,11 +271,14 @@ class GrievanceService
                 'alert_type'         => 'grievance_urgent_overdue',
                 'title'              => 'Urgent Grievance Overdue',
                 'message'            => "Urgent grievance #{$grievance->id} for participant #{$grievance->participant_id} "
-                    . "has been open for {$hoursOverdue}h beyond the 72-hour CMS resolution requirement.",
+                    . "has been open for {$hoursOverdue}h beyond the 72-hour CMS resolution requirement.{$officerNote}",
                 'severity'           => 'critical',
                 'source_module'      => 'grievances',
                 'target_departments' => json_encode(['qa_compliance', 'it_admin']),
-                'metadata'           => json_encode(['grievance_id' => $grievance->id]),
+                'metadata'           => json_encode([
+                    'grievance_id'          => $grievance->id,
+                    'compliance_officer_id' => $complianceOfficer?->id,
+                ]),
             ]);
 
             $urgentCount++;
@@ -218,11 +297,14 @@ class GrievanceService
                 'alert_type'         => 'grievance_standard_overdue',
                 'title'              => 'Standard Grievance Overdue',
                 'message'            => "Grievance #{$grievance->id} for participant #{$grievance->participant_id} "
-                    . "has been open for {$daysOverdue} days beyond the 30-day resolution requirement.",
+                    . "has been open for {$daysOverdue} days beyond the 30-day resolution requirement.{$officerNote}",
                 'severity'           => 'warning',
                 'source_module'      => 'grievances',
                 'target_departments' => json_encode(['qa_compliance', 'it_admin']),
-                'metadata'           => json_encode(['grievance_id' => $grievance->id]),
+                'metadata'           => json_encode([
+                    'grievance_id'          => $grievance->id,
+                    'compliance_officer_id' => $complianceOfficer?->id,
+                ]),
             ]);
 
             $standardCount++;
