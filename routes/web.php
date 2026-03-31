@@ -18,6 +18,7 @@ use App\Http\Controllers\ImmunizationController;
 use App\Http\Controllers\ProcedureController;
 use App\Http\Controllers\SocialDeterminantController;
 use App\Http\Controllers\DayCenterController;
+use App\Http\Controllers\ClinicalOverviewController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\SystemSettingsController;
 use App\Http\Controllers\TransferController;
@@ -433,8 +434,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/vitals',      [ClinicalDashboardController::class, 'vitals'])->name('clinical.vitals');
         Route::get('/assessments', [ClinicalDashboardController::class, 'assessments'])->name('clinical.assessments');
         Route::get('/care-plans',  [ClinicalDashboardController::class, 'carePlans'])->name('clinical.care-plans');
-        Route::get('/medications', fn () => app(ComingSoonController::class)->show('Medications Overview', null, 'planned', 'A cross-participant medication list, prescribing trends, and interaction summary across the enrolled PACE population.'))->name('clinical.medications'); // Phase 5C: per-participant meds live at /participants/{id} tabs
-        Route::get('/orders',      fn () => app(ComingSoonController::class)->show('Clinical Orders',      null, 'planned', 'Structured physician orders, order sets, and order tracking for PACE participants.'))->name('clinical.orders');
+        Route::get('/medications', [ClinicalOverviewController::class, 'medications'])->name('clinical.medications');
+        Route::get('/orders',      [ClinicalOverviewController::class, 'orders'])->name('clinical.orders');
     });
 
     // ─── Transport Module ─────────────────────────────────────────────────────
@@ -612,6 +613,7 @@ Route::middleware('auth')->group(function () {
     // W3-2: Reports landing page (replaces ComingSoon stub)
     Route::get('/reports',                        [ReportsController::class, 'index'])->name('reports.index');
     Route::get('/reports/data',                   [ReportsController::class, 'data'])->name('reports.data');
+    Route::get('/reports/export',                 [ReportsController::class, 'export'])->name('reports.export');
     Route::get('/reports/site-transfers',         [ReportsController::class, 'siteTransfers'])->name('reports.site-transfers');
     Route::get('/reports/site-transfers/export',  [ReportsController::class, 'siteTransfersExport'])->name('reports.site-transfers.export');
     Route::get('/audit',   fn () => redirect('/it-admin/audit'))->name('audit.index'); // Live audit trail is at /it-admin/audit

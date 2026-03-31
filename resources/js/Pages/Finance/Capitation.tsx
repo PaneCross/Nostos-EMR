@@ -145,7 +145,7 @@ export default function Capitation({ auth, kpis, records, currentMonthYear }: Pr
                             ) : records.map(rec => (
                                 <tr key={rec.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
                                     <td className="px-3 py-2 font-medium text-gray-700 dark:text-slate-300">{rec.month_year}</td>
-                                    <td className="px-3 py-2">
+                                    <td className="px-3 py-2 text-gray-700 dark:text-slate-300">
                                         {rec.participant
                                             ? `${rec.participant.first_name} ${rec.participant.last_name}`
                                             : '-'}

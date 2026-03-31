@@ -8,11 +8,16 @@
 // Routes:
 //   GET /reports             — Inertia page (tabbed report catalog)
 //   GET /reports/data        — JSON: summary counts for KPI row
+//   GET /reports/export      — CSV download (?type=census|disenrollments|sdr_compliance|care_plan_status)
+//   GET /reports/site-transfers        — JSON: participants with completed site transfers
+//   GET /reports/site-transfers/export — CSV download of site transfer report
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
+use App\Models\CarePlan;
+use App\Models\CarePlanGoal;
 use App\Models\Participant;
 use App\Models\ParticipantSiteTransfer;
 use App\Models\Incident;
@@ -97,7 +102,7 @@ class ReportsController extends Controller
                 'description' => 'Monthly participant census by enrollment status, site, and age group.',
                 'category'    => 'Enrollment',
                 'depts'       => ['enrollment', 'finance', 'executive', 'it_admin', 'qa_compliance'],
-                'export_url'  => null, // future: dedicated CSV endpoint
+                'export_url'  => '/reports/export?type=census',
             ],
             [
                 'id'          => 'disenrollments',
@@ -105,7 +110,7 @@ class ReportsController extends Controller
                 'description' => 'Disenrollment reasons and trends over the selected period.',
                 'category'    => 'Enrollment',
                 'depts'       => ['enrollment', 'finance', 'executive', 'it_admin', 'qa_compliance'],
-                'export_url'  => null,
+                'export_url'  => '/reports/export?type=disenrollments',
             ],
             // ── Quality & Compliance ──────────────────────────────────────────
             [
@@ -164,7 +169,7 @@ class ReportsController extends Controller
                 'description' => '72-hour SDR compliance rate by department and submission timeliness.',
                 'category'    => 'Clinical',
                 'depts'       => ['idt', 'qa_compliance', 'it_admin', 'executive'],
-                'export_url'  => null,
+                'export_url'  => '/reports/export?type=sdr_compliance',
             ],
             [
                 'id'          => 'care_plan_status',
@@ -172,7 +177,7 @@ class ReportsController extends Controller
                 'description' => 'Care plan review schedule — upcoming reviews, overdue, and approval status.',
                 'category'    => 'Clinical',
                 'depts'       => ['idt', 'primary_care', 'qa_compliance', 'it_admin'],
-                'export_url'  => null,
+                'export_url'  => '/reports/export?type=care_plan_status',
             ],
             // ── Audit & Administration ───────────────────────────────────────
             [
@@ -191,6 +196,191 @@ class ReportsController extends Controller
         }
 
         return array_values($all);
+    }
+
+    // ─── W3-8: General CSV exports ────────────────────────────────────────────
+
+    /**
+     * GET /reports/export?type=census|disenrollments|sdr_compliance|care_plan_status
+     * CSV download for the four enrollment/clinical reports that previously had no export.
+     */
+    public function export(Request $request): StreamedResponse
+    {
+        $user = $request->user();
+        $tid  = $user->tenant_id;
+        $type = $request->input('type', '');
+
+        $allowedExportDepts = [
+            'finance', 'qa_compliance', 'it_admin', 'idt', 'enrollment', 'executive', 'super_admin',
+        ];
+        if (!$user->isSuperAdmin() && !in_array($user->department, $allowedExportDepts, true)) {
+            abort(403);
+        }
+
+        return match ($type) {
+            'census'           => $this->exportCensus($tid),
+            'disenrollments'   => $this->exportDisenrollments($tid),
+            'sdr_compliance'   => $this->exportSdrCompliance($tid),
+            'care_plan_status' => $this->exportCarePlanStatus($tid),
+            default            => abort(400, 'Unknown report type.'),
+        };
+    }
+
+    /** CSV: all enrolled/disenrolled participants with demographics + status. */
+    private function exportCensus(int $tid): StreamedResponse
+    {
+        $participants = Participant::where('tenant_id', $tid)
+            ->with('site:id,name')
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get();
+
+        return response()->stream(function () use ($participants) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, [
+                'Last Name', 'First Name', 'MRN', 'DOB', 'Enrollment Status',
+                'Site', 'Enrollment Date', 'Disenrollment Date', 'Disenrollment Reason',
+            ]);
+            foreach ($participants as $p) {
+                fputcsv($out, [
+                    $p->last_name,
+                    $p->first_name,
+                    $p->mrn,
+                    $p->dob?->format('Y-m-d') ?? '-',
+                    $p->enrollment_status,
+                    $p->site?->name ?? '-',
+                    $p->enrollment_date?->format('Y-m-d') ?? '-',
+                    $p->disenrollment_date?->format('Y-m-d') ?? '-',
+                    $p->disenrollment_reason ?? '-',
+                ]);
+            }
+            fclose($out);
+        }, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="census-' . now()->format('Y-m-d') . '.csv"',
+        ]);
+    }
+
+    /** CSV: all disenrolled participants with reason and timeline. */
+    private function exportDisenrollments(int $tid): StreamedResponse
+    {
+        $participants = Participant::where('tenant_id', $tid)
+            ->whereIn('enrollment_status', ['disenrolled', 'deceased', 'withdrawn'])
+            ->whereNotNull('disenrollment_date')
+            ->with('site:id,name')
+            ->orderByDesc('disenrollment_date')
+            ->get();
+
+        return response()->stream(function () use ($participants) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, [
+                'Last Name', 'First Name', 'MRN', 'DOB',
+                'Site', 'Enrollment Date', 'Disenrollment Date', 'Reason',
+            ]);
+            foreach ($participants as $p) {
+                fputcsv($out, [
+                    $p->last_name,
+                    $p->first_name,
+                    $p->mrn,
+                    $p->dob?->format('Y-m-d') ?? '-',
+                    $p->site?->name ?? '-',
+                    $p->enrollment_date?->format('Y-m-d') ?? '-',
+                    $p->disenrollment_date?->format('Y-m-d') ?? '-',
+                    $p->disenrollment_reason ?? '-',
+                ]);
+            }
+            fclose($out);
+        }, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="disenrollments-' . now()->format('Y-m-d') . '.csv"',
+        ]);
+    }
+
+    /** CSV: all SDRs with department, submission time, due time, and 72h compliance flag. */
+    private function exportSdrCompliance(int $tid): StreamedResponse
+    {
+        $sdrs = Sdr::where('tenant_id', $tid)
+            ->with([
+                'participant:id,first_name,last_name,mrn',
+                'requestingUser:id,first_name,last_name',
+            ])
+            ->orderByDesc('submitted_at')
+            ->get();
+
+        return response()->stream(function () use ($sdrs) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, [
+                'Participant', 'MRN', 'Request Type', 'Department',
+                'Priority', 'Status', 'Submitted At', 'Due At',
+                '72h Compliant', 'Requested By',
+            ]);
+            foreach ($sdrs as $sdr) {
+                $compliant = $sdr->submitted_at && $sdr->due_at
+                    ? ($sdr->submitted_at->lte($sdr->due_at) ? 'Yes' : 'No')
+                    : '-';
+                fputcsv($out, [
+                    $sdr->participant
+                        ? $sdr->participant->first_name . ' ' . $sdr->participant->last_name
+                        : '-',
+                    $sdr->participant?->mrn ?? '-',
+                    $sdr->request_type ?? '-',
+                    $sdr->assigned_department ?? '-',
+                    $sdr->priority ?? '-',
+                    $sdr->status,
+                    $sdr->submitted_at?->format('Y-m-d H:i') ?? '-',
+                    $sdr->due_at?->format('Y-m-d H:i') ?? '-',
+                    $compliant,
+                    $sdr->requestingUser
+                        ? $sdr->requestingUser->first_name . ' ' . $sdr->requestingUser->last_name
+                        : 'System',
+                ]);
+            }
+            fclose($out);
+        }, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="sdr-compliance-' . now()->format('Y-m-d') . '.csv"',
+        ]);
+    }
+
+    /** CSV: all active care plans with review schedule, status, and days until/since review. */
+    private function exportCarePlanStatus(int $tid): StreamedResponse
+    {
+        $plans = CarePlan::where('tenant_id', $tid)
+            ->whereIn('status', ['active', 'under_review', 'draft'])
+            ->with('participant:id,first_name,last_name,mrn')
+            ->orderBy('review_due_date')
+            ->get();
+
+        return response()->stream(function () use ($plans) {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, [
+                'Participant', 'MRN', 'Plan Status', 'Version',
+                'Effective Date', 'Review Due Date', 'Days Until Review',
+                'Approved By', 'Approved At',
+            ]);
+            foreach ($plans as $plan) {
+                $daysUntil = $plan->review_due_date
+                    ? (int) now()->diffInDays($plan->review_due_date, false)
+                    : null;
+                fputcsv($out, [
+                    $plan->participant
+                        ? $plan->participant->first_name . ' ' . $plan->participant->last_name
+                        : '-',
+                    $plan->participant?->mrn ?? '-',
+                    $plan->status,
+                    $plan->version ?? '1',
+                    $plan->effective_date?->format('Y-m-d') ?? '-',
+                    $plan->review_due_date?->format('Y-m-d') ?? '-',
+                    $daysUntil !== null ? $daysUntil : '-',
+                    $plan->approved_by_user_id ? 'Yes' : 'No',
+                    $plan->approved_at?->format('Y-m-d') ?? '-',
+                ]);
+            }
+            fclose($out);
+        }, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="care-plan-status-' . now()->format('Y-m-d') . '.csv"',
+        ]);
     }
 
     // ─── W3-6: By PACE Site report ────────────────────────────────────────────
