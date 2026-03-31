@@ -96,6 +96,7 @@ class QaComplianceDashboardController extends Controller
                 'reported_by'     => $i->reportedBy
                     ? $i->reportedBy->first_name . ' ' . $i->reportedBy->last_name
                     : null,
+                'href'            => '/qa/dashboard',
             ]);
 
         return response()->json([
@@ -131,6 +132,9 @@ class QaComplianceDashboardController extends Controller
                 'department'  => $n->department,
                 'note_type'   => $n->note_type,
                 'hours_old'   => abs((int) now()->diffInHours($n->created_at)),
+                'href'        => $n->participant
+                    ? "/participants/{$n->participant->id}?tab=chart"
+                    : '/clinical/notes',
             ]);
 
         // Group unsigned notes by department for QA team follow-up
@@ -148,6 +152,9 @@ class QaComplianceDashboardController extends Controller
                 'assessment_type' => $a->assessment_type,
                 'next_due_date'   => $a->next_due_date?->toDateString(),
                 'days_overdue'    => abs((int) now()->diffInDays($a->next_due_date)),
+                'href'            => $a->participant
+                    ? "/participants/{$a->participant->id}?tab=assessments"
+                    : '/participants',
             ]);
 
         return response()->json([
@@ -180,6 +187,9 @@ class QaComplianceDashboardController extends Controller
                 'status'          => $p->status,
                 'review_due_date' => $p->review_due_date?->toDateString(),
                 'days_overdue'    => abs((int) now()->diffInDays($p->review_due_date)),
+                'href'            => $p->participant
+                    ? "/participants/{$p->participant->id}?tab=careplan"
+                    : '/participants',
             ]);
 
         return response()->json([

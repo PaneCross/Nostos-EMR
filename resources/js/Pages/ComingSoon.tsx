@@ -27,7 +27,7 @@ interface Props {
 export default function ComingSoon({ module_label, phase, mode = 'planned', description }: Props) {
     return (
         <AppShell>
-            <Head title={`${module_label} — Coming Soon`} />
+            <Head title={`${module_label}: Coming Soon`} />
 
             {mode === 'transport' ? (
                 <ComingSoonBanner

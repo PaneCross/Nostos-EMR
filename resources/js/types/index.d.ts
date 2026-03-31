@@ -20,6 +20,7 @@ export interface AuthUser {
     role: 'admin' | 'standard' | 'super_admin';
     is_admin: boolean;
     is_super_admin: boolean;
+    theme_preference: 'light' | 'dark';
     tenant: Tenant | null;
     site: Site | null;
 }

@@ -4,6 +4,10 @@ import typography from '@tailwindcss/typography';
 
 /** @type {import('tailwindcss').Config} */
 export default {
+    // 'class' strategy: dark mode toggled by adding 'dark' class to <html>
+    // Applied by AppShell.tsx via document.documentElement.classList
+    darkMode: 'class',
+
     content: [
         './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
         './storage/framework/views/*.php',

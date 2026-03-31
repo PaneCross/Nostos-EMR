@@ -107,6 +107,7 @@ class ExecutiveDashboardController
                 'site_name'      => $site->name,
                 'enrolled'       => $enrolled,
                 'active_care_plans' => $carePlans,
+                'href'           => '/participants',
             ];
         });
 
@@ -143,6 +144,7 @@ class ExecutiveDashboardController
                 'site_name'         => $r->site_name,
                 'participant_count' => $r->participant_count,
                 'total_capitation'  => round((float) $r->total_capitation, 2),
+                'href'              => '/finance/capitation',
             ]),
         ]);
     }
@@ -174,6 +176,7 @@ class ExecutiveDashboardController
                 'state'     => $site->state,
                 'enrolled'  => $enrolled,
                 'is_active' => $site->id === $activeSiteId,
+                'href'      => '/participants',
             ];
         });
 

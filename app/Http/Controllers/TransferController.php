@@ -16,7 +16,7 @@
 //   - Cancel: enrollment + it_admin + super_admin
 //   - View history: any authenticated dept (read-only preview)
 //
-// Phase 10A
+// Phase 10A — W3-6 adds summary() and verify()
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace App\Http\Controllers;
@@ -27,6 +27,7 @@ use App\Services\TransferService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class TransferController extends Controller
 {
@@ -49,6 +50,26 @@ class TransferController extends Controller
             ->map(fn ($t) => $this->formatTransfer($t));
 
         return response()->json(['transfers' => $transfers]);
+    }
+
+    // ── GET /participants/{participant}/transfers/sites ────────────────────────
+
+    /**
+     * Return all sites in the participant's tenant, excluding their current site.
+     * Used to populate the destination site dropdown in the transfer request modal.
+     */
+    public function sites(Participant $participant): JsonResponse
+    {
+        $this->requireSameTenant($participant);
+
+        $sites = DB::table('shared_sites')
+            ->where('tenant_id', Auth::user()->tenant_id)
+            ->where('id', '!=', $participant->site_id)
+            ->select('id', 'name')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json(['sites' => $sites]);
     }
 
     // ── POST /participants/{participant}/transfers ─────────────────────────────
@@ -137,6 +158,130 @@ class TransferController extends Controller
         $updated = $this->transferService->cancelTransfer($transfer, Auth::user());
 
         return response()->json($this->formatTransfer($updated->load(['fromSite:id,name', 'toSite:id,name'])));
+    }
+
+    // ── GET /participants/{participant}/transfers/summary ─────────────────────
+
+    /**
+     * Returns per-site-period record counts for a participant's care history.
+     * Used to render the data summary panel in the TransfersTab.
+     */
+    public function summary(Participant $participant): JsonResponse
+    {
+        $this->requireSameTenant($participant);
+
+        $completed = ParticipantSiteTransfer::where('participant_id', $participant->id)
+            ->where('status', 'completed')
+            ->with(['fromSite:id,name', 'toSite:id,name'])
+            ->orderBy('effective_date')
+            ->get();
+
+        if ($completed->isEmpty()) {
+            return response()->json(['periods' => []]);
+        }
+
+        // Build site periods: [site_id, site_name, period_start, period_end|null]
+        $periods = [];
+        $enrolledAt = $participant->created_at->toDateString();
+
+        // First period: from enrollment to first transfer's effective_date
+        $firstTransfer = $completed->first();
+        $periods[] = [
+            'site_id'   => $firstTransfer->fromSite?->id,
+            'site_name' => $firstTransfer->fromSite?->name ?? 'Unknown Site',
+            'start'     => $enrolledAt,
+            'end'       => $firstTransfer->effective_date?->toDateString(),
+        ];
+
+        // Middle + last periods
+        foreach ($completed as $i => $t) {
+            $next = $completed->get($i + 1);
+            $periods[] = [
+                'site_id'   => $t->toSite?->id,
+                'site_name' => $t->toSite?->name ?? 'Unknown Site',
+                'start'     => $t->effective_date?->toDateString(),
+                'end'       => $next?->effective_date?->toDateString(),
+            ];
+        }
+
+        // Count clinical notes per period (only table with site_id)
+        foreach ($periods as &$period) {
+            $q = DB::table('emr_clinical_notes')
+                ->where('participant_id', $participant->id)
+                ->whereNull('deleted_at');
+            if ($period['site_id']) {
+                $q->where('site_id', $period['site_id']);
+            }
+            $period['note_count'] = $q->count();
+
+            // Vitals / ADL: time-windowed counts (no site_id on these tables)
+            $startTs = $period['start'];
+            $endTs   = $period['end'];
+
+            $vQuery = DB::table('emr_vitals')
+                ->where('participant_id', $participant->id)
+                ->where('recorded_at', '>=', $startTs);
+            if ($endTs) {
+                $vQuery->where('recorded_at', '<', $endTs);
+            }
+            $period['vital_count'] = $vQuery->count();
+
+            $apptQuery = DB::table('emr_appointments')
+                ->where('participant_id', $participant->id)
+                ->where('scheduled_start', '>=', $startTs);
+            if ($endTs) {
+                $apptQuery->where('scheduled_start', '<', $endTs);
+            }
+            $period['appointment_count'] = $apptQuery->count();
+        }
+
+        return response()->json(['periods' => $periods]);
+    }
+
+    // ── POST /participants/{participant}/transfers/verify ─────────────────────
+
+    /**
+     * Runs a quick data integrity check for this participant's clinical records:
+     * - All clinical notes have a non-null site_id
+     * - All site_ids on notes belong to this tenant
+     * Returns {status: 'verified'|'anomalies_found', anomalies: [...]}
+     */
+    public function verify(Participant $participant): JsonResponse
+    {
+        $this->requireSameTenant($participant);
+
+        $tenantSiteIds = DB::table('shared_sites')
+            ->where('tenant_id', Auth::user()->tenant_id)
+            ->pluck('id')
+            ->toArray();
+
+        $anomalies = [];
+
+        // Check 1: notes missing site_id
+        $nullSiteCount = DB::table('emr_clinical_notes')
+            ->where('participant_id', $participant->id)
+            ->whereNull('deleted_at')
+            ->whereNull('site_id')
+            ->count();
+        if ($nullSiteCount > 0) {
+            $anomalies[] = "{$nullSiteCount} clinical note(s) are missing a site assignment.";
+        }
+
+        // Check 2: notes referencing a site not in this tenant
+        $orphanedCount = DB::table('emr_clinical_notes')
+            ->where('participant_id', $participant->id)
+            ->whereNull('deleted_at')
+            ->whereNotNull('site_id')
+            ->whereNotIn('site_id', $tenantSiteIds)
+            ->count();
+        if ($orphanedCount > 0) {
+            $anomalies[] = "{$orphanedCount} clinical note(s) reference a site not belonging to this organization.";
+        }
+
+        return response()->json([
+            'status'    => empty($anomalies) ? 'verified' : 'anomalies_found',
+            'anomalies' => $anomalies,
+        ]);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

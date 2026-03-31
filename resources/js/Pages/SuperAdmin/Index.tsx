@@ -100,7 +100,7 @@ function TenantsTab() {
         <div className="overflow-x-auto">
             <table className="w-full text-sm">
                 <thead>
-                    <tr className="text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200">
+                    <tr className="text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 dark:border-slate-700">
                         <th className="text-left py-2.5 px-3 font-medium">Tenant</th>
                         <th className="text-center py-2.5 px-3 font-medium">Mode</th>
                         <th className="text-right py-2.5 px-3 font-medium">Sites</th>
@@ -109,19 +109,19 @@ function TenantsTab() {
                         <th className="text-right py-2.5 px-3 font-medium">Created</th>
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                     {tenants.map(t => (
-                        <tr key={t.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="py-3 px-3 font-medium text-slate-800">{t.name}</td>
+                        <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                            <td className="py-3 px-3 font-medium text-slate-800 dark:text-slate-200">{t.name}</td>
                             <td className="py-3 px-3 text-center">
-                                <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${t.transport_mode === 'direct' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                                <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${t.transport_mode === 'direct' ? 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300' : 'bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300'}`}>
                                     {t.transport_mode}
                                 </span>
                             </td>
-                            <td className="py-3 px-3 text-right text-slate-600">{t.site_count}</td>
-                            <td className="py-3 px-3 text-right text-slate-600">{t.user_count}</td>
-                            <td className="py-3 px-3 text-right text-slate-600">{t.participant_count}</td>
-                            <td className="py-3 px-3 text-right text-slate-400 text-xs">{t.created_at ?? '—'}</td>
+                            <td className="py-3 px-3 text-right text-slate-600 dark:text-slate-400">{t.site_count}</td>
+                            <td className="py-3 px-3 text-right text-slate-600 dark:text-slate-400">{t.user_count}</td>
+                            <td className="py-3 px-3 text-right text-slate-600 dark:text-slate-400">{t.participant_count}</td>
+                            <td className="py-3 px-3 text-right text-slate-400 text-xs">{t.created_at ?? '-'}</td>
                         </tr>
                     ))}
                 </tbody>
@@ -154,26 +154,26 @@ function HealthTab() {
         <div className="space-y-6">
             {/* Queue status */}
             <div className="grid grid-cols-2 gap-4">
-                <div className={`rounded-xl border p-4 ${health.queues.failed_jobs > 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
-                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Failed Jobs</p>
-                    <p className={`text-2xl font-bold mt-1 ${health.queues.failed_jobs > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+                <div className={`rounded-xl border p-4 ${health.queues.failed_jobs > 0 ? 'bg-red-50 dark:bg-red-950/60 border-red-200 dark:border-red-800' : 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800'}`}>
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Failed Jobs</p>
+                    <p className={`text-2xl font-bold mt-1 ${health.queues.failed_jobs > 0 ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
                         {health.queues.failed_jobs}
                     </p>
                 </div>
-                <div className="rounded-xl border bg-blue-50 border-blue-200 p-4">
-                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Pending Jobs</p>
-                    <p className="text-2xl font-bold mt-1 text-blue-700">{health.queues.pending_jobs}</p>
+                <div className="rounded-xl border bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 p-4">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Pending Jobs</p>
+                    <p className="text-2xl font-bold mt-1 text-blue-700 dark:text-blue-300">{health.queues.pending_jobs}</p>
                 </div>
             </div>
 
             {/* Table row counts */}
             <div>
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Table Row Counts</h3>
+                <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Table Row Counts</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                     {health.table_counts.map(tc => (
-                        <div key={tc.table} className="bg-slate-50 rounded-lg border border-slate-200 px-3 py-2">
+                        <div key={tc.table} className="bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2">
                             <p className="text-[10px] text-slate-400 truncate">{tc.table}</p>
-                            <p className="text-base font-semibold text-slate-700 mt-0.5">
+                            <p className="text-base font-semibold text-slate-700 dark:text-slate-300 mt-0.5">
                                 {tc.count === null ? <span className="text-red-400 text-xs">Error</span> : tc.count.toLocaleString()}
                             </p>
                         </div>
@@ -220,13 +220,13 @@ function OnboardTab() {
 
     const field = (label: string, key: keyof OnboardForm, type = 'text', required = true) => (
         <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
             <input
                 type={type}
                 value={form[key]}
                 onChange={set(key)}
                 data-testid={`onboard-${key}`}
-                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${errors[key] ? 'border-red-300 bg-red-50' : 'border-slate-300'}`}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${errors[key] ? 'border-red-300 bg-red-50 dark:bg-red-950/60' : 'border-slate-300 dark:border-slate-600 dark:bg-slate-700'}`}
             />
             {errors[key] && <p className="text-xs text-red-500 mt-0.5">{errors[key]}</p>}
         </div>
@@ -235,35 +235,35 @@ function OnboardTab() {
     return (
         <form onSubmit={submit} className="max-w-2xl space-y-6">
             {success && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-700">
+                <div className="bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 rounded-lg px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">
                     {success}
                 </div>
             )}
 
             {/* Step 1: Tenant */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
-                <h3 className="text-sm font-semibold text-slate-700">Step 1 — Tenant Details</h3>
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm space-y-4">
+                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Step 1: Tenant Details</h3>
                 {field('Organization Name', 'tenant_name')}
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">Transport Mode<span className="text-red-500 ml-0.5">*</span></label>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Transport Mode<span className="text-red-500 ml-0.5">*</span></label>
                         <select value={form.transport_mode} onChange={set('transport_mode')} data-testid="onboard-transport_mode"
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                            className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
                             <option value="direct">Direct</option>
                             <option value="broker">Broker</option>
                         </select>
                     </div>
                     <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">Auto-Logout (minutes)<span className="text-red-500 ml-0.5">*</span></label>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Auto-Logout (minutes)<span className="text-red-500 ml-0.5">*</span></label>
                         <input type="number" min={5} max={120} value={form.auto_logout_minutes} onChange={set('auto_logout_minutes')} data-testid="onboard-auto_logout_minutes"
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                            className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                     </div>
                 </div>
             </div>
 
             {/* Step 2: First Site */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
-                <h3 className="text-sm font-semibold text-slate-700">Step 2 — First Site</h3>
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm space-y-4">
+                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Step 2: First Site</h3>
                 {field('Site Name', 'site_name')}
                 <div className="grid grid-cols-2 gap-4">
                     {field('City', 'site_city', 'text', false)}
@@ -272,17 +272,17 @@ function OnboardTab() {
             </div>
 
             {/* Step 3: Admin User */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
-                <h3 className="text-sm font-semibold text-slate-700">Step 3 — Admin User</h3>
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm space-y-4">
+                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Step 3: Admin User</h3>
                 <div className="grid grid-cols-2 gap-4">
                     {field('First Name', 'admin_first_name')}
                     {field('Last Name', 'admin_last_name')}
                 </div>
                 {field('Email Address', 'admin_email', 'email')}
                 <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Department<span className="text-red-500 ml-0.5">*</span></label>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Department<span className="text-red-500 ml-0.5">*</span></label>
                     <select value={form.admin_department} onChange={set('admin_department')} data-testid="onboard-admin_department"
-                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                        className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
                         <option value="it_admin">IT Admin</option>
                         <option value="enrollment">Enrollment</option>
                     </select>
@@ -319,36 +319,36 @@ export default function SuperAdminIndex() {
                 {/* Header */}
                 <div className="flex items-start justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-800">Nostos Super Admin Panel</h1>
-                        <p className="text-sm text-slate-500 mt-1">Platform-level tenant management — Nostos staff only</p>
+                        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-200">Nostos Super Admin Panel</h1>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Platform-level tenant management: Nostos staff only</p>
                     </div>
                 </div>
 
                 {/* Summary KPIs */}
                 <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm text-center">
+                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm text-center">
                         <p className="text-xs text-slate-400 uppercase tracking-wide font-medium">Tenants</p>
-                        <p className="text-3xl font-bold text-slate-800 mt-1">{summary.tenant_count}</p>
+                        <p className="text-3xl font-bold text-slate-800 dark:text-slate-200 mt-1">{summary.tenant_count}</p>
                     </div>
-                    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm text-center">
+                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm text-center">
                         <p className="text-xs text-slate-400 uppercase tracking-wide font-medium">Users</p>
-                        <p className="text-3xl font-bold text-slate-800 mt-1">{summary.user_count}</p>
+                        <p className="text-3xl font-bold text-slate-800 dark:text-slate-200 mt-1">{summary.user_count}</p>
                     </div>
-                    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm text-center">
+                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm text-center">
                         <p className="text-xs text-slate-400 uppercase tracking-wide font-medium">Participants</p>
-                        <p className="text-3xl font-bold text-slate-800 mt-1">{summary.participant_count}</p>
+                        <p className="text-3xl font-bold text-slate-800 dark:text-slate-200 mt-1">{summary.participant_count}</p>
                     </div>
                 </div>
 
                 {/* Tab bar */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="flex border-b border-slate-200">
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div className="flex border-b border-slate-200 dark:border-slate-700">
                         {(['tenants', 'health', 'onboard'] as const).map(t => (
                             <button
                                 key={t}
                                 onClick={() => setTab(t)}
                                 data-testid={`tab-${t}`}
-                                className={`px-5 py-3 text-sm font-medium capitalize transition-colors ${tab === t ? 'border-b-2 border-blue-500 text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`px-5 py-3 text-sm font-medium capitalize transition-colors ${tab === t ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
                             >
                                 {t === 'onboard' ? 'Onboard Tenant' : t.charAt(0).toUpperCase() + t.slice(1)}
                             </button>

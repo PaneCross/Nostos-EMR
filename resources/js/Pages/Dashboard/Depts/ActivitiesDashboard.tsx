@@ -10,6 +10,7 @@
 
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import ActionWidget, { ActionItem } from '@/Components/Dashboard/ActionWidget';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -22,6 +23,7 @@ interface Appointment {
     type_label: string;
     scheduled_start: string | null;
     status: string;
+    href: string;
 }
 
 interface Goal {
@@ -30,6 +32,7 @@ interface Goal {
     target_date: string | null;
     status: string;
     participant: Participant | null;
+    href: string;
 }
 
 interface Sdr {
@@ -41,6 +44,7 @@ interface Sdr {
     status: string;
     is_overdue: boolean;
     hours_remaining: number;
+    href: string;
 }
 
 interface Note {
@@ -51,47 +55,16 @@ interface Note {
     author: string | null;
     visit_date: string | null;
     created_at: string;
+    href: string;
 }
 
-// ── Widget shell ────────────────────────────────────────────────────────────────
+// ── Badge color helpers ────────────────────────────────────────────────────────
 
-function WidgetCard({ title, badge, children }: {
-    title: string;
-    badge?: { label: string; color: string };
-    children: React.ReactNode;
-}) {
-    return (
-        <div className="card p-5 flex flex-col">
-            <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
-                {badge && (
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
-                        {badge.label}
-                    </span>
-                )}
-            </div>
-            {children}
-        </div>
-    );
-}
-
-function Skeleton() {
-    return (
-        <div className="space-y-2 animate-pulse">
-            {[1, 2, 3].map(i => <div key={i} className="h-8 bg-slate-100 rounded" />)}
-        </div>
-    );
-}
-
-function Empty({ message }: { message: string }) {
-    return <p className="text-xs text-slate-400 py-4 text-center">{message}</p>;
-}
-
-function StatusBadge({ status }: { status: string }) {
-    const cls = status === 'confirmed' ? 'bg-green-100 text-green-700'
-        : status === 'scheduled' ? 'bg-blue-100 text-blue-700'
-        : 'bg-slate-100 text-slate-500';
-    return <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${cls}`}>{status}</span>;
+// Maps appointment status to a badge color class
+function apptBadgeColor(status: string): string {
+    if (status === 'confirmed') return 'bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300';
+    if (status === 'scheduled') return 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300';
+    return 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300';
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -119,133 +92,80 @@ export default function ActivitiesDashboard({ departmentLabel, role }: Props) {
         }).finally(() => setLoading(false));
     }, []);
 
+    // Map appointments to ActionItems; include day center count in sublabel when relevant
+    const scheduleItems: ActionItem[] = (schedule?.appointments ?? []).map(a => ({
+        label: `${a.participant?.name ?? '-'} — ${a.type_label}`,
+        href: a.href,
+        badge: a.status,
+        badgeColor: apptBadgeColor(a.status),
+        sublabel: a.scheduled_start ?? undefined,
+    }));
+
+    // Map goals to ActionItems
+    const goalItems: ActionItem[] = (goals?.goals ?? []).map(g => ({
+        label: `${g.participant?.name ?? '-'} — Activity Goal`,
+        href: g.href,
+        badge: g.target_date ? `Due ${g.target_date}` : undefined,
+        badgeColor: 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
+        sublabel: g.goal_description,
+    }));
+
+    // Map SDRs to ActionItems — overdue SDRs shown in red
+    const sdrItems: ActionItem[] = (sdrs?.sdrs ?? []).map(s => ({
+        label: `${s.participant?.name ?? '-'} — ${s.type_label}`,
+        href: s.href,
+        badge: s.is_overdue ? 'Overdue' : `${s.hours_remaining}h left`,
+        badgeColor: s.is_overdue
+            ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300'
+            : 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
+        sublabel: `Priority: ${s.priority}`,
+    }));
+
+    // Map unsigned notes to ActionItems
+    const noteItems: ActionItem[] = (docs?.notes ?? []).map(n => ({
+        label: `${n.participant?.name ?? '-'} — ${n.type_label}`,
+        href: n.href,
+        sublabel: n.visit_date ?? n.created_at,
+    }));
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-            {/* Today's Activity Sessions */}
-            <WidgetCard
+            <ActionWidget
                 title="Today's Activities"
-                badge={schedule ? {
-                    label: schedule.day_center_count > 0
-                        ? `${schedule.appointments.length} sessions · ${schedule.day_center_count} day center`
-                        : `${schedule.appointments.length} sessions`,
-                    color: 'bg-orange-100 text-orange-700'
-                } : undefined}
-            >
-                {loading ? <Skeleton /> : (
-                    <div>
-                        {/* Day center attendance badge */}
-                        {schedule && schedule.day_center_count > 0 && (
-                            <div className="mb-3 flex items-center gap-2 p-2.5 rounded-lg bg-orange-50 border border-orange-100">
-                                <span className="text-lg">🏠</span>
-                                <div>
-                                    <p className="text-xs font-semibold text-orange-700">Day Center Attendance</p>
-                                    <p className="text-[10px] text-orange-600">{schedule.day_center_count} participants scheduled today</p>
-                                </div>
-                            </div>
-                        )}
-                        {!schedule?.appointments.length ? <Empty message="No activity sessions today" /> : (
-                            <div className="overflow-auto">
-                                <table className="w-full text-xs">
-                                    <thead>
-                                        <tr className="border-b border-slate-100">
-                                            <th className="text-left py-1 font-medium text-slate-500">Time</th>
-                                            <th className="text-left py-1 font-medium text-slate-500">Participant</th>
-                                            <th className="text-left py-1 font-medium text-slate-500">Type</th>
-                                            <th className="text-left py-1 font-medium text-slate-500">Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {schedule.appointments.map(a => (
-                                            <tr key={a.id} className="hover:bg-slate-50">
-                                                <td className="py-1.5 text-slate-600 whitespace-nowrap">{a.scheduled_start ?? '—'}</td>
-                                                <td className="py-1.5 font-medium text-slate-800">{a.participant?.name ?? '—'}</td>
-                                                <td className="py-1.5 text-slate-600">{a.type_label}</td>
-                                                <td className="py-1.5"><StatusBadge status={a.status} /></td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </WidgetCard>
+                description="Activity sessions and day center attendance scheduled for today."
+                items={scheduleItems}
+                emptyMessage="No activity sessions today"
+                viewAllHref="/schedule"
+                loading={loading}
+            />
 
-            {/* Activity Goals */}
-            <WidgetCard
-                title="Activity & Recreation Goals"
-                badge={goals ? { label: `${goals.goals.length} active`, color: 'bg-teal-100 text-teal-700' } : undefined}
-            >
-                {loading ? <Skeleton /> : !goals?.goals.length ? <Empty message="No active activity goals" /> : (
-                    <div className="space-y-1.5 overflow-auto max-h-56">
-                        {goals.goals.map(g => (
-                            <div key={g.id} className="p-2 rounded-lg border border-slate-100 hover:bg-slate-50">
-                                <p className="text-xs text-slate-700 leading-snug">{g.goal_description}</p>
-                                <p className="text-[10px] text-slate-500 mt-0.5">
-                                    {g.participant?.name ?? '—'}{g.target_date ? ` · Due ${g.target_date}` : ''}
-                                </p>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </WidgetCard>
+            <ActionWidget
+                title="Goals Due"
+                description="Activities care plan goals with target dates within 14 days or past due."
+                items={goalItems}
+                emptyMessage="No active activity goals due soon"
+                viewAllHref="/clinical/care-plans"
+                loading={loading}
+            />
 
-            {/* SDR Queue */}
-            <WidgetCard
-                title="SDR Queue"
-                badge={sdrs ? {
-                    label: sdrs.overdue_count > 0 ? `${sdrs.overdue_count} overdue` : `${sdrs.open_count} open`,
-                    color: sdrs.overdue_count > 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700',
-                } : undefined}
-            >
-                {loading ? <Skeleton /> : !sdrs?.sdrs.length ? <Empty message="No open SDRs" /> : (
-                    <div className="overflow-auto">
-                        <table className="w-full text-xs">
-                            <thead>
-                                <tr className="border-b border-slate-100">
-                                    <th className="text-left py-1 font-medium text-slate-500">Participant</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Type</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Hrs Left</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Priority</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {sdrs.sdrs.map(s => (
-                                    <tr key={s.id} className={s.is_overdue ? 'bg-red-50' : 'hover:bg-slate-50'}>
-                                        <td className="py-1.5 font-medium text-slate-800">{s.participant?.name ?? '—'}</td>
-                                        <td className="py-1.5 text-slate-600">{s.type_label}</td>
-                                        <td className={`py-1.5 font-semibold ${s.is_overdue ? 'text-red-600' : 'text-slate-600'}`}>
-                                            {s.is_overdue ? 'Overdue' : `${s.hours_remaining}h`}
-                                        </td>
-                                        <td className="py-1.5 capitalize text-slate-500">{s.priority}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </WidgetCard>
+            <ActionWidget
+                title="Overdue SDRs"
+                description="SDRs assigned to activities past their 72-hour deadline."
+                items={sdrItems}
+                emptyMessage="No open SDRs"
+                viewAllHref="/sdrs"
+                loading={loading}
+            />
 
-            {/* Documentation Queue */}
-            <WidgetCard
+            <ActionWidget
                 title="Unsigned Notes"
-                badge={docs ? { label: `${docs.unsigned_count} pending`, color: docs.unsigned_count > 0 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700' } : undefined}
-            >
-                {loading ? <Skeleton /> : !docs?.notes.length ? <Empty message="No unsigned notes — all clear!" /> : (
-                    <div className="space-y-1.5">
-                        {docs.notes.map(n => (
-                            <div key={n.id} className="flex items-center justify-between py-1.5 border-b border-slate-50 last:border-0">
-                                <div>
-                                    <p className="text-xs font-medium text-slate-800">{n.participant?.name ?? '—'}</p>
-                                    <p className="text-[10px] text-slate-500">{n.type_label}{n.author ? ` · ${n.author}` : ''}</p>
-                                </div>
-                                <span className="text-[10px] text-slate-400 whitespace-nowrap">{n.visit_date ?? n.created_at}</span>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </WidgetCard>
+                description="Activity session notes not yet signed."
+                items={noteItems}
+                emptyMessage="No unsigned notes — all clear!"
+                viewAllHref="/clinical/notes"
+                loading={loading}
+            />
 
         </div>
     );

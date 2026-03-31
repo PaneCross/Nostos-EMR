@@ -67,6 +67,9 @@ class HomeCareDashboardController extends Controller
                     ? $a->provider->first_name . ' ' . $a->provider->last_name
                     : null,
                 'transport_required' => $a->transport_required,
+                'href'               => $a->participant
+                    ? "/participants/{$a->participant->id}"
+                    : '/schedule',
             ]);
 
         return response()->json(['appointments' => $appointments]);
@@ -103,6 +106,9 @@ class HomeCareDashboardController extends Controller
                     'name' => $a->participant->first_name . ' ' . $a->participant->last_name,
                 ] : null,
                 'created_at'   => $a->created_at?->diffForHumans(),
+                'href'         => $a->participant
+                    ? "/participants/{$a->participant->id}"
+                    : '/alerts',
             ]);
 
         $unacknowledgedCount = Alert::where('tenant_id', $tenantId)
@@ -144,6 +150,9 @@ class HomeCareDashboardController extends Controller
                     'id'   => $g->carePlan->participant->id,
                     'name' => $g->carePlan->participant->first_name . ' ' . $g->carePlan->participant->last_name,
                 ] : null,
+                'href'             => $g->carePlan?->participant?->id
+                    ? "/participants/{$g->carePlan->participant->id}?tab=careplan"
+                    : '/participants',
             ]);
 
         return response()->json(['goals' => $goals]);
@@ -177,6 +186,7 @@ class HomeCareDashboardController extends Controller
                 'is_overdue'      => $s->isOverdue(),
                 'hours_remaining' => round($s->hoursRemaining(), 1),
                 'due_at'          => $s->due_at?->toDateTimeString(),
+                'href'            => '/sdrs',
             ]);
 
         return response()->json([

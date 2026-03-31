@@ -54,15 +54,15 @@ interface Props {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const TYPE_COLORS: Record<string, string> = {
-    pace_center:    'bg-blue-50 text-blue-700 ring-blue-600/20',
-    acs_location:   'bg-purple-50 text-purple-700 ring-purple-600/20',
-    dialysis:       'bg-red-50 text-red-700 ring-red-600/20',
-    specialist:     'bg-amber-50 text-amber-700 ring-amber-600/20',
+    pace_center:    'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 ring-blue-600/20',
+    acs_location:   'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 ring-purple-600/20',
+    dialysis:       'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 ring-red-600/20',
+    specialist:     'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 ring-amber-600/20',
     hospital:       'bg-orange-50 text-orange-700 ring-orange-600/20',
-    pharmacy:       'bg-green-50 text-green-700 ring-green-600/20',
-    lab:            'bg-teal-50 text-teal-700 ring-teal-600/20',
-    day_program:    'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
-    other_external: 'bg-slate-50 text-slate-700 ring-slate-600/20',
+    pharmacy:       'bg-green-50 dark:bg-green-950/60 text-green-700 dark:text-green-300 ring-green-600/20',
+    lab:            'bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 ring-teal-600/20',
+    day_program:    'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 ring-indigo-600/20',
+    other_external: 'bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 ring-slate-600/20',
 }
 
 const blankForm = (): FormState => ({
@@ -174,8 +174,8 @@ export default function LocationsIndex({ locations, location_types, can_write }:
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h1 className="text-xl font-semibold text-slate-900">Locations</h1>
-                    <p className="text-sm text-slate-500 mt-0.5">
+                    <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Locations</h1>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                         Service locations used for appointment scheduling across the PACE program.
                     </p>
                 </div>
@@ -197,7 +197,7 @@ export default function LocationsIndex({ locations, location_types, can_write }:
                 <select
                     value={filterType}
                     onChange={e => setFilterType(e.target.value)}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 >
                     <option value="all">All Types</option>
                     {Object.entries(location_types).map(([k, v]) => (
@@ -205,7 +205,7 @@ export default function LocationsIndex({ locations, location_types, can_write }:
                     ))}
                 </select>
 
-                <div className="flex rounded-lg border border-slate-200 bg-white overflow-hidden shadow-sm text-sm">
+                <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm text-sm">
                     {(['active', 'inactive', 'all'] as const).map(opt => (
                         <button
                             key={opt}
@@ -213,7 +213,7 @@ export default function LocationsIndex({ locations, location_types, can_write }:
                             className={`px-3 py-1.5 capitalize transition-colors ${
                                 filterActive === opt
                                     ? 'bg-blue-600 text-white font-medium'
-                                    : 'text-slate-600 hover:bg-slate-50'
+                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
                             }`}
                         >
                             {opt}
@@ -227,14 +227,14 @@ export default function LocationsIndex({ locations, location_types, can_write }:
             </div>
 
             {/* Table */}
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
                 {filtered.length === 0 ? (
                     <div className="py-16 text-center text-slate-400 text-sm">
                         No locations match the current filters.
                     </div>
                 ) : (
                     <table className="w-full text-sm">
-                        <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                        <thead className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                             <tr>
                                 <th className="px-4 py-3 text-left">Name</th>
                                 <th className="px-4 py-3 text-left">Type</th>
@@ -245,35 +245,35 @@ export default function LocationsIndex({ locations, location_types, can_write }:
                                 {can_write && <th className="px-4 py-3" />}
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                             {filtered.map(loc => (
-                                <tr key={loc.id} className={`hover:bg-slate-50 transition-colors ${loc.deleted_at ? 'opacity-50' : ''}`}>
-                                    <td className="px-4 py-3 font-medium text-slate-900">
+                                <tr key={loc.id} className={`hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors ${loc.deleted_at ? 'opacity-50' : ''}`}>
+                                    <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">
                                         {loc.name}
                                         {loc.label && (
                                             <span className="ml-1.5 text-xs text-slate-400">({loc.label})</span>
                                         )}
                                     </td>
                                     <td className="px-4 py-3">
-                                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${TYPE_COLORS[loc.location_type] ?? 'bg-slate-50 text-slate-700 ring-slate-600/20'}`}>
+                                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${TYPE_COLORS[loc.location_type] ?? 'bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 ring-slate-600/20'}`}>
                                             {loc.type_label}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-3 text-slate-600">
+                                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
                                         {loc.street
                                             ? `${loc.street}, ${loc.city ?? ''} ${loc.state ?? ''} ${loc.zip ?? ''}`.trim()
                                             : <span className="text-slate-400 italic">No address</span>
                                         }
                                     </td>
-                                    <td className="px-4 py-3 text-slate-600">{loc.phone ?? '—'}</td>
-                                    <td className="px-4 py-3 text-slate-600">{loc.contact_name ?? '—'}</td>
+                                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{loc.phone ?? '-'}</td>
+                                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{loc.contact_name ?? '-'}</td>
                                     <td className="px-4 py-3">
                                         {loc.deleted_at ? (
-                                            <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">Archived</span>
+                                            <span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">Archived</span>
                                         ) : loc.is_active ? (
-                                            <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">Active</span>
+                                            <span className="inline-flex items-center rounded-full bg-green-50 dark:bg-green-950/60 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-300">Active</span>
                                         ) : (
-                                            <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">Inactive</span>
+                                            <span className="inline-flex items-center rounded-full bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-300">Inactive</span>
                                         )}
                                     </td>
                                     {can_write && (
@@ -312,9 +312,9 @@ export default function LocationsIndex({ locations, location_types, can_write }:
             {/* Create / Edit Modal */}
             {modal !== 'none' && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                    <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
-                        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-                            <h2 className="text-base font-semibold text-slate-900">
+                    <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-800 shadow-xl">
+                        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 px-6 py-4">
+                            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
                                 {modal === 'create' ? 'Add Location' : 'Edit Location'}
                             </h2>
                             <button onClick={closeModal} className="text-slate-400 hover:text-slate-600">
@@ -328,7 +328,7 @@ export default function LocationsIndex({ locations, location_types, can_write }:
                             {/* Name + Type */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-700 mb-1">Name <span className="text-red-500">*</span></label>
+                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Name <span className="text-red-500">*</span></label>
                                     <input
                                         value={form.name}
                                         onChange={e => handleField('name', e.target.value)}
@@ -338,7 +338,7 @@ export default function LocationsIndex({ locations, location_types, can_write }:
                                     {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-700 mb-1">Type <span className="text-red-500">*</span></label>
+                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Type <span className="text-red-500">*</span></label>
                                     <select
                                         value={form.location_type}
                                         onChange={e => handleField('location_type', e.target.value)}
@@ -353,7 +353,7 @@ export default function LocationsIndex({ locations, location_types, can_write }:
 
                             {/* Label (optional short name) */}
                             <div>
-                                <label className="block text-xs font-medium text-slate-700 mb-1">Short Label <span className="text-slate-400 font-normal">(optional)</span></label>
+                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Short Label <span className="text-slate-400 font-normal">(optional)</span></label>
                                 <input
                                     value={form.label}
                                     onChange={e => handleField('label', e.target.value)}
@@ -364,7 +364,7 @@ export default function LocationsIndex({ locations, location_types, can_write }:
 
                             {/* Address */}
                             <div>
-                                <label className="block text-xs font-medium text-slate-700 mb-1">Street Address</label>
+                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Street Address</label>
                                 <input
                                     value={form.street}
                                     onChange={e => handleField('street', e.target.value)}
@@ -374,17 +374,17 @@ export default function LocationsIndex({ locations, location_types, can_write }:
                             </div>
                             <div className="grid grid-cols-3 gap-3">
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-700 mb-1">City</label>
+                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">City</label>
                                     <input value={form.city} onChange={e => handleField('city', e.target.value)}
                                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-700 mb-1">State</label>
+                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">State</label>
                                     <input value={form.state} onChange={e => handleField('state', e.target.value)} maxLength={2}
                                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="CA" />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-700 mb-1">ZIP</label>
+                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">ZIP</label>
                                     <input value={form.zip} onChange={e => handleField('zip', e.target.value)}
                                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="90210" />
                                 </div>
@@ -393,12 +393,12 @@ export default function LocationsIndex({ locations, location_types, can_write }:
                             {/* Phone + Contact */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-700 mb-1">Phone</label>
+                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Phone</label>
                                     <input value={form.phone} onChange={e => handleField('phone', e.target.value)}
                                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="(555) 555-0100" />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-700 mb-1">Contact Name</label>
+                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Contact Name</label>
                                     <input value={form.contact_name} onChange={e => handleField('contact_name', e.target.value)}
                                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Jane Smith" />
                                 </div>
@@ -406,7 +406,7 @@ export default function LocationsIndex({ locations, location_types, can_write }:
 
                             {/* Notes */}
                             <div>
-                                <label className="block text-xs font-medium text-slate-700 mb-1">Notes</label>
+                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Notes</label>
                                 <textarea value={form.notes} onChange={e => handleField('notes', e.target.value)} rows={2}
                                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
                                     placeholder="Any relevant notes about this location..." />
@@ -415,13 +415,13 @@ export default function LocationsIndex({ locations, location_types, can_write }:
                             {/* Active toggle */}
                             <label className="flex items-center gap-2 cursor-pointer select-none">
                                 <input type="checkbox" checked={form.is_active} onChange={e => handleField('is_active', e.target.checked)}
-                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                                <span className="text-sm text-slate-700">Active (visible in scheduling dropdowns)</span>
+                                    className="rounded border-slate-300 text-blue-600 dark:text-blue-400 focus:ring-blue-500" />
+                                <span className="text-sm text-slate-700 dark:text-slate-300">Active (visible in scheduling dropdowns)</span>
                             </label>
                         </div>
 
-                        <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
-                            <button onClick={closeModal} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+                        <div className="flex justify-end gap-3 border-t border-slate-200 dark:border-slate-700 px-6 py-4">
+                            <button onClick={closeModal} className="rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                                 Cancel
                             </button>
                             <button onClick={handleSave} disabled={saving}
@@ -436,20 +436,20 @@ export default function LocationsIndex({ locations, location_types, can_write }:
             {/* Archive Confirm Dialog */}
             {confirmDelete && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                    <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl p-6 text-center">
-                        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
-                            <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                    <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-800 shadow-xl p-6 text-center">
+                        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/60">
+                            <svg className="w-6 h-6 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                             </svg>
                         </div>
-                        <h3 className="text-base font-semibold text-slate-900 mb-1">Archive Location?</h3>
-                        <p className="text-sm text-slate-500 mb-5">
+                        <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-1">Archive Location?</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">
                             <strong>{confirmDelete.name}</strong> will be archived and removed from scheduling dropdowns.
                             Existing appointments are not affected.
                         </p>
                         <div className="flex gap-3">
                             <button onClick={() => setConfirmDelete(null)}
-                                className="flex-1 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                                className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
                                 Cancel
                             </button>
                             <button onClick={() => handleArchive(confirmDelete)}

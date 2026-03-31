@@ -17,6 +17,9 @@ use App\Http\Controllers\EhiExportController;
 use App\Http\Controllers\ImmunizationController;
 use App\Http\Controllers\ProcedureController;
 use App\Http\Controllers\SocialDeterminantController;
+use App\Http\Controllers\DayCenterController;
+use App\Http\Controllers\ReportsController;
+use App\Http\Controllers\SystemSettingsController;
 use App\Http\Controllers\TransferController;
 use App\Http\Controllers\TransferAdminController;
 use App\Http\Controllers\SiteContextController;
@@ -24,6 +27,7 @@ use App\Http\Controllers\SuperAdminPanelController;
 use App\Http\Controllers\Dashboards\ExecutiveDashboardController;
 use App\Http\Controllers\IntegrationController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ThemePreferenceController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\ItAdminController;
 use App\Http\Controllers\MedReconciliationController;
@@ -354,6 +358,9 @@ Route::middleware('auth')->group(function () {
     // Request/Approve/Cancel: enrollment + it_admin + super_admin only.
     Route::prefix('participants/{participant}/transfers')->group(function () {
         Route::get('/',                         [TransferController::class, 'index'])->name('participants.transfers.index');
+        Route::get('/sites',                    [TransferController::class, 'sites'])->name('participants.transfers.sites');
+        Route::get('/summary',                  [TransferController::class, 'summary'])->name('participants.transfers.summary');
+        Route::post('/verify',                  [TransferController::class, 'verify'])->name('participants.transfers.verify');
         Route::post('/',                        [TransferController::class, 'request'])->name('participants.transfers.request');
         Route::post('/{transfer}/approve',      [TransferController::class, 'approve'])->name('participants.transfers.approve');
         Route::post('/{transfer}/cancel',       [TransferController::class, 'cancel'])->name('participants.transfers.cancel');
@@ -396,6 +403,8 @@ Route::middleware('auth')->group(function () {
 
     // ─── Phase 4: IDT Meetings ────────────────────────────────────────────────
     Route::get('/idt',                     [IdtMeetingController::class, 'index'])->name('idt.index');
+    // W3-2: meetings list page (Meeting Minutes nav item)
+    Route::get('/idt/meetings',            [IdtMeetingController::class, 'meetingsList'])->name('idt.meetings.index');
     Route::post('/idt/meetings',           [IdtMeetingController::class, 'store'])->name('idt.meetings.store');
     Route::get('/idt/meetings/{meeting}',  [IdtMeetingController::class, 'show'])->name('idt.meetings.show');
     Route::patch('/idt/meetings/{meeting}',[IdtMeetingController::class, 'update'])->name('idt.meetings.update');
@@ -484,13 +493,18 @@ Route::middleware('auth')->group(function () {
 
     Route::prefix('scheduling')->group(function () {
         Route::get('/appointments', fn () => redirect()->route('schedule.index'));
-        Route::get('/day-center',   fn () => app(ComingSoonController::class)->show('Day Center Scheduling', 8, 'planned', 'Day center attendance tracking, activity scheduling, and transportation coordination for center-based PACE participants.'))->name('scheduling.day-center');
+        // W3-2: Day center attendance is now a live page
+        Route::get('/day-center',         [DayCenterController::class, 'index'])->name('scheduling.day-center');
+        Route::get('/day-center/roster',  [DayCenterController::class, 'roster'])->name('scheduling.day-center.roster');
+        Route::post('/day-center/check-in', [DayCenterController::class, 'checkIn'])->name('scheduling.day-center.check-in');
+        Route::post('/day-center/absent',   [DayCenterController::class, 'markAbsent'])->name('scheduling.day-center.absent');
+        Route::get('/day-center/summary',   [DayCenterController::class, 'summary'])->name('scheduling.day-center.summary');
     });
 
     Route::prefix('idt')->group(function () {
-        // CAT2: Both implemented — redirect to live pages
-        Route::get('/minutes', fn () => redirect('/idt'))->name('idt.minutes');   // IDT dashboard has meeting minutes
-        Route::get('/sdr',     fn () => redirect('/sdrs'))->name('idt.sdr');      // SDR tracker is live at /sdrs
+        // Legacy redirects — nav hrefs updated in W3-2 but keep these for bookmark compat
+        Route::get('/minutes', fn () => redirect('/idt/meetings'))->name('idt.minutes'); // W3-2: now redirects to meetings list
+        Route::get('/sdr',     fn () => redirect('/sdrs'))->name('idt.sdr');             // SDR tracker is live at /sdrs
     });
 
     // ─── Phase 6B: QA / Compliance Dashboard + Incidents ─────────────────────
@@ -595,15 +609,20 @@ Route::middleware('auth')->group(function () {
         Route::get('/claims', fn () => redirect('/billing/encounters'))->name('billing.claims');
     });
 
-    // CAT3: Reporting and audit viewer — planned future modules
-    Route::get('/reports', fn () => app(ComingSoonController::class)->show('Reports', 8, 'planned', 'Custom report builder for census, utilization, quality metrics, and CMS-required PACE reporting exports.'))->name('reports.index');
+    // W3-2: Reports landing page (replaces ComingSoon stub)
+    Route::get('/reports',                        [ReportsController::class, 'index'])->name('reports.index');
+    Route::get('/reports/data',                   [ReportsController::class, 'data'])->name('reports.data');
+    Route::get('/reports/site-transfers',         [ReportsController::class, 'siteTransfers'])->name('reports.site-transfers');
+    Route::get('/reports/site-transfers/export',  [ReportsController::class, 'siteTransfersExport'])->name('reports.site-transfers.export');
     Route::get('/audit',   fn () => redirect('/it-admin/audit'))->name('audit.index'); // Live audit trail is at /it-admin/audit
 
     // Admin prefix — legacy nav stubs; real admin pages are at /it-admin/*
     Route::prefix('admin')->group(function () {
         Route::get('/users',    fn () => redirect('/it-admin/users'))->name('admin.users');     // CAT2: user management is live at /it-admin/users
         Route::get('/locations', [LocationController::class, 'managePage'])->name('admin.locations'); // Locations management Inertia page
-        Route::get('/settings', fn () => app(ComingSoonController::class)->show('System Settings', 8, 'planned', 'Tenant-wide configuration including PACE contract settings, site preferences, and integration parameters.'))->name('admin.settings');
+        // W3-2: System Settings is now a live page (replaces ComingSoon stub)
+        Route::get('/settings',  [SystemSettingsController::class, 'index'])->name('admin.settings');
+        Route::put('/settings',  [SystemSettingsController::class, 'update'])->name('admin.settings.update');
     });
 
     // ─── Phase 7C: Chat ────────────────────────────────────────────────────────
@@ -612,6 +631,8 @@ Route::middleware('auth')->group(function () {
 
     // Chat JSON API (all require authenticated session + channel membership)
     Route::prefix('chat')->name('chat.')->group(function () {
+        // Must declare /users/search BEFORE /channels to avoid param collision
+        Route::get('/users/search',                [ChatController::class, 'searchUsers'])->name('users.search');
         Route::get('/channels',                    [ChatController::class, 'channels'])->name('channels');
         Route::get('/channels/{channel}/messages', [ChatController::class, 'messages'])->name('messages');
         Route::post('/channels/{channel}/messages',[ChatController::class, 'send'])->name('send');
@@ -625,6 +646,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/notifications',  [ProfileController::class, 'notifications'])->name('notifications');
         Route::put('/notifications',  [ProfileController::class, 'updateNotifications'])->name('notifications.update');
     });
+
+    // ─── W3-1: User Theme Preference ──────────────────────────────────────────
+    // Persists light/dark theme choice server-side. Frontend also writes to
+    // localStorage for FOUC prevention between page loads.
+    Route::post('/user/theme', [ThemePreferenceController::class, 'update'])->name('user.theme');
 
     // ─── Phase 10B: Nostos Super Admin Panel ──────────────────────────────────
     // Platform-level tenant management. Only accessible to isSuperAdmin() or isDeptSuperAdmin().

@@ -43,6 +43,7 @@ class UserFactory extends Factory
             'failed_login_attempts' => 0,
             'locked_until'          => null,
             'provisioned_at'        => now(),
+            'theme_preference'      => 'light',
         ];
     }
 

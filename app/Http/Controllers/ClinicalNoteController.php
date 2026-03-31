@@ -45,7 +45,7 @@ class ClinicalNoteController extends Controller
         $this->authorizeForTenant($participant, $user);
 
         $query = $participant->clinicalNotes()
-            ->with('author:id,first_name,last_name,department')
+            ->with(['author:id,first_name,last_name,department', 'site:id,name'])
             ->orderByDesc('visit_date')
             ->orderByDesc('created_at');
 

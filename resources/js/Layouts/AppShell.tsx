@@ -24,6 +24,7 @@ import { PageProps, NavGroup, Department, ImpersonationUser, SiteContext } from 
 import IdleWarningModal from '@/Components/IdleWarningModal';
 import GlobalSearch from '@/Components/GlobalSearch';
 import NotificationBell from '@/Components/NotificationBell';
+import ThemeToggle from '@/Components/ThemeToggle';
 
 // ─── Development phase indicator (TEMPORARY) ─────────────────────────────────
 // Update this string at the start of each phase. Remove the entire indicator
@@ -133,9 +134,37 @@ function Sidebar({ collapsed, navGroups, currentPath }: {
     const toggle = (label: string) =>
         setExpanded(prev => prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]);
 
-    // A nav item is "active" if the current URL starts with its href.
-    const isActive      = (href: string) => currentPath.startsWith(href);
+    // Collect all nav item hrefs for sibling-aware active detection.
+    // isActive: a nav item is only "active" if no more-specific sibling also matches.
+    // This prevents /idt from appearing active when the URL is /idt/meetings.
+    const allNavHrefs = navGroups.flatMap(g => g.items.map(i => i.href));
+    const isActive = (href: string) => {
+        if (!currentPath.startsWith(href)) return false;
+        return !allNavHrefs.some(
+            other => other !== href && currentPath.startsWith(other) && other.length > href.length
+        );
+    };
     const groupHasActive = (g: NavGroup) => g.items.some(i => isActive(i.href));
+
+    // ── Collapsed flyout (Part B) ─────────────────────────────────────────────
+    // When the sidebar is icon-only, hovering a group header shows a flyout panel
+    // listing that group's items. Uses fixed positioning to escape overflow clipping.
+    const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
+    const [flyoutY, setFlyoutY]           = useState(0);
+    const hideTimerRef                    = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const showFlyout = (label: string, e: React.MouseEvent<HTMLButtonElement>) => {
+        if (!collapsed) return;
+        if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+        const rect = e.currentTarget.getBoundingClientRect();
+        setFlyoutY(rect.top);
+        setHoveredGroup(label);
+    };
+    const hideFlyout  = () => { hideTimerRef.current = setTimeout(() => setHoveredGroup(null), 120); };
+    const keepFlyout  = () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
+
+    // Clear flyout whenever sidebar expands
+    useEffect(() => { if (!collapsed) setHoveredGroup(null); }, [collapsed]);
 
     const handleLogout = () => {
         router.post('/auth/logout');
@@ -157,7 +186,7 @@ function Sidebar({ collapsed, navGroups, currentPath }: {
     };
 
     return (
-        <aside className={`flex flex-col h-full bg-[#0f172a] transition-all duration-300 ${collapsed ? 'w-16' : 'w-64'} shrink-0`}>
+        <aside className={`flex flex-col h-full bg-slate-900 dark:bg-slate-950 transition-all duration-300 ${collapsed ? 'w-16' : 'w-64'} shrink-0`}>
 
             {/* ── Logo ──────────────────────────────────────────────────────── */}
             <div className="flex items-center gap-3 px-4 py-5 border-b border-slate-800">
@@ -199,9 +228,12 @@ function Sidebar({ collapsed, navGroups, currentPath }: {
 
                     return (
                         <div key={group.label}>
-                            {/* Group header button — toggles expand/collapse */}
+                            {/* Group header button — toggles expand/collapse.
+                                In collapsed mode: hover triggers the flyout panel. */}
                             <button
                                 onClick={() => toggle(group.label)}
+                                onMouseEnter={e => showFlyout(group.label, e)}
+                                onMouseLeave={hideFlyout}
                                 data-testid={`nav-group-${group.label.toLowerCase().replace(/\s+/g, '-')}`}
                                 className={`nav-item ${groupHasActive(group) ? 'text-slate-100' : ''}`}
                                 title={collapsed ? group.label : undefined}
@@ -314,6 +346,46 @@ function Sidebar({ collapsed, navGroups, currentPath }: {
                     </div>
                 )}
             </div>
+            {/* ── Collapsed flyout panel ────────────────────────────────────── */}
+            {/* Shown via hover when sidebar is icon-only. Fixed-positioned to escape
+                the nav's overflow-y-auto container. Stays open while cursor is over
+                either the trigger button OR the panel (debounced 120ms hide). */}
+            {collapsed && hoveredGroup !== null && (() => {
+                const group = navGroups.find(g => g.label === hoveredGroup);
+                if (!group) return null;
+                return (
+                    <div
+                        className="fixed z-50 bg-slate-900 dark:bg-slate-950 border border-slate-700 rounded-lg shadow-xl py-1 min-w-[192px]"
+                        style={{ left: 68, top: flyoutY }}
+                        onMouseEnter={keepFlyout}
+                        onMouseLeave={hideFlyout}
+                    >
+                        <p className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                            {group.label}
+                        </p>
+                        {group.items.map(item => (
+                            <Link
+                                key={item.module}
+                                href={item.href}
+                                onClick={() => setHoveredGroup(null)}
+                                className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
+                                    isActive(item.href)
+                                        ? 'bg-blue-600/20 text-white'
+                                        : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                                }`}
+                            >
+                                <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60 shrink-0" />
+                                <span className="flex-1">{item.label}</span>
+                                {item.module === 'chat' && chatUnread > 0 && (
+                                    <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-blue-500 px-1 text-[9px] font-bold text-white">
+                                        {chatUnread > 99 ? '99+' : chatUnread}
+                                    </span>
+                                )}
+                            </Link>
+                        ))}
+                    </div>
+                );
+            })()}
         </aside>
     );
 }
@@ -373,7 +445,7 @@ function ImitateUserDropdown({ impersonating }: { impersonating: boolean }) {
     // Button appearance: amber ring + "exit" indicator when already impersonating.
     const btnClass = impersonating
         ? 'p-1.5 rounded-lg bg-amber-100 text-amber-700 ring-2 ring-amber-400 hover:bg-amber-200 transition-colors'
-        : 'p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors';
+        : 'p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors';
 
     return (
         <div className="relative" ref={panelRef}>
@@ -394,9 +466,9 @@ function ImitateUserDropdown({ impersonating }: { impersonating: boolean }) {
 
             {/* Dropdown panel */}
             {open && (
-                <div className="absolute right-0 top-10 w-80 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden">
-                    <div className="px-3 py-2.5 border-b border-slate-100 bg-slate-50">
-                        <p className="text-xs font-semibold text-slate-700 mb-2">Imitate User</p>
+                <div className="absolute right-0 top-10 w-80 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden">
+                    <div className="px-3 py-2.5 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80">
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-2">Imitate User</p>
                         {/* Search input */}
                         <input
                             type="text"
@@ -405,16 +477,16 @@ function ImitateUserDropdown({ impersonating }: { impersonating: boolean }) {
                             placeholder="Search by name or department…"
                             autoFocus
                             data-testid="imitate-search-input"
-                            className="w-full text-xs px-2.5 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+                            className="w-full text-xs px-2.5 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white dark:bg-slate-700 dark:text-slate-100 dark:placeholder-slate-400"
                         />
                     </div>
 
                     <div className="max-h-64 overflow-y-auto">
                         {loading && (
-                            <p className="text-xs text-slate-500 px-4 py-3 text-center">Loading users…</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 px-4 py-3 text-center">Loading users…</p>
                         )}
                         {!loading && filtered.length === 0 && (
-                            <p className="text-xs text-slate-500 px-4 py-3 text-center">No users found</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 px-4 py-3 text-center">No users found</p>
                         )}
                         {!loading && filtered.map(u => (
                             <button
@@ -422,17 +494,17 @@ function ImitateUserDropdown({ impersonating }: { impersonating: boolean }) {
                                 onClick={() => startImpersonation(u.id)}
                                 disabled={starting === u.id}
                                 data-testid={`imitate-user-${u.id}`}
-                                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-blue-50 text-left transition-colors disabled:opacity-50"
+                                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-blue-50 dark:hover:bg-slate-700 text-left transition-colors disabled:opacity-50"
                             >
                                 {/* Avatar initials */}
-                                <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-[10px] font-semibold shrink-0">
+                                <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 flex items-center justify-center text-[10px] font-semibold shrink-0">
                                     {u.first_name[0]}{u.last_name[0]}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-medium text-slate-800 truncate">
+                                    <p className="text-xs font-medium text-slate-800 dark:text-slate-100 truncate">
                                         {u.first_name} {u.last_name}
                                     </p>
-                                    <p className="text-[10px] text-slate-500 truncate">
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
                                         {u.department_label} · {u.role}
                                     </p>
                                 </div>
@@ -452,7 +524,12 @@ function ImitateUserDropdown({ impersonating }: { impersonating: boolean }) {
 // Horizontal bar spanning the top of the main content area.
 // Contains: sidebar toggle · tenant/site display · global search · notifications · user chip
 // Super-admin extra: "Imitate User" button (before notification bell).
-function TopBar({ onToggleSidebar, onOpenSearch }: { onToggleSidebar: () => void; onOpenSearch: () => void }) {
+function TopBar({ onToggleSidebar, onOpenSearch, theme, onThemeChange }: {
+    onToggleSidebar: () => void;
+    onOpenSearch: () => void;
+    theme: 'light' | 'dark';
+    onThemeChange: (t: 'light' | 'dark') => void;
+}) {
     const { auth, impersonation, site_context, available_sites } = usePage<PageProps>().props;
     const user = auth.user!;
     // canSwitchSite: executive + SA dept + SA role users when multiple sites available
@@ -460,12 +537,12 @@ function TopBar({ onToggleSidebar, onOpenSearch }: { onToggleSidebar: () => void
         && available_sites.length > 1;;
 
     return (
-        <header className="h-14 bg-white border-b border-slate-200 flex items-center px-4 gap-4 shrink-0 z-10">
+        <header className="h-14 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center px-4 gap-4 shrink-0 z-10">
             {/* Sidebar collapse/expand toggle */}
             <button
                 onClick={onToggleSidebar}
                 data-testid="sidebar-toggle"
-                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
                 aria-label="Toggle sidebar"
             >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -476,11 +553,11 @@ function TopBar({ onToggleSidebar, onOpenSearch }: { onToggleSidebar: () => void
             {/* Current tenant + site name (site_context takes precedence for executive/SA) */}
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 text-sm">
-                    <span className="font-semibold text-slate-800 truncate">{user.tenant?.name}</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-100 truncate">{user.tenant?.name}</span>
                     {(site_context ?? user.site) && (
                         <>
-                            <span className="text-slate-400">·</span>
-                            <span className="text-slate-500 truncate">{(site_context ?? user.site)?.name}</span>
+                            <span className="text-slate-400 dark:text-slate-500">·</span>
+                            <span className="text-slate-500 dark:text-slate-400 truncate">{(site_context ?? user.site)?.name}</span>
                         </>
                     )}
                 </div>
@@ -495,20 +572,22 @@ function TopBar({ onToggleSidebar, onOpenSearch }: { onToggleSidebar: () => void
             <button
                 onClick={onOpenSearch}
                 data-testid="search-trigger"
-                className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-sm text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-sm text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors"
                 aria-label="Open global search"
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 15.803 7.5 7.5 0 0015.803 15.803z" />
                 </svg>
                 <span>Search participants…</span>
-                <kbd className="ml-1 px-1.5 py-0.5 text-[10px] font-medium bg-white border border-slate-200 rounded shadow-sm">
+                <kbd className="ml-1 px-1.5 py-0.5 text-[10px] font-medium bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded shadow-sm">
                     ⌘K
                 </kbd>
             </button>
 
-            {/* Right side: super-admin imitate btn · notification bell · help · user chip */}
+            {/* Right side: theme toggle · super-admin imitate btn · notification bell · help · user chip */}
             <div className="flex items-center gap-3">
+                {/* Theme toggle — always visible */}
+                <ThemeToggle theme={theme} onChange={onThemeChange} />
                 {/* "Imitate User" button — super-admin only.
                     Shown regardless of impersonation state so SA can switch users. */}
                 {user.is_super_admin && (
@@ -519,7 +598,7 @@ function TopBar({ onToggleSidebar, onOpenSearch }: { onToggleSidebar: () => void
                 <NotificationBell />
 
                 {/* Help icon — placeholder */}
-                <button className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500" aria-label="Help">
+                <button className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400" aria-label="Help">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.6} viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
                     </svg>
@@ -527,14 +606,14 @@ function TopBar({ onToggleSidebar, onOpenSearch }: { onToggleSidebar: () => void
 
                 {/* Logged-in user avatar chip.
                     When impersonating, show impersonated user's initials with amber ring. */}
-                <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+                <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-600">
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold
                         ${impersonation.active ? 'bg-amber-500 ring-2 ring-amber-300' : 'bg-blue-600'}`}>
                         {user.first_name[0]}{user.last_name[0]}
                     </div>
                     <div className="hidden sm:block text-right">
-                        <p className="text-xs font-medium text-slate-800 leading-none">{user.first_name} {user.last_name}</p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">{user.department_label}</p>
+                        <p className="text-xs font-medium text-slate-800 dark:text-slate-100 leading-none">{user.first_name} {user.last_name}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{user.department_label}</p>
                     </div>
                 </div>
             </div>
@@ -639,9 +718,9 @@ function SiteSwitcherDropdown({ current, sites }: { current: SiteContext | null;
             </button>
 
             {open && (
-                <div className="absolute right-0 top-9 w-56 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden">
-                    <div className="px-3 py-2 border-b border-slate-100 bg-slate-50">
-                        <p className="text-xs font-semibold text-slate-600">Switch Active Site</p>
+                <div className="absolute right-0 top-9 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden">
+                    <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50">
+                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Switch Active Site</p>
                     </div>
                     <div className="max-h-48 overflow-y-auto">
                         {sites.map(site => (
@@ -650,10 +729,10 @@ function SiteSwitcherDropdown({ current, sites }: { current: SiteContext | null;
                                 onClick={() => switchSite(site.id)}
                                 disabled={switching === site.id || site.id === current?.id}
                                 data-testid={`site-option-${site.id}`}
-                                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 text-left text-xs transition-colors disabled:opacity-60"
+                                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-blue-50 dark:hover:bg-slate-700 text-left text-xs transition-colors disabled:opacity-60"
                             >
-                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${site.id === current?.id ? 'bg-blue-500' : 'bg-slate-300'}`} />
-                                <span className="flex-1 truncate text-slate-700">{site.name}</span>
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${site.id === current?.id ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-500'}`} />
+                                <span className="flex-1 truncate text-slate-700 dark:text-slate-200">{site.name}</span>
                                 {site.id === current?.id && (
                                     <span className="text-[10px] text-blue-500 font-medium">Active</span>
                                 )}
@@ -689,7 +768,110 @@ function NostosAdminBanner() {
             <svg className="w-3.5 h-3.5 shrink-0 text-amber-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
             </svg>
-            <span>Nostos Super Admin — cross-tenant access active</span>
+            <span>Nostos Super Admin: cross-tenant access active</span>
+        </div>
+    );
+}
+
+// ─── CriticalAlertBanner ──────────────────────────────────────────────────────
+// Full-width red banner that appears below the TopBar for unacknowledged critical
+// alerts. Multiple alerts stack — each is individually dismissible.
+// Dismissed state stored in sessionStorage so banners don't re-appear on nav.
+// Chat alerts include a "Go to chat" deep-link via metadata.channel_id.
+// Polls /alerts?per_page=5 on mount and refreshes on Reverb alert.created events.
+function CriticalAlertBanner() {
+    const { auth } = usePage<PageProps>().props;
+    const user = auth.user!;
+
+    interface CritItem {
+        id: number;
+        title: string;
+        message: string;
+        source_module: string;
+        metadata?: { channel_id?: number } | null;
+    }
+
+    const [banners, setBanners] = useState<CritItem[]>([]);
+    const sessionKey = `dismissed_critical_alerts`;
+
+    const getDismissed = (): number[] => {
+        try { return JSON.parse(sessionStorage.getItem(sessionKey) ?? '[]'); }
+        catch { return []; }
+    };
+
+    const fetchCriticals = useCallback(async () => {
+        try {
+            const { data } = await axios.get('/alerts', { params: { per_page: 10 } });
+            const dismissed = getDismissed();
+            const items: CritItem[] = (data.data ?? data)
+                .filter((a: any) =>
+                    a.severity === 'critical' &&
+                    !a.acknowledged_at &&
+                    !dismissed.includes(a.id)
+                )
+                .map((a: any) => ({
+                    id: a.id, title: a.title, message: a.message,
+                    source_module: a.source_module, metadata: a.metadata,
+                }));
+            setBanners(items);
+        } catch { /* ignore */ }
+    }, []);
+
+    useEffect(() => { fetchCriticals(); }, [fetchCriticals]);
+
+    // Refresh on real-time critical alert
+    useEffect(() => {
+        if (!window.Echo || !user.tenant?.id) return;
+        const ch = window.Echo.channel(`tenant.${user.tenant.id}`);
+        ch.listen('.alert.created', (_: unknown) => { fetchCriticals(); });
+        return () => { window.Echo?.leaveChannel(`tenant.${user.tenant!.id}`); };
+    }, [user.tenant?.id, fetchCriticals]);
+
+    const dismiss = (id: number) => {
+        const dismissed = [...getDismissed(), id];
+        sessionStorage.setItem(sessionKey, JSON.stringify(dismissed));
+        setBanners(prev => prev.filter(b => b.id !== id));
+    };
+
+    if (banners.length === 0) return null;
+
+    return (
+        <div className="shrink-0" data-testid="critical-alert-banners">
+            {banners.map(banner => (
+                <div
+                    key={banner.id}
+                    data-testid={`critical-banner-${banner.id}`}
+                    className="flex items-start gap-3 px-4 py-2.5 bg-red-600 text-white text-xs font-medium"
+                >
+                    {/* Warning icon */}
+                    <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                    <div className="flex-1 min-w-0">
+                        <span className="font-bold mr-1.5">{banner.title}:</span>
+                        <span className="opacity-90">{banner.message}</span>
+                        {banner.source_module === 'chat' && banner.metadata?.channel_id && (
+                            <a
+                                href={`/chat?channel=${banner.metadata.channel_id}`}
+                                data-testid={`critical-banner-link-${banner.id}`}
+                                className="ml-2 underline font-semibold hover:opacity-80 whitespace-nowrap"
+                            >
+                                Go to chat
+                            </a>
+                        )}
+                    </div>
+                    <button
+                        onClick={() => dismiss(banner.id)}
+                        data-testid={`critical-banner-dismiss-${banner.id}`}
+                        aria-label="Dismiss alert"
+                        className="shrink-0 p-0.5 hover:opacity-70 rounded"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            ))}
         </div>
     );
 }
@@ -703,6 +885,31 @@ export default function AppShell({ children, breadcrumbs }: {
 }) {
     const { auth, nav_groups } = usePage<PageProps>().props;
     const user = auth.user!;
+
+    // ── Theme preference ─────────────────────────────────────────────────────
+    // Initialized from the server-persisted value (auth.user.theme_preference).
+    // localStorage acts as a FOUC backup (read by app.blade.php inline script).
+    // Changes are persisted server-side via POST /user/theme.
+    const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+        try {
+            return (localStorage.getItem('nostos_theme') as 'light' | 'dark') ?? user.theme_preference ?? 'light';
+        } catch {
+            return user.theme_preference ?? 'light';
+        }
+    });
+
+    // Apply the 'dark' class to <html> whenever theme changes.
+    // This enables all Tailwind dark: variants throughout the app.
+    useEffect(() => {
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+        try { localStorage.setItem('nostos_theme', theme); } catch { /* ignore */ }
+    }, [theme]);
+
+    const handleThemeChange = (t: 'light' | 'dark') => {
+        setTheme(t);
+        // Persist to server in the background — failure is non-critical (localStorage covers this session)
+        axios.post('/user/theme', { theme: t }).catch(() => { /* silent */ });
+    };
 
     // Persist sidebar collapsed state in localStorage so it survives page navigation
     const [collapsed, setCollapsed] = useState(() => {
@@ -789,13 +996,18 @@ export default function AppShell({ children, breadcrumbs }: {
     const currentPath = window.location.pathname;
 
     return (
-        <div className="flex h-screen overflow-hidden bg-slate-50">
+        <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-900">
             {/* Sidebar navigation */}
             <Sidebar collapsed={collapsed} navGroups={nav_groups} currentPath={currentPath} />
 
             {/* Main content column */}
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                <TopBar onToggleSidebar={toggleSidebar} onOpenSearch={() => setShowSearch(true)} />
+                <TopBar
+                    onToggleSidebar={toggleSidebar}
+                    onOpenSearch={() => setShowSearch(true)}
+                    theme={theme}
+                    onThemeChange={handleThemeChange}
+                />
 
                 {/* Amber impersonation banner — visible only when super-admin is imitating a user */}
                 <ImpersonationBanner />
@@ -803,17 +1015,20 @@ export default function AppShell({ children, breadcrumbs }: {
                 {/* Nostos SA dept banner — always visible for department='super_admin' staff */}
                 <NostosAdminBanner />
 
+                {/* Critical alert banners — full-width red bar for each unacknowledged critical alert */}
+                <CriticalAlertBanner />
+
                 {/* Optional page breadcrumb */}
                 {breadcrumbs && breadcrumbs.length > 0 && (
-                    <div className="bg-white border-b border-slate-100 px-6 py-2">
-                        <nav className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <div className="bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 px-6 py-2">
+                        <nav className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                             {breadcrumbs.map((crumb, i) => (
                                 <React.Fragment key={i}>
                                     {i > 0 && <span>/</span>}
                                     {crumb.href ? (
-                                        <Link href={crumb.href} className="hover:text-slate-700">{crumb.label}</Link>
+                                        <Link href={crumb.href} className="hover:text-slate-700 dark:hover:text-slate-200">{crumb.label}</Link>
                                     ) : (
-                                        <span className="text-slate-700 font-medium">{crumb.label}</span>
+                                        <span className="text-slate-700 dark:text-slate-200 font-medium">{crumb.label}</span>
                                     )}
                                 </React.Fragment>
                             ))}

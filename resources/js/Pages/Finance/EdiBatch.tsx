@@ -35,17 +35,17 @@ interface EdiBatchRow {
 // ── Status / Type Helpers ─────────────────────────────────────────────────────
 
 const statusColors: Record<string, string> = {
-    draft:              'bg-gray-100 text-gray-700',
-    submitted:          'bg-blue-100 text-blue-700',
-    acknowledged:       'bg-green-100 text-green-700',
-    partially_accepted: 'bg-yellow-100 text-yellow-700',
-    rejected:           'bg-red-100 text-red-700',
+    draft:              'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300',
+    submitted:          'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300',
+    acknowledged:       'bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300',
+    partially_accepted: 'bg-yellow-100 dark:bg-yellow-900/60 text-yellow-700 dark:text-yellow-300',
+    rejected:           'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300',
 };
 
 const typeColors: Record<string, string> = {
-    edr: 'bg-indigo-100 text-indigo-700',
-    crr: 'bg-purple-100 text-purple-700',
-    pde: 'bg-teal-100 text-teal-700',
+    edr: 'bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300',
+    crr: 'bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300',
+    pde: 'bg-teal-100 dark:bg-teal-900/60 text-teal-700 dark:text-teal-300',
 };
 
 const typeLabels: Record<string, string> = {
@@ -104,8 +104,8 @@ export default function EdiBatch({ auth }: PageProps) {
 
                 <div className="flex items-center justify-between mb-6">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900">EDI Batch Files</h1>
-                        <p className="text-sm text-gray-500 mt-1">
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">EDI Batch Files</h1>
+                        <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
                             X12 5010A1 837P batches for CMS Encounter Data System submission
                         </p>
                     </div>
@@ -113,22 +113,22 @@ export default function EdiBatch({ auth }: PageProps) {
                 </div>
 
                 {ackMsg && (
-                    <div className="mb-4 p-3 rounded-lg bg-blue-50 text-blue-800 text-sm">{ackMsg}</div>
+                    <div className="mb-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 text-sm">{ackMsg}</div>
                 )}
 
                 {loading ? (
-                    <div className="text-center py-12 text-gray-400">Loading batches…</div>
+                    <div className="text-center py-12 text-gray-400 dark:text-slate-500">Loading batches…</div>
                 ) : batches.length === 0 ? (
-                    <div className="text-center py-12 text-gray-400">
-                        <p className="font-medium text-gray-500">No EDI batches yet.</p>
-                        <p className="text-sm text-gray-400 mt-1">
+                    <div className="text-center py-12 text-gray-400 dark:text-slate-500">
+                        <p className="font-medium text-gray-500 dark:text-slate-400">No EDI batches yet.</p>
+                        <p className="text-sm text-gray-400 dark:text-slate-500 mt-1">
                             Create batches from the Encounter Submission Queue by selecting pending encounters.
                         </p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto rounded-lg border border-gray-200">
+                    <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-700">
                         <table className="w-full text-sm">
-                            <thead className="bg-gray-50 text-gray-600 text-xs uppercase">
+                            <thead className="bg-gray-50 dark:bg-slate-700/50 text-gray-600 dark:text-slate-400 text-xs uppercase">
                                 <tr>
                                     <th className="px-3 py-2 text-left">Batch ID</th>
                                     <th className="px-3 py-2 text-left">Type</th>
@@ -140,29 +140,29 @@ export default function EdiBatch({ auth }: PageProps) {
                                     <th className="px-3 py-2 text-left">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100">
+                            <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                                 {batches.map(batch => (
-                                    <tr key={batch.id} className="hover:bg-gray-50">
-                                        <td className="px-3 py-2 font-mono text-xs text-gray-700">
+                                    <tr key={batch.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                                        <td className="px-3 py-2 font-mono text-xs text-gray-700 dark:text-slate-300">
                                             #{batch.id}<br />
-                                            <span className="text-gray-400">{batch.file_name ?? '—'}</span>
+                                            <span className="text-gray-400 dark:text-slate-500">{batch.file_name ?? '-'}</span>
                                         </td>
                                         <td className="px-3 py-2">
-                                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${typeColors[batch.batch_type] ?? 'bg-gray-100 text-gray-700'}`}>
+                                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${typeColors[batch.batch_type] ?? 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'}`}>
                                                 {typeLabels[batch.batch_type] ?? batch.batch_type.toUpperCase()}
                                             </span>
                                         </td>
-                                        <td className="px-3 py-2 text-right text-gray-700">{batch.record_count}</td>
-                                        <td className="px-3 py-2 text-right text-gray-700">
+                                        <td className="px-3 py-2 text-right text-gray-700 dark:text-slate-300">{batch.record_count}</td>
+                                        <td className="px-3 py-2 text-right text-gray-700 dark:text-slate-300">
                                             ${parseFloat(batch.total_charge_amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                                         </td>
                                         <td className="px-3 py-2">
-                                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColors[batch.status] ?? 'bg-gray-100 text-gray-700'}`}>
+                                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColors[batch.status] ?? 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'}`}>
                                                 {batch.status.replace('_', ' ')}
                                             </span>
                                         </td>
-                                        <td className="px-3 py-2 text-xs text-gray-500">{batch.cms_response_code ?? '—'}</td>
-                                        <td className="px-3 py-2 text-xs text-gray-500">
+                                        <td className="px-3 py-2 text-xs text-gray-500 dark:text-slate-400">{batch.cms_response_code ?? '-'}</td>
+                                        <td className="px-3 py-2 text-xs text-gray-500 dark:text-slate-400">
                                             {new Date(batch.created_at).toLocaleDateString()}
                                         </td>
                                         <td className="px-3 py-2">
@@ -176,7 +176,7 @@ export default function EdiBatch({ auth }: PageProps) {
                                                 {batch.status === 'submitted' && (
                                                     <button
                                                         onClick={() => { setAckModal(batch.id); setAckMsg(null); }}
-                                                        className="text-xs text-green-600 hover:underline"
+                                                        className="text-xs text-green-600 dark:text-green-400 hover:underline"
                                                     >
                                                         Upload 277CA
                                                     </button>
@@ -193,25 +193,25 @@ export default function EdiBatch({ auth }: PageProps) {
                 {/* 277CA Acknowledgement Modal */}
                 {ackModal !== null && (
                     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-                        <div className="bg-white rounded-xl p-6 w-full max-w-xl shadow-lg">
-                            <h2 className="text-lg font-bold text-gray-900 mb-2">Upload 277CA Response</h2>
-                            <p className="text-sm text-gray-500 mb-4">
+                        <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-xl shadow-lg">
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100 mb-2">Upload 277CA Response</h2>
+                            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
                                 Paste the raw X12 277CA EDI file content from CMS below.
                             </p>
                             <textarea
                                 rows={10}
                                 value={ackContent}
                                 onChange={e => setAckContent(e.target.value)}
-                                className="w-full border rounded-lg px-3 py-2 text-xs font-mono"
+                                className="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-xs font-mono bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
                                 placeholder="ISA*00*          *00*          *ZZ..."
                             />
                             {ackMsg && (
-                                <p className="text-sm text-red-600 mt-2">{ackMsg}</p>
+                                <p className="text-sm text-red-600 dark:text-red-400 mt-2">{ackMsg}</p>
                             )}
                             <div className="flex justify-end gap-3 mt-4">
                                 <button
                                     onClick={() => { setAckModal(null); setAckContent(''); }}
-                                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+                                    className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-100"
                                 >
                                     Cancel
                                 </button>

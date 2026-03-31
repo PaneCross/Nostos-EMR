@@ -92,23 +92,29 @@ class DemoEnvironmentSeeder extends Seeder
         $headers = ['Department', 'Role', 'Email'];
         $rows    = [];
 
-        $sites = [$eastSite, $westSite];
+        $sites  = [$eastSite, $westSite];
+        // Alternate between light/dark so demo environment shows mixed theme preferences.
+        // First 14 users get 'light', last 14 get 'dark' (one admin + one standard per dept = 28 users).
+        $themeIndex = 0;
 
         foreach (self::DEPARTMENTS as $dept => $info) {
             foreach (['admin' => $info['admin_first'], 'standard' => $info['standard_first']] as $role => $firstName) {
                 $email = strtolower($firstName) . '.' . $dept . '@sunrisepace-demo.test';
+                $theme = ($themeIndex % 2 === 0) ? 'light' : 'dark';
+                $themeIndex++;
 
                 User::firstOrCreate(
                     ['email' => $email],
                     [
-                        'tenant_id'      => $tenant->id,
-                        'site_id'        => $sites[array_rand($sites)]->id,
-                        'first_name'     => $firstName,
-                        'last_name'      => 'Demo',
-                        'department'     => $dept,
-                        'role'           => $role,
-                        'is_active'      => true,
-                        'provisioned_at' => now(),
+                        'tenant_id'        => $tenant->id,
+                        'site_id'          => $sites[array_rand($sites)]->id,
+                        'first_name'       => $firstName,
+                        'last_name'        => 'Demo',
+                        'department'       => $dept,
+                        'role'             => $role,
+                        'is_active'        => true,
+                        'provisioned_at'   => now(),
+                        'theme_preference' => $theme,
                     ]
                 );
 
@@ -196,6 +202,20 @@ class DemoEnvironmentSeeder extends Seeder
         $this->command->info('');
         $this->command->info('  Seeding Phase 7D demo polish data...');
         $this->call(Phase7DDataSeeder::class);
+
+        // ─── W3-7: Billing Demo Data ──────────────────────────────────────────
+        // Seeds capitation records, HCC risk scores, encounter logs, PDE records,
+        // and HOS-M surveys to demonstrate the billing dashboard math.
+        $this->command->info('');
+        $this->command->info('  Seeding W3-7 billing demo data...');
+        $this->call(BillingDemoSeeder::class);
+
+        // ─── W3-6: Site Transfer Demo Data ────────────────────────────────────
+        // Seeds 3 participants with completed East → West transfers + clinical
+        // notes at both sites, enabling the Site Transfer Integrity feature demo.
+        $this->command->info('');
+        $this->command->info('  Seeding W3-6 site transfer demo data...');
+        $this->call(W3TransferSeeder::class);
 
         $this->command->info('');
         $this->command->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

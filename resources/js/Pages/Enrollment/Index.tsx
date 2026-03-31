@@ -21,6 +21,14 @@ import { Head, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import AppShell from '@/Layouts/AppShell';
 import { PageProps } from '@/types';
+import {
+    BuildingOffice2Icon,
+    UserIcon,
+    UsersIcon,
+    HomeIcon,
+    UserCircleIcon,
+    ClipboardDocumentListIcon as ClipboardIcon,
+} from '@heroicons/react/24/outline';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -74,24 +82,24 @@ const COLUMN_COLORS: Record<string, string> = {
 
 /** Bg colours for status badge in card footer. */
 const BADGE_COLORS: Record<string, string> = {
-    new:                 'bg-gray-100 text-gray-700',
-    intake_scheduled:    'bg-blue-100 text-blue-700',
-    intake_in_progress:  'bg-indigo-100 text-indigo-700',
-    intake_complete:     'bg-violet-100 text-violet-700',
-    eligibility_pending: 'bg-amber-100 text-amber-700',
-    pending_enrollment:  'bg-orange-100 text-orange-700',
-    enrolled:            'bg-green-100 text-green-700',
-    declined:            'bg-red-100 text-red-700',
-    withdrawn:           'bg-slate-100 text-slate-600',
+    new:                 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300',
+    intake_scheduled:    'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300',
+    intake_in_progress:  'bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300',
+    intake_complete:     'bg-violet-100 dark:bg-violet-900/60 text-violet-700 dark:text-violet-300',
+    eligibility_pending: 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
+    pending_enrollment:  'bg-orange-100 dark:bg-orange-900/60 text-orange-700 dark:text-orange-300',
+    enrolled:            'bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300',
+    declined:            'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300',
+    withdrawn:           'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400',
 };
 
-const SOURCE_ICONS: Record<string, string> = {
-    hospital:  '🏥',
-    physician: '👨‍⚕️',
-    family:    '👨‍👩‍👧',
-    community: '🏘️',
-    self:      '🙋',
-    other:     '📋',
+const SOURCE_ICONS: Record<string, React.ReactNode> = {
+    hospital:  <BuildingOffice2Icon className="w-4 h-4 text-blue-500" />,
+    physician: <UserIcon className="w-4 h-4 text-indigo-500" />,
+    family:    <UsersIcon className="w-4 h-4 text-violet-500" />,
+    community: <HomeIcon className="w-4 h-4 text-green-500" />,
+    self:      <UserCircleIcon className="w-4 h-4 text-slate-500 dark:text-slate-400" />,
+    other:     <ClipboardIcon className="w-4 h-4 text-slate-400" />,
 };
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -103,31 +111,31 @@ interface ReferralCardProps {
 
 /** Single Kanban card for a referral. */
 function ReferralCard({ referral, onClick }: ReferralCardProps) {
-    const icon = SOURCE_ICONS[referral.referral_source] ?? '📋';
+    const icon = SOURCE_ICONS[referral.referral_source] ?? <ClipboardIcon className="w-4 h-4 text-slate-400" />;
     return (
         <div
-            className="bg-white rounded-lg border border-gray-200 shadow-sm p-3 cursor-pointer hover:shadow-md transition-shadow"
+            className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 shadow-sm p-3 cursor-pointer hover:shadow-md transition-shadow"
             onClick={() => onClick(referral)}
             data-testid="referral-card"
         >
             <div className="flex items-start justify-between gap-2">
-                <p className="text-sm font-semibold text-gray-900 leading-tight">
+                <p className="text-sm font-semibold text-gray-900 dark:text-slate-100 leading-tight">
                     {referral.referred_by_name}
                 </p>
-                <span className="text-base" title={referral.referral_source}>{icon}</span>
+                <span className="shrink-0" title={referral.referral_source}>{icon}</span>
             </div>
             {referral.referred_by_org && (
-                <p className="text-xs text-gray-500 mt-0.5 truncate">{referral.referred_by_org}</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5 truncate">{referral.referred_by_org}</p>
             )}
             {referral.participant && (
-                <p className="text-xs text-indigo-600 mt-1 font-medium">
+                <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1 font-medium">
                     {referral.participant.first_name} {referral.participant.last_name} ({referral.participant.mrn})
                 </p>
             )}
             <div className="mt-2 flex items-center justify-between gap-1">
-                <span className="text-xs text-gray-400">{referral.referral_date}</span>
+                <span className="text-xs text-gray-400 dark:text-slate-500">{referral.referral_date}</span>
                 {referral.assigned_to ? (
-                    <span className="text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">
+                    <span className="text-xs text-gray-600 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
                         {referral.assigned_to.first_name[0]}. {referral.assigned_to.last_name}
                     </span>
                 ) : (
@@ -153,19 +161,19 @@ function KanbanColumn({ status, label, referrals, onClick, onNew, isFirst }: Kan
     return (
         <div className="flex-shrink-0 w-56 flex flex-col">
             {/* Column header */}
-            <div className={`border-t-4 ${borderColor} bg-gray-50 rounded-t px-3 pt-2 pb-1`}>
+            <div className={`border-t-4 ${borderColor} bg-gray-50 dark:bg-slate-700/50 rounded-t px-3 pt-2 pb-1`}>
                 <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide truncate">
+                    <span className="text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wide truncate">
                         {label}
                     </span>
-                    <span className="ml-1 text-xs text-gray-500 bg-white border border-gray-200 rounded-full px-1.5 py-0.5">
+                    <span className="ml-1 text-xs text-gray-500 dark:text-slate-400 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full px-1.5 py-0.5">
                         {referrals.length}
                     </span>
                 </div>
                 {/* Only the first column gets a quick "+" button */}
                 {isFirst && (
                     <button
-                        className="mt-1 text-xs text-blue-600 hover:text-blue-800"
+                        className="mt-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800"
                         onClick={onNew}
                         data-testid="new-referral-button"
                     >
@@ -175,9 +183,9 @@ function KanbanColumn({ status, label, referrals, onClick, onNew, isFirst }: Kan
             </div>
 
             {/* Card list */}
-            <div className="flex-1 bg-gray-100 rounded-b p-2 space-y-2 min-h-32 overflow-y-auto max-h-[calc(100vh-220px)]">
+            <div className="flex-1 bg-gray-100 dark:bg-slate-700/50 rounded-b p-2 space-y-2 min-h-32 overflow-y-auto max-h-[calc(100vh-220px)]">
                 {referrals.length === 0 ? (
-                    <p className="text-xs text-gray-400 text-center py-4">No referrals</p>
+                    <p className="text-xs text-gray-400 dark:text-slate-500 text-center py-4">No referrals</p>
                 ) : (
                     referrals.map((ref) => (
                         <ReferralCard key={ref.id} referral={ref} onClick={onClick} />
@@ -229,16 +237,16 @@ function NewReferralModal({ sources, onClose, onSaved }: NewReferralModalProps) 
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" data-testid="new-referral-modal">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
-                <div className="flex items-center justify-between px-6 py-4 border-b">
-                    <h2 className="text-lg font-semibold text-gray-900">New Referral</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md mx-4">
+                <div className="flex items-center justify-between px-6 py-4 border-b dark:border-slate-700">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">New Referral</h2>
+                    <button onClick={onClose} className="text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 text-xl">✕</button>
                 </div>
                 <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Referred By <span className="text-red-500">*</span></label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Referred By <span className="text-red-500">*</span></label>
                         <input
-                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                             value={form.referred_by_name}
                             onChange={e => setForm(f => ({ ...f, referred_by_name: e.target.value }))}
                             placeholder="Dr. Jane Smith"
@@ -247,9 +255,9 @@ function NewReferralModal({ sources, onClose, onSaved }: NewReferralModalProps) 
                         {errors.referred_by_name && <p className="text-red-500 text-xs mt-1">{errors.referred_by_name}</p>}
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Organization</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Organization</label>
                         <input
-                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                            className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-md px-3 py-2 text-sm"
                             value={form.referred_by_org}
                             onChange={e => setForm(f => ({ ...f, referred_by_org: e.target.value }))}
                             placeholder="Memorial Hospital"
@@ -257,19 +265,19 @@ function NewReferralModal({ sources, onClose, onSaved }: NewReferralModalProps) 
                     </div>
                     <div className="flex gap-3">
                         <div className="flex-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Referral Date <span className="text-red-500">*</span></label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Referral Date <span className="text-red-500">*</span></label>
                             <input
                                 type="date"
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                                className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-md px-3 py-2 text-sm"
                                 value={form.referral_date}
                                 onChange={e => setForm(f => ({ ...f, referral_date: e.target.value }))}
                                 data-testid="referral-date-input"
                             />
                         </div>
                         <div className="flex-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Source <span className="text-red-500">*</span></label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Source <span className="text-red-500">*</span></label>
                             <select
-                                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                                className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-md px-3 py-2 text-sm"
                                 value={form.referral_source}
                                 onChange={e => setForm(f => ({ ...f, referral_source: e.target.value }))}
                                 data-testid="referral-source-select"
@@ -281,16 +289,16 @@ function NewReferralModal({ sources, onClose, onSaved }: NewReferralModalProps) 
                         </div>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Notes</label>
                         <textarea
-                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm resize-none"
+                            className="w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-md px-3 py-2 text-sm resize-none"
                             rows={3}
                             value={form.notes}
                             onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                         />
                     </div>
                     <div className="flex justify-end gap-3 pt-2">
-                        <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
+                        <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200">Cancel</button>
                         <button
                             type="submit"
                             disabled={saving}
@@ -363,16 +371,16 @@ function ReferralDetailModal({ referral, statuses, sources, onClose, onUpdated }
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" data-testid="referral-detail-modal">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
                 {/* Header */}
-                <div className="flex items-start justify-between px-6 py-4 border-b">
+                <div className="flex items-start justify-between px-6 py-4 border-b dark:border-slate-700">
                     <div>
-                        <h2 className="text-lg font-semibold text-gray-900">{referral.referred_by_name}</h2>
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{referral.referred_by_name}</h2>
                         {referral.referred_by_org && (
-                            <p className="text-sm text-gray-500">{referral.referred_by_org}</p>
+                            <p className="text-sm text-gray-500 dark:text-slate-400">{referral.referred_by_org}</p>
                         )}
                     </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl mt-1">✕</button>
+                    <button onClick={onClose} className="text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 text-xl mt-1">✕</button>
                 </div>
 
                 <div className="px-6 py-4 space-y-4">
@@ -381,16 +389,16 @@ function ReferralDetailModal({ referral, statuses, sources, onClose, onUpdated }
                         <span className={`inline-block text-xs font-semibold px-2 py-1 rounded-full ${badgeClass}`}>
                             {statuses[referral.status] ?? referral.status}
                         </span>
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-gray-500 dark:text-slate-400">
                             {sources[referral.referral_source] ?? referral.referral_source}
                         </span>
-                        <span className="text-xs text-gray-500">Referral date: {referral.referral_date}</span>
+                        <span className="text-xs text-gray-500 dark:text-slate-400">Referral date: {referral.referral_date}</span>
                     </div>
 
                     {/* Linked participant */}
                     {referral.participant && (
-                        <div className="bg-indigo-50 rounded-lg px-4 py-2 text-sm">
-                            <span className="font-medium text-indigo-700">Participant: </span>
+                        <div className="bg-indigo-50 dark:bg-indigo-950/60 rounded-lg px-4 py-2 text-sm">
+                            <span className="font-medium text-indigo-700 dark:text-indigo-300">Participant: </span>
                             <a
                                 href={`/participants/${referral.participant.id}`}
                                 className="text-indigo-600 hover:underline"
@@ -403,36 +411,36 @@ function ReferralDetailModal({ referral, statuses, sources, onClose, onUpdated }
                     {/* Notes */}
                     {referral.notes && (
                         <div>
-                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Notes</p>
-                            <p className="text-sm text-gray-700 whitespace-pre-line">{referral.notes}</p>
+                            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-1">Notes</p>
+                            <p className="text-sm text-gray-700 dark:text-slate-300 whitespace-pre-line">{referral.notes}</p>
                         </div>
                     )}
 
                     {/* Assigned to */}
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-gray-600 dark:text-slate-400">
                         <span className="font-medium">Assigned to: </span>
                         {referral.assigned_to
                             ? `${referral.assigned_to.first_name} ${referral.assigned_to.last_name}`
-                            : <span className="text-amber-600">Unassigned</span>
+                            : <span className="text-amber-600 dark:text-amber-400">Unassigned</span>
                         }
                     </p>
 
                     {/* Terminal reason */}
                     {referral.status === 'declined' && referral.decline_reason && (
-                        <div className="bg-red-50 rounded p-3 text-sm text-red-700">
+                        <div className="bg-red-50 dark:bg-red-950/60 rounded p-3 text-sm text-red-700 dark:text-red-300">
                             <span className="font-medium">Declined: </span>{referral.decline_reason.replace(/_/g, ' ')}
                         </div>
                     )}
                     {referral.status === 'withdrawn' && referral.withdrawn_reason && (
-                        <div className="bg-slate-50 rounded p-3 text-sm text-slate-700">
+                        <div className="bg-slate-50 dark:bg-slate-900 rounded p-3 text-sm text-slate-700 dark:text-slate-300">
                             <span className="font-medium">Withdrawn: </span>{referral.withdrawn_reason}
                         </div>
                     )}
 
                     {/* Transition controls (only for non-terminal referrals) */}
                     {!isTerminal && availableNext.length > 0 && (
-                        <div className="border-t pt-4">
-                            <p className="text-sm font-medium text-gray-700 mb-2">Move to next stage</p>
+                        <div className="border-t dark:border-slate-700 pt-4">
+                            <p className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Move to next stage</p>
                             <div className="flex gap-2 flex-wrap">
                                 {availableNext.map(s => (
                                     <button
@@ -441,7 +449,7 @@ function ReferralDetailModal({ referral, statuses, sources, onClose, onUpdated }
                                         className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                                             newStatus === s
                                                 ? 'bg-blue-600 text-white border-blue-600'
-                                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                                : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700/50'
                                         }`}
                                         data-testid={`transition-btn-${s}`}
                                     >
@@ -452,9 +460,9 @@ function ReferralDetailModal({ referral, statuses, sources, onClose, onUpdated }
 
                             {newStatus === 'declined' && (
                                 <div className="mt-3">
-                                    <label className="text-xs font-medium text-gray-700">Decline Reason <span className="text-red-500">*</span></label>
+                                    <label className="text-xs font-medium text-gray-700 dark:text-slate-300">Decline Reason <span className="text-red-500">*</span></label>
                                     <select
-                                        className="mt-1 w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+                                        className="mt-1 w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-md px-3 py-1.5 text-sm"
                                         value={declineReason}
                                         onChange={e => setDeclineReason(e.target.value)}
                                         data-testid="decline-reason-select"
@@ -472,9 +480,9 @@ function ReferralDetailModal({ referral, statuses, sources, onClose, onUpdated }
 
                             {newStatus === 'withdrawn' && (
                                 <div className="mt-3">
-                                    <label className="text-xs font-medium text-gray-700">Withdrawal Reason <span className="text-red-500">*</span></label>
+                                    <label className="text-xs font-medium text-gray-700 dark:text-slate-300">Withdrawal Reason <span className="text-red-500">*</span></label>
                                     <input
-                                        className="mt-1 w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+                                        className="mt-1 w-full border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-md px-3 py-1.5 text-sm"
                                         value={withdrawnReason}
                                         onChange={e => setWithdrawnReason(e.target.value)}
                                         placeholder="Describe the reason for withdrawal…"
@@ -501,8 +509,8 @@ function ReferralDetailModal({ referral, statuses, sources, onClose, onUpdated }
                     )}
                 </div>
 
-                <div className="px-6 py-3 bg-gray-50 rounded-b-xl flex justify-end">
-                    <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">
+                <div className="px-6 py-3 bg-gray-50 dark:bg-slate-700/50 rounded-b-xl flex justify-end">
+                    <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200">
                         Close
                     </button>
                 </div>
@@ -533,10 +541,10 @@ export default function EnrollmentIndex({ pipeline, statuses, sources, pipelineO
             <Head title="Enrollment Pipeline" />
 
             {/* ── Page header ──────────────────────────────────────────────── */}
-            <div className="flex items-center justify-between px-6 py-4 border-b bg-white">
+            <div className="flex items-center justify-between px-6 py-4 border-b bg-white dark:bg-slate-800">
                 <div>
-                    <h1 className="text-xl font-bold text-gray-900">Enrollment Pipeline</h1>
-                    <p className="text-sm text-gray-500 mt-0.5">
+                    <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">Enrollment Pipeline</h1>
+                    <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
                         {totalActive} active referral{totalActive !== 1 ? 's' : ''} in progress
                         {pipeline['enrolled']?.length
                             ? ` · ${pipeline['enrolled'].length} enrolled this cycle`

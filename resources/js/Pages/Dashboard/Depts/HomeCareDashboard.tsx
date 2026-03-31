@@ -10,6 +10,7 @@
 
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import ActionWidget, { ActionItem } from '@/Components/Dashboard/ActionWidget';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ interface HomeVisit {
     status: string;
     provider_name: string | null;
     transport_required: boolean;
+    href: string;
 }
 
 interface AlertItem {
@@ -36,6 +38,7 @@ interface AlertItem {
     acknowledged: boolean;
     participant: Participant | null;
     created_at: string;
+    href: string;
 }
 
 interface Goal {
@@ -44,6 +47,7 @@ interface Goal {
     target_date: string | null;
     status: string;
     participant: Participant | null;
+    href: string;
 }
 
 interface Sdr {
@@ -55,54 +59,23 @@ interface Sdr {
     status: string;
     is_overdue: boolean;
     hours_remaining: number;
+    href: string;
 }
 
-// ── Widget shell ────────────────────────────────────────────────────────────────
+// ── Badge color helpers ────────────────────────────────────────────────────────
 
-function WidgetCard({ title, badge, children }: {
-    title: string;
-    badge?: { label: string; color: string };
-    children: React.ReactNode;
-}) {
-    return (
-        <div className="card p-5 flex flex-col">
-            <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
-                {badge && (
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
-                        {badge.label}
-                    </span>
-                )}
-            </div>
-            {children}
-        </div>
-    );
+// Maps appointment status to a badge color class
+function apptBadgeColor(status: string): string {
+    if (status === 'confirmed') return 'bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300';
+    if (status === 'scheduled') return 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300';
+    return 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300';
 }
 
-function Skeleton() {
-    return (
-        <div className="space-y-2 animate-pulse">
-            {[1, 2, 3].map(i => <div key={i} className="h-8 bg-slate-100 rounded" />)}
-        </div>
-    );
-}
-
-function Empty({ message }: { message: string }) {
-    return <p className="text-xs text-slate-400 py-4 text-center">{message}</p>;
-}
-
-function SeverityBadge({ severity }: { severity: string }) {
-    const cls = severity === 'critical' ? 'bg-red-100 text-red-700'
-        : severity === 'warning' ? 'bg-amber-100 text-amber-700'
-        : 'bg-blue-100 text-blue-700';
-    return <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${cls}`}>{severity}</span>;
-}
-
-function StatusBadge({ status }: { status: string }) {
-    const cls = status === 'confirmed' ? 'bg-green-100 text-green-700'
-        : status === 'scheduled' ? 'bg-blue-100 text-blue-700'
-        : 'bg-slate-100 text-slate-500';
-    return <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${cls}`}>{status}</span>;
+// Maps alert severity to a badge color class
+function severityColor(severity: string): string {
+    if (severity === 'critical') return 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300';
+    if (severity === 'warning') return 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300';
+    return 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300';
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -110,11 +83,11 @@ function StatusBadge({ status }: { status: string }) {
 interface Props { departmentLabel: string; role: string }
 
 export default function HomeCareDashboard({ departmentLabel, role }: Props) {
-    const [loading, setLoading]   = useState(true);
-    const [schedule, setSchedule] = useState<{ appointments: HomeVisit[] } | null>(null);
+    const [loading, setLoading]     = useState(true);
+    const [schedule, setSchedule]   = useState<{ appointments: HomeVisit[] } | null>(null);
     const [adlAlerts, setAdlAlerts] = useState<{ alerts: AlertItem[]; unacknowledged_count: number } | null>(null);
-    const [goals, setGoals]       = useState<{ goals: Goal[] } | null>(null);
-    const [sdrs, setSdrs]         = useState<{ sdrs: Sdr[]; overdue_count: number; open_count: number } | null>(null);
+    const [goals, setGoals]         = useState<{ goals: Goal[] } | null>(null);
+    const [sdrs, setSdrs]           = useState<{ sdrs: Sdr[]; overdue_count: number; open_count: number } | null>(null);
 
     useEffect(() => {
         Promise.all([
@@ -130,127 +103,82 @@ export default function HomeCareDashboard({ departmentLabel, role }: Props) {
         }).finally(() => setLoading(false));
     }, []);
 
+    // Map home visits to ActionItems; note transport_required in sublabel
+    const scheduleItems: ActionItem[] = (schedule?.appointments ?? []).map(a => ({
+        label: `${a.participant?.name ?? '-'} — ${a.type_label}`,
+        href: a.href,
+        badge: a.status,
+        badgeColor: apptBadgeColor(a.status),
+        sublabel: [a.scheduled_start, a.transport_required ? 'Transport required' : null].filter(Boolean).join(' | ') || undefined,
+    }));
+
+    // Map ADL alerts to ActionItems
+    const adlAlertItems: ActionItem[] = (adlAlerts?.alerts ?? []).map(a => ({
+        label: `${a.participant?.name ?? 'No participant'} — ${a.type_label}`,
+        href: a.href,
+        badge: a.severity,
+        badgeColor: severityColor(a.severity),
+        sublabel: a.acknowledged ? `${a.created_at} (ack'd)` : a.created_at,
+    }));
+
+    // Map goals to ActionItems
+    const goalItems: ActionItem[] = (goals?.goals ?? []).map(g => ({
+        label: `${g.participant?.name ?? '-'} — Home Care Goal`,
+        href: g.href,
+        badge: g.target_date ? `Due ${g.target_date}` : undefined,
+        badgeColor: 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
+        sublabel: g.goal_description,
+    }));
+
+    // Map SDRs to ActionItems — overdue SDRs shown in red
+    const sdrItems: ActionItem[] = (sdrs?.sdrs ?? []).map(s => ({
+        label: `${s.participant?.name ?? '-'} — ${s.type_label}`,
+        href: s.href,
+        badge: s.is_overdue ? 'Overdue' : `${s.hours_remaining}h left`,
+        badgeColor: s.is_overdue
+            ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300'
+            : 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
+        sublabel: `Priority: ${s.priority}`,
+    }));
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-            {/* Today's Home Visits */}
-            <WidgetCard
+            <ActionWidget
                 title="Today's Home Visits"
-                badge={schedule ? { label: `${schedule.appointments.length} visits`, color: 'bg-blue-100 text-blue-700' } : undefined}
-            >
-                {loading ? <Skeleton /> : !schedule?.appointments.length ? <Empty message="No home visits scheduled today" /> : (
-                    <div className="overflow-auto">
-                        <table className="w-full text-xs">
-                            <thead>
-                                <tr className="border-b border-slate-100">
-                                    <th className="text-left py-1 font-medium text-slate-500">Time</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Participant</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Provider</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {schedule.appointments.map(a => (
-                                    <tr key={a.id} className="hover:bg-slate-50">
-                                        <td className="py-1.5 text-slate-600 whitespace-nowrap">{a.scheduled_start ?? '—'}</td>
-                                        <td className="py-1.5">
-                                            <span className="font-medium text-slate-800">{a.participant?.name ?? '—'}</span>
-                                            {a.transport_required && (
-                                                <span className="ml-1.5 inline-flex px-1 py-0.5 rounded text-[9px] font-medium bg-slate-100 text-slate-500">🚐</span>
-                                            )}
-                                        </td>
-                                        <td className="py-1.5 text-slate-600">{a.provider_name ?? '—'}</td>
-                                        <td className="py-1.5"><StatusBadge status={a.status} /></td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </WidgetCard>
+                description="Home visits scheduled for today. Complete visit documentation within 24h."
+                items={scheduleItems}
+                emptyMessage="No home visits scheduled today"
+                viewAllHref="/schedule"
+                loading={loading}
+            />
 
-            {/* ADL Decline Alerts */}
-            <WidgetCard
-                title="ADL Decline Alerts"
-                badge={adlAlerts ? {
-                    label: adlAlerts.unacknowledged_count > 0 ? `${adlAlerts.unacknowledged_count} unacknowledged` : `${adlAlerts.alerts.length} active`,
-                    color: adlAlerts.unacknowledged_count > 0 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700',
-                } : undefined}
-            >
-                {loading ? <Skeleton /> : !adlAlerts?.alerts.length ? <Empty message="No active ADL alerts" /> : (
-                    <div className="space-y-2 max-h-56 overflow-auto">
-                        {adlAlerts.alerts.map(a => (
-                            <div key={a.id} className={`flex items-start gap-2 p-2 rounded-lg border ${a.severity === 'critical' ? 'border-red-200 bg-red-50' : 'border-amber-100 bg-amber-50'}`}>
-                                <SeverityBadge severity={a.severity} />
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-medium text-slate-800 truncate">{a.title}</p>
-                                    {a.participant && (
-                                        <p className="text-[10px] text-slate-500">{a.participant.name} · {a.created_at}</p>
-                                    )}
-                                </div>
-                                {a.acknowledged && (
-                                    <span className="text-[10px] text-slate-400 shrink-0">ack'd</span>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </WidgetCard>
+            <ActionWidget
+                title="ADL Alerts"
+                description="Participants with ADL threshold breaches — functional decline requiring care plan review."
+                items={adlAlertItems}
+                emptyMessage="No active ADL alerts"
+                viewAllHref="/participants"
+                loading={loading}
+            />
 
-            {/* Home Care Goals */}
-            <WidgetCard
-                title="Home Care Goals"
-                badge={goals ? { label: `${goals.goals.length} active`, color: 'bg-green-100 text-green-700' } : undefined}
-            >
-                {loading ? <Skeleton /> : !goals?.goals.length ? <Empty message="No active home care goals" /> : (
-                    <div className="space-y-1.5 overflow-auto max-h-56">
-                        {goals.goals.map(g => (
-                            <div key={g.id} className="p-2 rounded-lg border border-slate-100 hover:bg-slate-50">
-                                <p className="text-xs text-slate-700 leading-snug">{g.goal_description}</p>
-                                <p className="text-[10px] text-slate-500 mt-0.5">
-                                    {g.participant?.name ?? '—'}{g.target_date ? ` · Due ${g.target_date}` : ''}
-                                </p>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </WidgetCard>
+            <ActionWidget
+                title="Goals Due"
+                description="Home care goals with target dates within 14 days or past due."
+                items={goalItems}
+                emptyMessage="No active home care goals due soon"
+                viewAllHref="/clinical/care-plans"
+                loading={loading}
+            />
 
-            {/* SDR Queue */}
-            <WidgetCard
-                title="SDR Queue"
-                badge={sdrs ? {
-                    label: sdrs.overdue_count > 0 ? `${sdrs.overdue_count} overdue` : `${sdrs.open_count} open`,
-                    color: sdrs.overdue_count > 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700',
-                } : undefined}
-            >
-                {loading ? <Skeleton /> : !sdrs?.sdrs.length ? <Empty message="No open SDRs" /> : (
-                    <div className="overflow-auto">
-                        <table className="w-full text-xs">
-                            <thead>
-                                <tr className="border-b border-slate-100">
-                                    <th className="text-left py-1 font-medium text-slate-500">Participant</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Type</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Hrs Left</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Priority</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {sdrs.sdrs.map(s => (
-                                    <tr key={s.id} className={s.is_overdue ? 'bg-red-50' : 'hover:bg-slate-50'}>
-                                        <td className="py-1.5 font-medium text-slate-800">{s.participant?.name ?? '—'}</td>
-                                        <td className="py-1.5 text-slate-600">{s.type_label}</td>
-                                        <td className={`py-1.5 font-semibold ${s.is_overdue ? 'text-red-600' : 'text-slate-600'}`}>
-                                            {s.is_overdue ? 'Overdue' : `${s.hours_remaining}h`}
-                                        </td>
-                                        <td className="py-1.5 capitalize text-slate-500">{s.priority}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </WidgetCard>
+            <ActionWidget
+                title="Overdue SDRs"
+                description="SDRs assigned to home care past their 72-hour deadline."
+                items={sdrItems}
+                emptyMessage="No open SDRs"
+                viewAllHref="/sdrs"
+                loading={loading}
+            />
 
         </div>
     );

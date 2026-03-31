@@ -138,11 +138,11 @@ export default function Users({ users: initialUsers }: Props) {
 
     return (
         <AppShell>
-            <Head title="IT Admin — Users" />
+            <Head title="IT Admin: Users" />
 
             <div className="max-w-7xl mx-auto px-4 py-8">
                 <div className="flex items-center justify-between mb-6">
-                    <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">User Management</h1>
                     <button
                         onClick={() => setShowProvision(true)}
                         className="bg-blue-700 text-white text-sm px-4 py-2 rounded hover:bg-blue-800"
@@ -155,49 +155,49 @@ export default function Users({ users: initialUsers }: Props) {
                 {/* ── Provision User Modal ──────────────────────────────────── */}
                 {showProvision && (
                     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-                        <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-                            <h2 className="text-lg font-semibold mb-4">Provision New User</h2>
+                        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md p-6">
+                            <h2 className="text-lg font-semibold mb-4 dark:text-slate-100">Provision New User</h2>
                             <form onSubmit={handleProvision} className="space-y-3">
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label className="text-sm text-gray-600">First Name</label>
+                                        <label className="text-sm text-gray-600 dark:text-slate-300">First Name</label>
                                         <input type="text" value={form.first_name} onChange={e => setForm(f => ({...f, first_name: e.target.value}))}
-                                            className="w-full border rounded px-3 py-1.5 text-sm mt-1" />
-                                        {formErrors.first_name && <p className="text-xs text-red-600 mt-1">{formErrors.first_name}</p>}
+                                            className="w-full border rounded px-3 py-1.5 text-sm mt-1 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
+                                        {formErrors.first_name && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{formErrors.first_name}</p>}
                                     </div>
                                     <div>
-                                        <label className="text-sm text-gray-600">Last Name</label>
+                                        <label className="text-sm text-gray-600 dark:text-slate-300">Last Name</label>
                                         <input type="text" value={form.last_name} onChange={e => setForm(f => ({...f, last_name: e.target.value}))}
-                                            className="w-full border rounded px-3 py-1.5 text-sm mt-1" />
-                                        {formErrors.last_name && <p className="text-xs text-red-600 mt-1">{formErrors.last_name}</p>}
+                                            className="w-full border rounded px-3 py-1.5 text-sm mt-1 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
+                                        {formErrors.last_name && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{formErrors.last_name}</p>}
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-sm text-gray-600">Email</label>
+                                    <label className="text-sm text-gray-600 dark:text-slate-300">Email</label>
                                     <input type="email" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))}
-                                        className="w-full border rounded px-3 py-1.5 text-sm mt-1" />
-                                    {formErrors.email && <p className="text-xs text-red-600 mt-1">{formErrors.email}</p>}
+                                        className="w-full border rounded px-3 py-1.5 text-sm mt-1 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
+                                    {formErrors.email && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{formErrors.email}</p>}
                                 </div>
                                 <div>
-                                    <label className="text-sm text-gray-600">Department</label>
+                                    <label className="text-sm text-gray-600 dark:text-slate-300">Department</label>
                                     <select value={form.department} onChange={e => setForm(f => ({...f, department: e.target.value}))}
-                                        className="w-full border rounded px-3 py-1.5 text-sm mt-1">
-                                        <option value="">— Select —</option>
+                                        className="w-full border rounded px-3 py-1.5 text-sm mt-1 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">
+                                        <option value="">Select Department</option>
                                         {Object.entries(DEPT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                                     </select>
-                                    {formErrors.department && <p className="text-xs text-red-600 mt-1">{formErrors.department}</p>}
+                                    {formErrors.department && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{formErrors.department}</p>}
                                 </div>
                                 <div>
-                                    <label className="text-sm text-gray-600">Role</label>
+                                    <label className="text-sm text-gray-600 dark:text-slate-300">Role</label>
                                     <select value={form.role} onChange={e => setForm(f => ({...f, role: e.target.value}))}
-                                        className="w-full border rounded px-3 py-1.5 text-sm mt-1">
+                                        className="w-full border rounded px-3 py-1.5 text-sm mt-1 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100">
                                         <option value="standard">Standard</option>
                                         <option value="admin">Admin</option>
                                     </select>
                                 </div>
                                 <div className="flex gap-3 pt-2 justify-end">
                                     <button type="button" onClick={() => setShowProvision(false)}
-                                        className="text-sm px-4 py-2 border rounded hover:bg-gray-50">Cancel</button>
+                                        className="text-sm px-4 py-2 border rounded hover:bg-gray-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700">Cancel</button>
                                     <button type="submit" disabled={provisioning}
                                         className="text-sm px-4 py-2 bg-blue-700 text-white rounded hover:bg-blue-800 disabled:opacity-50">
                                         {provisioning ? 'Creating…' : 'Create User'}
@@ -215,13 +215,13 @@ export default function Users({ users: initialUsers }: Props) {
                         placeholder="Search name or email…"
                         value={search}
                         onChange={e => setSearch(e.target.value)}
-                        className="border border-gray-300 rounded px-3 py-1.5 text-sm w-64"
+                        className="border border-gray-300 rounded px-3 py-1.5 text-sm w-64 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                         data-testid="user-search"
                     />
                     <select
                         value={deptFilter}
                         onChange={e => setDeptFilter(e.target.value)}
-                        className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+                        className="border border-gray-300 rounded px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                         data-testid="dept-filter"
                     >
                         <option value="">All Departments</option>
@@ -232,22 +232,22 @@ export default function Users({ users: initialUsers }: Props) {
                     <select
                         value={activeFilter}
                         onChange={e => setActiveFilter(e.target.value)}
-                        className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+                        className="border border-gray-300 rounded px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                         data-testid="active-filter"
                     >
                         <option value="">All Statuses</option>
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
                     </select>
-                    <span className="ml-auto text-sm text-gray-500 self-center">
+                    <span className="ml-auto text-sm text-gray-500 self-center dark:text-slate-400">
                         {filtered.length} of {users.length} users
                     </span>
                 </div>
 
                 {/* ── User table ─────────────────────────────────────────────── */}
-                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 overflow-hidden dark:border-slate-700">
                     <table className="w-full text-sm">
-                        <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                        <thead className="bg-gray-50 text-xs text-gray-500 uppercase dark:bg-slate-700/50 dark:text-slate-400">
                             <tr>
                                 <th className="text-left px-4 py-3">Name</th>
                                 <th className="text-left px-4 py-3">Email</th>
@@ -257,29 +257,29 @@ export default function Users({ users: initialUsers }: Props) {
                                 <th className="px-4 py-3"></th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                             {filtered.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="text-center py-8 text-gray-400">
+                                    <td colSpan={6} className="text-center py-8 text-gray-400 dark:text-slate-500">
                                         No users found.
                                     </td>
                                 </tr>
                             )}
                             {filtered.map(user => (
-                                <tr key={user.id} className={`hover:bg-gray-50 ${!user.is_active ? 'opacity-60' : ''}`}>
-                                    <td className="px-4 py-3 font-medium text-gray-900">
+                                <tr key={user.id} className={`hover:bg-gray-50 dark:hover:bg-slate-700/50 ${!user.is_active ? 'opacity-60' : ''}`}>
+                                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                                         {user.first_name} {user.last_name}
                                     </td>
-                                    <td className="px-4 py-3 text-gray-600">{user.email}</td>
-                                    <td className="px-4 py-3 text-gray-600">
+                                    <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{user.email}</td>
+                                    <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
                                         {DEPT_LABELS[user.department] ?? user.department}
                                     </td>
                                     <td className="px-4 py-3">
-                                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'}`}>
+                                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${user.is_active ? 'bg-green-100 dark:bg-green-900/60 text-green-800 dark:text-green-300' : 'bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400'}`}>
                                             {user.is_active ? 'Active' : 'Inactive'}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-3 text-gray-500">
+                                    <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
                                         {new Date(user.created_at).toLocaleDateString()}
                                     </td>
                                     <td className="px-4 py-3 text-right">
@@ -288,7 +288,7 @@ export default function Users({ users: initialUsers }: Props) {
                                             <button
                                                 onClick={() => toggleActive(user)}
                                                 disabled={busy === user.id}
-                                                className={`text-xs font-medium disabled:opacity-50 ${user.is_active ? 'text-red-600 hover:text-red-800' : 'text-green-600 hover:text-green-800'}`}
+                                                className={`text-xs font-medium disabled:opacity-50 ${user.is_active ? 'text-red-600 dark:text-red-400 hover:text-red-800' : 'text-green-600 dark:text-green-400 hover:text-green-800'}`}
                                                 data-testid={`toggle-user-${user.id}`}
                                             >
                                                 {busy === user.id

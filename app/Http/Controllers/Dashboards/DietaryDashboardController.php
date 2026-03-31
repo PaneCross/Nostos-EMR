@@ -72,6 +72,9 @@ class DietaryDashboardController extends Controller
             'days_overdue'  => $a->next_due_date
                 ? abs((int) now()->diffInDays($a->next_due_date))
                 : null,
+            'href'          => $a->participant
+                ? "/participants/{$a->participant->id}?tab=assessments"
+                : '/participants',
         ];
 
         return response()->json([
@@ -109,6 +112,9 @@ class DietaryDashboardController extends Controller
                     'id'   => $g->carePlan->participant->id,
                     'name' => $g->carePlan->participant->first_name . ' ' . $g->carePlan->participant->last_name,
                 ] : null,
+                'href'             => $g->carePlan?->participant?->id
+                    ? "/participants/{$g->carePlan->participant->id}?tab=careplan"
+                    : '/participants',
             ]);
 
         return response()->json(['goals' => $goals]);
@@ -154,6 +160,9 @@ class DietaryDashboardController extends Controller
                     'id'   => $a->participant->id,
                     'name' => $a->participant->first_name . ' ' . $a->participant->last_name,
                 ] : null,
+                'href'         => $a->participant
+                    ? "/participants/{$a->participant->id}"
+                    : '/participants',
             ]);
 
         return response()->json([
@@ -190,6 +199,7 @@ class DietaryDashboardController extends Controller
                 'is_overdue'      => $s->isOverdue(),
                 'hours_remaining' => round($s->hoursRemaining(), 1),
                 'due_at'          => $s->due_at?->toDateTimeString(),
+                'href'            => '/sdrs',
             ]);
 
         return response()->json([

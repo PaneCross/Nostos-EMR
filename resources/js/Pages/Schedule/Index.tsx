@@ -25,6 +25,7 @@ import { Head, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import AppShell from '@/Layouts/AppShell';
 import { PageProps } from '@/types';
+import { TruckIcon } from '@heroicons/react/24/outline';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -72,21 +73,21 @@ interface SchedulePageProps extends PageProps {
 
 // Map Tailwind color names to actual classes (Tailwind purging requires static class strings)
 const COLOR_CLASS_MAP: Record<string, { bg: string; border: string; text: string }> = {
-    blue:    { bg: 'bg-blue-100',    border: 'border-blue-400',    text: 'text-blue-800' },
-    green:   { bg: 'bg-green-100',   border: 'border-green-400',   text: 'text-green-800' },
-    emerald: { bg: 'bg-emerald-100', border: 'border-emerald-400', text: 'text-emerald-800' },
-    teal:    { bg: 'bg-teal-100',    border: 'border-teal-400',    text: 'text-teal-800' },
-    purple:  { bg: 'bg-purple-100',  border: 'border-purple-400',  text: 'text-purple-800' },
-    violet:  { bg: 'bg-violet-100',  border: 'border-violet-400',  text: 'text-violet-800' },
-    orange:  { bg: 'bg-orange-100',  border: 'border-orange-400',  text: 'text-orange-800' },
-    amber:   { bg: 'bg-amber-100',   border: 'border-amber-400',   text: 'text-amber-800' },
-    rose:    { bg: 'bg-rose-100',    border: 'border-rose-400',    text: 'text-rose-800' },
-    pink:    { bg: 'bg-pink-100',    border: 'border-pink-400',    text: 'text-pink-800' },
-    slate:   { bg: 'bg-slate-100',   border: 'border-slate-400',   text: 'text-slate-800' },
-    gray:    { bg: 'bg-gray-100',    border: 'border-gray-400',    text: 'text-gray-800' },
-    indigo:  { bg: 'bg-indigo-100',  border: 'border-indigo-400',  text: 'text-indigo-800' },
-    cyan:    { bg: 'bg-cyan-100',    border: 'border-cyan-400',    text: 'text-cyan-800' },
-    lime:    { bg: 'bg-lime-100',    border: 'border-lime-400',    text: 'text-lime-800' },
+    blue:    { bg: 'bg-blue-100 dark:bg-blue-900/50',    border: 'border-blue-400 dark:border-blue-600',    text: 'text-blue-800 dark:text-blue-200' },
+    green:   { bg: 'bg-green-100 dark:bg-green-800/50',   border: 'border-green-500 dark:border-green-500',   text: 'text-green-800 dark:text-green-200' },
+    emerald: { bg: 'bg-emerald-100 dark:bg-emerald-800/50', border: 'border-emerald-500 dark:border-emerald-500', text: 'text-emerald-800 dark:text-emerald-200' },
+    teal:    { bg: 'bg-teal-100 dark:bg-teal-800/50',    border: 'border-teal-400 dark:border-teal-500',    text: 'text-teal-800 dark:text-teal-200' },
+    purple:  { bg: 'bg-purple-100 dark:bg-purple-800/50',  border: 'border-purple-400 dark:border-purple-500',  text: 'text-purple-800 dark:text-purple-200' },
+    violet:  { bg: 'bg-violet-100 dark:bg-violet-800/50',  border: 'border-violet-400 dark:border-violet-500',  text: 'text-violet-800 dark:text-violet-200' },
+    orange:  { bg: 'bg-orange-100 dark:bg-orange-800/50',  border: 'border-orange-400 dark:border-orange-500',  text: 'text-orange-800 dark:text-orange-200' },
+    amber:   { bg: 'bg-amber-100 dark:bg-amber-800/50',   border: 'border-amber-400 dark:border-amber-500',   text: 'text-amber-800 dark:text-amber-200' },
+    rose:    { bg: 'bg-rose-100 dark:bg-rose-800/50',    border: 'border-rose-400 dark:border-rose-500',    text: 'text-rose-800 dark:text-rose-200' },
+    pink:    { bg: 'bg-pink-100 dark:bg-pink-800/50',    border: 'border-pink-400 dark:border-pink-500',    text: 'text-pink-800 dark:text-pink-200' },
+    slate:   { bg: 'bg-slate-100 dark:bg-slate-700',     border: 'border-slate-400 dark:border-slate-500',   text: 'text-slate-800 dark:text-slate-200' },
+    gray:    { bg: 'bg-gray-100 dark:bg-slate-700',      border: 'border-gray-400 dark:border-slate-500',    text: 'text-gray-800 dark:text-slate-200' },
+    indigo:  { bg: 'bg-indigo-100 dark:bg-indigo-800/50',  border: 'border-indigo-400 dark:border-indigo-500',  text: 'text-indigo-800 dark:text-indigo-200' },
+    cyan:    { bg: 'bg-cyan-100 dark:bg-cyan-800/50',    border: 'border-cyan-400 dark:border-cyan-500',    text: 'text-cyan-800 dark:text-cyan-200' },
+    lime:    { bg: 'bg-lime-100 dark:bg-lime-800/50',    border: 'border-lime-400 dark:border-lime-500',    text: 'text-lime-800 dark:text-lime-200' },
 };
 
 const HOUR_START = 8;  // 8 AM
@@ -239,39 +240,39 @@ function BookingModal({ onClose, onCreated, appointmentTypes, typeLabels, locati
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4" role="dialog" aria-modal="true">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-lg mx-4" role="dialog" aria-modal="true">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-                    <h2 className="text-lg font-semibold text-gray-900">New Appointment</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold" aria-label="Close">×</button>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">New Appointment</h2>
+                    <button onClick={onClose} className="text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 text-xl font-bold" aria-label="Close">×</button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     {/* Step 1: Participant Search */}
                     {step === 1 && (
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Search Participant</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Search Participant</label>
                             <input
                                 type="text"
                                 value={participantSearch}
                                 onChange={e => setParticipantSearch(e.target.value)}
                                 placeholder="Name or MRN..."
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                className="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-slate-100 bg-white dark:bg-slate-700 placeholder-gray-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 data-testid="participant-search"
                                 autoFocus
                             />
                             {participantResults.length > 0 && (
-                                <ul className="mt-1 border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                                <ul className="mt-1 border border-gray-200 dark:border-slate-600 rounded-lg divide-y divide-gray-100 dark:divide-slate-700 max-h-48 overflow-y-auto bg-white dark:bg-slate-800">
                                     {participantResults.map(p => (
                                         <li key={p.id}>
                                             <button
                                                 type="button"
-                                                className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                                                className="w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-slate-100 hover:bg-blue-50 dark:hover:bg-slate-700"
                                                 onClick={() => { setSelectedParticipant(p); setStep(2); }}
                                                 data-testid={`participant-result-${p.id}`}
                                             >
                                                 <span className="font-medium">{p.first_name} {p.last_name}</span>
-                                                <span className="text-gray-500 ml-2 text-xs">{p.mrn}</span>
+                                                <span className="text-gray-500 dark:text-slate-400 ml-2 text-xs">{p.mrn}</span>
                                             </button>
                                         </li>
                                     ))}
@@ -283,21 +284,21 @@ function BookingModal({ onClose, onCreated, appointmentTypes, typeLabels, locati
                     {/* Step 2: Appointment Details */}
                     {step === 2 && selectedParticipant && (
                         <>
-                            <div className="flex items-center gap-2 p-2 bg-blue-50 rounded-lg">
-                                <span className="text-sm font-medium text-blue-800">
+                            <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-950/60 rounded-lg">
+                                <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
                                     {selectedParticipant.first_name} {selectedParticipant.last_name}
                                 </span>
-                                <span className="text-xs text-blue-600">{selectedParticipant.mrn}</span>
+                                <span className="text-xs text-blue-600 dark:text-blue-400">{selectedParticipant.mrn}</span>
                                 <button type="button" onClick={() => { setSelectedParticipant(null); setStep(1); }}
-                                    className="ml-auto text-xs text-blue-600 hover:underline">Change</button>
+                                    className="ml-auto text-xs text-blue-600 dark:text-blue-400 hover:underline">Change</button>
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Appointment Type</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Appointment Type</label>
                                 <select
                                     value={form.appointment_type}
                                     onChange={e => setForm(f => ({ ...f, appointment_type: e.target.value }))}
-                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                    className="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-slate-100 bg-white dark:bg-slate-700"
                                     data-testid="appointment-type-select"
                                 >
                                     {appointmentTypes.map(t => (
@@ -308,28 +309,28 @@ function BookingModal({ onClose, onCreated, appointmentTypes, typeLabels, locati
 
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Start</label>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Start</label>
                                     <input type="datetime-local" value={form.scheduled_start}
                                         onChange={e => setForm(f => ({ ...f, scheduled_start: e.target.value }))}
-                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                        className="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-slate-100 bg-white dark:bg-slate-700"
                                         data-testid="scheduled-start" required />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">End</label>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">End</label>
                                     <input type="datetime-local" value={form.scheduled_end}
                                         onChange={e => setForm(f => ({ ...f, scheduled_end: e.target.value }))}
-                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                        className="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-slate-100 bg-white dark:bg-slate-700"
                                         data-testid="scheduled-end" required />
                                 </div>
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Location</label>
                                 <select value={form.location_id}
                                     onChange={e => setForm(f => ({ ...f, location_id: e.target.value }))}
-                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                    className="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-slate-100 bg-white dark:bg-slate-700"
                                     data-testid="location-select">
-                                    <option value="">— No location —</option>
+                                    <option value="">No location</option>
                                     {locations.map(l => (
                                         <option key={l.id} value={l.id}>{l.name}</option>
                                     ))}
@@ -337,27 +338,27 @@ function BookingModal({ onClose, onCreated, appointmentTypes, typeLabels, locati
                             </div>
 
                             {/* Transport toggle — visually prominent for scheduler */}
-                            <div className="flex items-center gap-3 p-3 rounded-lg border border-gray-200">
+                            <div className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-slate-600">
                                 <input
                                     id="transport_required"
                                     type="checkbox"
                                     checked={form.transport_required}
                                     onChange={e => setForm(f => ({ ...f, transport_required: e.target.checked }))}
-                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    className="h-4 w-4 rounded border-gray-300 dark:border-slate-600 text-blue-600 dark:text-blue-400 focus:ring-blue-500"
                                     data-testid="transport-required"
                                 />
-                                <label htmlFor="transport_required" className="text-sm font-medium text-gray-700">
+                                <label htmlFor="transport_required" className="text-sm font-medium text-gray-700 dark:text-slate-300">
                                     Transport Required
-                                    <span className="block text-xs text-gray-500 font-normal">Check if participant needs a ride</span>
+                                    <span className="block text-xs text-gray-500 dark:text-slate-400 font-normal">Check if participant needs a ride</span>
                                 </label>
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Notes</label>
                                 <textarea value={form.notes}
                                     onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                                     rows={2}
-                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"
+                                    className="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-slate-100 bg-white dark:bg-slate-700 resize-none placeholder-gray-400 dark:placeholder-slate-500"
                                     placeholder="Optional notes for this appointment..."
                                     data-testid="appointment-notes" />
                             </div>
@@ -365,14 +366,14 @@ function BookingModal({ onClose, onCreated, appointmentTypes, typeLabels, locati
                     )}
 
                     {error && (
-                        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700" data-testid="booking-error">
+                        <div className="rounded-lg bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-300" data-testid="booking-error">
                             {error}
                         </div>
                     )}
 
                     <div className="flex justify-end gap-3 pt-2">
                         <button type="button" onClick={onClose}
-                            className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                            className="px-4 py-2 text-sm text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600">
                             Cancel
                         </button>
                         {step === 2 && (
@@ -446,26 +447,26 @@ function DetailPanel({ appointment: appt, typeLabels, typeColors, onClose, onSta
         cancelled: 'Cancelled', no_show: 'No Show',
     };
     const STATUS_COLORS: Record<string, string> = {
-        scheduled: 'bg-blue-50 text-blue-700', confirmed: 'bg-green-50 text-green-700',
-        completed: 'bg-gray-100 text-gray-700', cancelled: 'bg-red-50 text-red-700',
-        no_show:   'bg-amber-50 text-amber-700',
+        scheduled: 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300', confirmed: 'bg-green-50 dark:bg-green-900/40 text-green-700 dark:text-green-200',
+        completed: 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300', cancelled: 'bg-red-50 dark:bg-red-900/40 text-red-700 dark:text-red-300',
+        no_show:   'bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300',
     };
 
     return (
-        <div className="fixed inset-y-0 right-0 z-40 w-96 bg-white shadow-2xl flex flex-col" data-testid="detail-panel">
+        <div className="fixed inset-y-0 right-0 z-40 w-96 bg-white dark:bg-slate-800 shadow-2xl flex flex-col" data-testid="detail-panel">
             {/* Header */}
-            <div className={`px-5 py-4 border-b border-gray-200 ${color.bg}`}>
+            <div className={`px-5 py-4 border-b border-gray-200 dark:border-slate-700 ${color.bg}`}>
                 <div className="flex items-start justify-between">
                     <div>
                         <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${color.text} border ${color.border} mb-1`}>
                             {typeLabels[appt.appointment_type] || appt.appointment_type}
                         </span>
-                        <h3 className="text-base font-semibold text-gray-900">
+                        <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">
                             {appt.participant ? `${appt.participant.first_name} ${appt.participant.last_name}` : 'Unknown'}
                         </h3>
-                        {appt.participant && <p className="text-xs text-gray-500">{appt.participant.mrn}</p>}
+                        {appt.participant && <p className="text-xs text-gray-500 dark:text-slate-400">{appt.participant.mrn}</p>}
                     </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg" aria-label="Close panel">×</button>
+                    <button onClick={onClose} className="text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 text-lg" aria-label="Close panel">×</button>
                 </div>
             </div>
 
@@ -473,18 +474,18 @@ function DetailPanel({ appointment: appt, typeLabels, typeColors, onClose, onSta
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                     <div>
-                        <p className="text-gray-500 text-xs">Status</p>
+                        <p className="text-gray-500 dark:text-slate-400 text-xs">Status</p>
                         <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[appt.status] || ''}`}>
                             {STATUS_LABELS[appt.status] || appt.status}
                         </span>
                     </div>
                     <div>
-                        <p className="text-gray-500 text-xs">Transport</p>
-                        <p className="font-medium mt-0.5">{appt.transport_required ? '🚐 Required' : 'Not needed'}</p>
+                        <p className="text-gray-500 dark:text-slate-400 text-xs">Transport</p>
+                        <p className="font-medium mt-0.5 text-gray-900 dark:text-slate-100 flex items-center gap-1">{appt.transport_required ? (<><TruckIcon className="w-4 h-4 inline-block" /> Required</>) : 'Not needed'}</p>
                     </div>
                     <div className="col-span-2">
-                        <p className="text-gray-500 text-xs">Date &amp; Time</p>
-                        <p className="font-medium mt-0.5">
+                        <p className="text-gray-500 dark:text-slate-400 text-xs">Date &amp; Time</p>
+                        <p className="font-medium mt-0.5 text-gray-900 dark:text-slate-100">
                             {start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                             {' · '}
                             {start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
@@ -494,31 +495,31 @@ function DetailPanel({ appointment: appt, typeLabels, typeColors, onClose, onSta
                     </div>
                     {appt.provider && (
                         <div className="col-span-2">
-                            <p className="text-gray-500 text-xs">Provider</p>
-                            <p className="font-medium mt-0.5">{appt.provider.first_name} {appt.provider.last_name}</p>
+                            <p className="text-gray-500 dark:text-slate-400 text-xs">Provider</p>
+                            <p className="font-medium mt-0.5 text-gray-900 dark:text-slate-100">{appt.provider.first_name} {appt.provider.last_name}</p>
                         </div>
                     )}
                     {appt.location && (
                         <div className="col-span-2">
-                            <p className="text-gray-500 text-xs">Location</p>
-                            <p className="font-medium mt-0.5">{appt.location.name}</p>
+                            <p className="text-gray-500 dark:text-slate-400 text-xs">Location</p>
+                            <p className="font-medium mt-0.5 text-gray-900 dark:text-slate-100">{appt.location.name}</p>
                         </div>
                     )}
                     {appt.notes && (
                         <div className="col-span-2">
-                            <p className="text-gray-500 text-xs">Notes</p>
-                            <p className="mt-0.5 text-gray-700">{appt.notes}</p>
+                            <p className="text-gray-500 dark:text-slate-400 text-xs">Notes</p>
+                            <p className="mt-0.5 text-gray-700 dark:text-slate-300">{appt.notes}</p>
                         </div>
                     )}
                     {appt.cancellation_reason && (
                         <div className="col-span-2">
                             <p className="text-gray-500 text-xs">Cancellation Reason</p>
-                            <p className="mt-0.5 text-red-700">{appt.cancellation_reason}</p>
+                            <p className="mt-0.5 text-red-700 dark:text-red-300">{appt.cancellation_reason}</p>
                         </div>
                     )}
                 </div>
 
-                {error && <p className="text-sm text-red-600 bg-red-50 rounded p-2">{error}</p>}
+                {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/60 rounded p-2">{error}</p>}
 
                 {/* Status action buttons — only shown for editable appointments */}
                 {isEditable && !cancelling && (
@@ -529,12 +530,12 @@ function DetailPanel({ appointment: appt, typeLabels, typeColors, onClose, onSta
                             Mark Complete
                         </button>
                         <button onClick={() => setCancelling(true)}
-                            className="w-full py-2 rounded-lg bg-white border border-red-300 text-red-700 text-sm font-medium hover:bg-red-50"
+                            className="w-full py-2 rounded-lg bg-white dark:bg-slate-800 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20"
                             data-testid="cancel-appointment">
                             Cancel Appointment
                         </button>
                         <button onClick={handleNoShow} disabled={saving}
-                            className="w-full py-2 rounded-lg bg-white border border-amber-300 text-amber-700 text-sm font-medium hover:bg-amber-50"
+                            className="w-full py-2 rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 text-sm font-medium hover:bg-amber-50 dark:hover:bg-amber-900/20"
                             data-testid="mark-no-show">
                             Mark No-Show
                         </button>
@@ -545,11 +546,11 @@ function DetailPanel({ appointment: appt, typeLabels, typeColors, onClose, onSta
                 {isEditable && cancelling && (
                     <form onSubmit={handleCancel} className="space-y-3">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Cancellation Reason</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Cancellation Reason</label>
                             <select value={cancelReason} onChange={e => setCancelReason(e.target.value)}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-slate-100 bg-white dark:bg-slate-700"
                                 data-testid="cancel-reason" required>
-                                <option value="">— Select reason —</option>
+                                <option value="">Select reason</option>
                                 <option value="Participant declined">Participant declined</option>
                                 <option value="Participant hospitalized">Participant hospitalized</option>
                                 <option value="Provider unavailable">Provider unavailable</option>
@@ -560,7 +561,7 @@ function DetailPanel({ appointment: appt, typeLabels, typeColors, onClose, onSta
                         </div>
                         <div className="flex gap-2">
                             <button type="button" onClick={() => setCancelling(false)}
-                                className="flex-1 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50">
+                                className="flex-1 py-2 rounded-lg border border-gray-300 dark:border-slate-600 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 bg-white dark:bg-slate-800">
                                 Back
                             </button>
                             <button type="submit" disabled={saving || !cancelReason}
@@ -648,36 +649,36 @@ export default function ScheduleIndex({ appointmentTypes, typeLabels, typeColors
             <Head title="Schedule" />
             <AppShell>
                 {/* Page header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
                     <div className="flex items-center gap-3">
-                        <h1 className="text-xl font-semibold text-gray-900">Schedule</h1>
-                        <span className="text-sm text-gray-500">
+                        <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Schedule</h1>
+                        <span className="text-sm text-gray-500 dark:text-slate-400">
                             {formatDisplayDate(weekStart)} – {formatDisplayDate(weekEnd)}
                         </span>
-                        {loading && <span className="text-xs text-gray-400 animate-pulse">Loading…</span>}
+                        {loading && <span className="text-xs text-gray-400 dark:text-slate-500 animate-pulse">Loading…</span>}
                     </div>
 
                     <div className="flex items-center gap-2">
                         {/* Week navigation */}
                         <button onClick={handlePrevWeek}
-                            className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
+                            className="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-slate-600 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 bg-white dark:bg-slate-800"
                             data-testid="prev-week">
                             ‹ Prev
                         </button>
                         <button onClick={handleToday}
-                            className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
+                            className="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-slate-600 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 bg-white dark:bg-slate-800"
                             data-testid="today-btn">
                             Today
                         </button>
                         <button onClick={handleNextWeek}
-                            className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
+                            className="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-slate-600 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 bg-white dark:bg-slate-800"
                             data-testid="next-week">
                             Next ›
                         </button>
 
                         {/* Type filter */}
                         <select value={filterType} onChange={e => setFilterType(e.target.value)}
-                            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-700"
+                            className="border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800"
                             data-testid="filter-type">
                             <option value="">All Types</option>
                             {appointmentTypes.map(t => (
@@ -698,13 +699,13 @@ export default function ScheduleIndex({ appointmentTypes, typeLabels, typeColors
                 {/* Calendar grid */}
                 <div className="flex flex-1 overflow-hidden">
                     {/* Time gutter */}
-                    <div className="w-14 flex-shrink-0 border-r border-gray-200 bg-gray-50">
+                    <div className="w-14 flex-shrink-0 border-r border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/60">
                         {/* Day header spacer */}
-                        <div className="h-12 border-b border-gray-200" />
+                        <div className="h-12 border-b border-gray-200 dark:border-slate-700" />
                         {/* Hour labels */}
                         {HOURS.map(h => (
-                            <div key={h} className="h-16 border-b border-gray-100 flex items-start justify-end pr-2 pt-1">
-                                <span className="text-xs text-gray-400">
+                            <div key={h} className="h-16 border-b border-gray-100 dark:border-slate-700/50 flex items-start justify-end pr-2 pt-1">
+                                <span className="text-xs text-gray-500 dark:text-slate-400 font-medium">
                                     {h === 12 ? '12 PM' : h > 12 ? `${h - 12} PM` : `${h} AM`}
                                 </span>
                             </div>
@@ -720,31 +721,25 @@ export default function ScheduleIndex({ appointmentTypes, typeLabels, typeColors
                                 const dayAppts = appointmentsForDay(day);
 
                                 return (
-                                    <div key={dayIdx} className="flex-1 min-w-[140px] border-r border-gray-200 last:border-r-0">
+                                    <div key={dayIdx} className="flex-1 min-w-[140px] border-r border-gray-200 dark:border-slate-700 last:border-r-0">
                                         {/* Day header */}
-                                        <div className={`h-12 border-b border-gray-200 flex flex-col items-center justify-center sticky top-0 z-10 ${isToday ? 'bg-blue-50' : 'bg-white'}`}>
-                                            <span className={`text-xs font-medium ${isToday ? 'text-blue-600' : 'text-gray-500'}`}>
+                                        <div className={`h-12 border-b border-gray-200 dark:border-slate-700 flex flex-col items-center justify-center sticky top-0 z-10 ${isToday ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-white dark:bg-slate-800'}`}>
+                                            <span className={`text-xs font-medium ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-slate-400'}`}>
                                                 {DAY_NAMES[day.getDay()]}
                                             </span>
-                                            <span className={`text-lg font-bold ${isToday ? 'text-blue-700' : 'text-gray-900'}`}>
+                                            <span className={`text-lg font-bold ${isToday ? 'text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-slate-100'}`}>
                                                 {day.getDate()}
                                             </span>
                                         </div>
 
                                         {/* Hour rows + appointments */}
                                         <div
-                                            className="relative"
-                                            style={{
-                                                height: `${HOURS.length * 64}px`,
-                                                // Stronger blue tint on today's column — blue-100 at 70% so "today"
-                                                // clearly stands out from other days without overwhelming the
-                                                // appointment block colors (which sit on top as solid *-100 elements).
-                                                ...(isToday ? { backgroundColor: 'rgba(219, 234, 254, 0.70)' } : {}),
-                                            }}
+                                            className={`relative ${isToday ? 'bg-blue-50/60 dark:bg-blue-900/10' : ''}`}
+                                            style={{ height: `${HOURS.length * 64}px` }}
                                         >
                                             {/* Hour grid lines */}
                                             {HOURS.map((h, hi) => (
-                                                <div key={h} className="absolute w-full border-b border-gray-100"
+                                                <div key={h} className="absolute w-full border-b border-gray-100 dark:border-slate-700/50"
                                                     style={{ top: `${hi * 64}px`, height: '64px' }} />
                                             ))}
 
@@ -804,7 +799,7 @@ export default function ScheduleIndex({ appointmentTypes, typeLabels, typeColors
                                                             </p>
                                                         )}
                                                         {appt.transport_required && (
-                                                            <span className="text-xs">🚐</span>
+                                                            <TruckIcon className="w-3 h-3" />
                                                         )}
                                                     </button>
                                                 );

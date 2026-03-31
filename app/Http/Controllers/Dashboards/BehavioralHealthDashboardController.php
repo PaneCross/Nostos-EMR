@@ -64,6 +64,9 @@ class BehavioralHealthDashboardController extends Controller
                 'scheduled_start'  => $a->scheduled_start?->toTimeString('minute'),
                 'scheduled_end'    => $a->scheduled_end?->toTimeString('minute'),
                 'status'           => $a->status,
+                'href'             => $a->participant
+                    ? "/participants/{$a->participant->id}"
+                    : '/schedule',
             ]);
 
         return response()->json(['appointments' => $appointments]);
@@ -107,6 +110,9 @@ class BehavioralHealthDashboardController extends Controller
                 'id'   => $a->participant->id,
                 'name' => $a->participant->first_name . ' ' . $a->participant->last_name,
             ] : null,
+            'href'            => $a->participant
+                ? "/participants/{$a->participant->id}?tab=assessments"
+                : '/participants',
         ];
 
         return response()->json([
@@ -145,6 +151,7 @@ class BehavioralHealthDashboardController extends Controller
                 'is_overdue'      => $s->isOverdue(),
                 'hours_remaining' => round($s->hoursRemaining(), 1),
                 'due_at'          => $s->due_at?->toDateTimeString(),
+                'href'            => '/sdrs',
             ]);
 
         return response()->json([
@@ -181,6 +188,9 @@ class BehavioralHealthDashboardController extends Controller
                     'id'   => $g->carePlan->participant->id,
                     'name' => $g->carePlan->participant->first_name . ' ' . $g->carePlan->participant->last_name,
                 ] : null,
+                'href'             => $g->carePlan?->participant?->id
+                    ? "/participants/{$g->carePlan->participant->id}?tab=careplan"
+                    : '/participants',
             ]);
 
         return response()->json(['goals' => $goals]);

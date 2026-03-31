@@ -10,6 +10,7 @@
 
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import ActionWidget, { ActionItem } from '@/Components/Dashboard/ActionWidget';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ interface EligibilityItem {
     days_pending: number;
     assigned_to: string | null;
     source: string;
+    href?: string;
 }
 
 interface DisenrollItem {
@@ -36,6 +38,7 @@ interface DisenrollItem {
     disenrollment_date: string;
     days_until: number;
     disenrollment_reason: string | null;
+    href?: string;
 }
 
 interface NewReferral {
@@ -47,51 +50,18 @@ interface NewReferral {
     status_label: string;
     assigned_to: string | null;
     created_at: string;
-}
-
-// ── Widget shell ────────────────────────────────────────────────────────────────
-
-function WidgetCard({ title, badge, children }: {
-    title: string;
-    badge?: { label: string; color: string };
-    children: React.ReactNode;
-}) {
-    return (
-        <div className="card p-5 flex flex-col">
-            <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
-                {badge && (
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
-                        {badge.label}
-                    </span>
-                )}
-            </div>
-            {children}
-        </div>
-    );
-}
-
-function Skeleton() {
-    return (
-        <div className="space-y-2 animate-pulse">
-            {[1, 2, 3].map(i => <div key={i} className="h-8 bg-slate-100 rounded" />)}
-        </div>
-    );
-}
-
-function Empty({ message }: { message: string }) {
-    return <p className="text-xs text-slate-400 py-4 text-center">{message}</p>;
+    href?: string;
 }
 
 // ── Kanban column colors by status ─────────────────────────────────────────────
 const COLUMN_COLORS: Record<string, string> = {
-    new:                 'bg-slate-100 text-slate-700',
-    intake_scheduled:    'bg-blue-100 text-blue-700',
-    intake_in_progress:  'bg-indigo-100 text-indigo-700',
-    intake_complete:     'bg-teal-100 text-teal-700',
-    eligibility_pending: 'bg-amber-100 text-amber-700',
+    new:                 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
+    intake_scheduled:    'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300',
+    intake_in_progress:  'bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300',
+    intake_complete:     'bg-teal-100 text-teal-700 dark:text-teal-300',
+    eligibility_pending: 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
     pending_enrollment:  'bg-orange-100 text-orange-700',
-    enrolled:            'bg-green-100 text-green-700',
+    enrolled:            'bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300',
 };
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -122,120 +92,110 @@ export default function EnrollmentDashboard({ departmentLabel, role }: Props) {
         }).finally(() => setLoading(false));
     }, []);
 
-    return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-            {/* Referral Pipeline */}
-            <WidgetCard
-                title="Referral Pipeline"
-                badge={pipeline ? { label: `${pipeline.total_active} active`, color: 'bg-blue-100 text-blue-700' } : undefined}
-            >
-                {loading ? <Skeleton /> : !pipeline ? <Empty message="No pipeline data" /> : (
+    // Pipeline Summary — kept as a static stat grid (KPI counts, not clickable list items)
+    const renderPipeline = () => {
+        if (loading) {
+            return (
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm p-5">
+                    <div className="space-y-2 animate-pulse">
+                        {[1, 2, 3].map(i => <div key={i} className="h-8 bg-slate-100 dark:bg-slate-800 rounded" />)}
+                    </div>
+                </div>
+            );
+        }
+        return (
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm p-5">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100 mb-3">Referral Pipeline</h3>
+                {!pipeline ? (
+                    <p className="text-xs text-gray-400 dark:text-slate-500 py-4 text-center">No pipeline data</p>
+                ) : (
                     <div className="space-y-2">
                         <div className="flex flex-wrap gap-1.5">
                             {pipeline.pipeline.map(col => (
                                 <a key={col.status}
                                    href={`/enrollment?status=${col.status}`}
-                                   className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs ${COLUMN_COLORS[col.status] ?? 'bg-slate-100 text-slate-600'} hover:opacity-80 transition-opacity`}>
+                                   className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs ${COLUMN_COLORS[col.status] ?? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'} hover:opacity-80 transition-opacity`}>
                                     <span className="font-bold">{col.count}</span>
                                     <span>{col.status_label}</span>
                                 </a>
                             ))}
                         </div>
-                        <div className="flex gap-4 pt-1 border-t border-slate-100 text-[10px] text-slate-400">
+                        <div className="flex gap-4 pt-1 border-t border-slate-100 dark:border-slate-700 text-[10px] text-slate-400">
                             <span>{pipeline.declined_this_month} declined this month</span>
                             <span>{pipeline.withdrawn_this_month} withdrawn this month</span>
                         </div>
-                    </div>
-                )}
-            </WidgetCard>
-
-            {/* Eligibility Pending */}
-            <WidgetCard
-                title="Pending Eligibility Verification"
-                badge={eligibility?.count ? { label: `${eligibility.count} waiting`, color: 'bg-amber-100 text-amber-700' } : undefined}
-            >
-                {loading ? <Skeleton /> : !eligibility?.referrals.length ? <Empty message="No referrals awaiting eligibility" /> : (
-                    <div className="overflow-auto">
-                        <table className="w-full text-xs">
-                            <thead>
-                                <tr className="border-b border-slate-100">
-                                    <th className="text-left py-1 font-medium text-slate-500">Referral</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Source</th>
-                                    <th className="text-right py-1 font-medium text-slate-500">Days</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {eligibility.referrals.map(r => (
-                                    <tr key={r.id} className={r.days_pending > 30 ? 'bg-red-50' : 'hover:bg-slate-50'}>
-                                        <td className="py-1.5 font-medium text-slate-800">{r.referred_name ?? '—'}</td>
-                                        <td className="py-1.5 text-slate-600 text-[10px]">{r.source}</td>
-                                        <td className={`py-1.5 text-right font-semibold ${r.days_pending > 30 ? 'text-red-600' : 'text-slate-600'}`}>
-                                            {r.days_pending}d
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </WidgetCard>
-
-            {/* Upcoming Disenrollments */}
-            <WidgetCard
-                title="Upcoming Disenrollments (30 days)"
-                badge={disenrollments?.count ? { label: `${disenrollments.count} upcoming`, color: 'bg-red-100 text-red-700' } : undefined}
-            >
-                {loading ? <Skeleton /> : !disenrollments?.participants.length ? <Empty message="No upcoming disenrollments" /> : (
-                    <div className="overflow-auto">
-                        <table className="w-full text-xs">
-                            <thead>
-                                <tr className="border-b border-slate-100">
-                                    <th className="text-left py-1 font-medium text-slate-500">Participant</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Date</th>
-                                    <th className="text-right py-1 font-medium text-slate-500">Days</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {disenrollments.participants.map(p => (
-                                    <tr key={p.id} className={p.days_until <= 7 ? 'bg-red-50' : 'hover:bg-slate-50'}>
-                                        <td className="py-1.5 font-medium text-slate-800">{p.name}</td>
-                                        <td className="py-1.5 text-slate-600">{p.disenrollment_date}</td>
-                                        <td className={`py-1.5 text-right font-semibold ${p.days_until <= 7 ? 'text-red-600' : 'text-slate-700'}`}>
-                                            {p.days_until}d
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </WidgetCard>
-
-            {/* New Referrals This Week */}
-            <WidgetCard
-                title="New Referrals This Week"
-                badge={newReferrals?.week_count ? { label: `${newReferrals.week_count} this week`, color: 'bg-green-100 text-green-700' } : undefined}
-            >
-                {loading ? <Skeleton /> : !newReferrals?.referrals.length ? <Empty message="No new referrals this week" /> : (
-                    <div className="space-y-1.5">
-                        {newReferrals.referrals.map(r => (
-                            <div key={r.id} className="flex items-center justify-between py-1 border-b border-slate-50 last:border-0">
-                                <div>
-                                    <p className="text-xs font-medium text-slate-800">{r.referred_name ?? '—'}</p>
-                                    <p className="text-[10px] text-slate-500">{r.source} · {r.created_at}</p>
-                                </div>
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${COLUMN_COLORS[r.status] ?? 'bg-slate-100 text-slate-600'}`}>
-                                    {r.status_label}
-                                </span>
-                            </div>
-                        ))}
-                        <a href="/enrollment" className="text-xs text-blue-600 hover:underline block text-center pt-1">
-                            View full Kanban →
+                        <a href="/enrollment" className="text-xs text-blue-600 dark:text-blue-400 hover:underline block">
+                            View full Kanban board
                         </a>
                     </div>
                 )}
-            </WidgetCard>
+            </div>
+        );
+    };
+
+    // Build ActionItems for Eligibility Pending
+    const eligibilityItems: ActionItem[] = (eligibility?.referrals ?? []).map(r => ({
+        label: r.referred_name ?? '-',
+        href: r.href ?? `/enrollment/referrals/${r.id}`,
+        badge: `${r.days_pending}d`,
+        badgeColor: r.days_pending > 30
+            ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300'
+            : 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
+        sublabel: `${r.source}${r.assigned_to ? ` | ${r.assigned_to}` : ''}`,
+    }));
+
+    // Build ActionItems for Disenrollments
+    const disenrollItems: ActionItem[] = (disenrollments?.participants ?? []).map(p => ({
+        label: `${p.name} (${p.mrn})`,
+        href: p.href ?? `/enrollment/referrals`,
+        badge: `${p.days_until}d`,
+        badgeColor: p.days_until <= 7
+            ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300'
+            : 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
+        sublabel: `${p.disenrollment_date}${p.disenrollment_reason ? ` | ${p.disenrollment_reason}` : ''}`,
+    }));
+
+    // Build ActionItems for New Referrals
+    const newReferralItems: ActionItem[] = (newReferrals?.referrals ?? []).map(r => ({
+        label: r.referred_name ?? '-',
+        href: r.href ?? `/enrollment/referrals/${r.id}`,
+        badge: r.status_label,
+        badgeColor: COLUMN_COLORS[r.status] ?? 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300',
+        sublabel: `${r.source} | ${r.created_at}`,
+    }));
+
+    return (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            {/* Pipeline Summary — KPI stat grid, not a list of clickable items */}
+            {renderPipeline()}
+
+            <ActionWidget
+                title="Pending Eligibility Verification"
+                description="Referrals awaiting Medicare/Medicaid eligibility verification. Enrollment cannot proceed until eligibility is confirmed."
+                items={eligibilityItems}
+                emptyMessage="No referrals awaiting eligibility"
+                viewAllHref="/enrollment"
+                loading={loading}
+            />
+
+            <ActionWidget
+                title="Upcoming Disenrollments (30 days)"
+                description="Participants with pending or recent disenrollment actions requiring follow-up."
+                items={disenrollItems}
+                emptyMessage="No upcoming disenrollments"
+                viewAllHref="/enrollment"
+                loading={loading}
+            />
+
+            <ActionWidget
+                title="New Referrals This Week"
+                description="Referrals received in the last 7 days awaiting intake scheduling."
+                items={newReferralItems}
+                emptyMessage="No new referrals this week"
+                viewAllHref="/enrollment"
+                loading={loading}
+            />
 
         </div>
     );

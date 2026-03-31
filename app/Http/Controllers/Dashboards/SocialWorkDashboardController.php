@@ -64,6 +64,9 @@ class SocialWorkDashboardController extends Controller
                 'scheduled_start'  => $a->scheduled_start?->toTimeString('minute'),
                 'scheduled_end'    => $a->scheduled_end?->toTimeString('minute'),
                 'status'           => $a->status,
+                'href'             => $a->participant
+                    ? "/participants/{$a->participant->id}"
+                    : '/schedule',
             ]);
 
         return response()->json(['appointments' => $appointments]);
@@ -98,6 +101,9 @@ class SocialWorkDashboardController extends Controller
                     'name' => $a->participant->first_name . ' ' . $a->participant->last_name,
                 ] : null,
                 'created_at'   => $a->created_at?->diffForHumans(),
+                'href'         => $a->participant
+                    ? "/participants/{$a->participant->id}"
+                    : '/alerts',
             ]);
 
         return response()->json(['alerts' => $alerts]);
@@ -131,6 +137,7 @@ class SocialWorkDashboardController extends Controller
                 'is_overdue'      => $s->isOverdue(),
                 'hours_remaining' => round($s->hoursRemaining(), 1),
                 'due_at'          => $s->due_at?->toDateTimeString(),
+                'href'            => '/sdrs',
             ]);
 
         return response()->json([
@@ -167,6 +174,7 @@ class SocialWorkDashboardController extends Controller
                     'id'   => $i->participant->id,
                     'name' => $i->participant->first_name . ' ' . $i->participant->last_name,
                 ] : null,
+                'href'          => '/qa/dashboard',
             ]);
 
         return response()->json([

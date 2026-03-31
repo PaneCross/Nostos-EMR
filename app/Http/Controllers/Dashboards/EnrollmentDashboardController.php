@@ -103,6 +103,7 @@ class EnrollmentDashboardController extends Controller
                     : null,
                 'source'         => $r->sourceLabel(),
                 'notes'          => $r->notes,
+                'href'           => '/enrollment/referrals',
             ]);
 
         return response()->json([
@@ -135,6 +136,7 @@ class EnrollmentDashboardController extends Controller
                 'disenrollment_date'  => $p->disenrollment_date?->toDateString(),
                 'days_until'          => abs((int) now()->startOfDay()->diffInDays($p->disenrollment_date)),
                 'disenrollment_reason'=> $p->disenrollment_reason,
+                'href'                => "/participants/{$p->id}",
             ]);
 
         return response()->json([
@@ -171,6 +173,7 @@ class EnrollmentDashboardController extends Controller
                     ? $r->assignedTo->first_name . ' ' . $r->assignedTo->last_name
                     : null,
                 'created_at'    => $r->created_at?->diffForHumans(),
+                'href'          => '/enrollment/referrals',
             ]);
 
         return response()->json([

@@ -10,6 +10,7 @@
 
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import ActionWidget, { ActionItem } from '@/Components/Dashboard/ActionWidget';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -36,6 +37,7 @@ interface SdrItem {
     priority: string;
     due_at: string | null;
     hours_overdue: number | null;
+    href?: string;
 }
 
 interface SdrDeptGroup {
@@ -51,6 +53,7 @@ interface CarePlanItem {
     review_due_date: string | null;
     is_overdue: boolean;
     days_until_due: number | null;
+    href?: string;
 }
 
 interface AlertItem {
@@ -62,53 +65,7 @@ interface AlertItem {
     acknowledged: boolean;
     participant: Participant | null;
     created_at: string;
-}
-
-// ── Widget shell ────────────────────────────────────────────────────────────────
-
-function WidgetCard({ title, badge, children }: {
-    title: string;
-    badge?: { label: string; color: string };
-    children: React.ReactNode;
-}) {
-    return (
-        <div className="card p-5 flex flex-col">
-            <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
-                {badge && (
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
-                        {badge.label}
-                    </span>
-                )}
-            </div>
-            {children}
-        </div>
-    );
-}
-
-function Skeleton() {
-    return (
-        <div className="space-y-2 animate-pulse">
-            {[1, 2, 3].map(i => <div key={i} className="h-8 bg-slate-100 rounded" />)}
-        </div>
-    );
-}
-
-function Empty({ message }: { message: string }) {
-    return <p className="text-xs text-slate-400 py-4 text-center">{message}</p>;
-}
-
-function SeverityBadge({ severity }: { severity: string }) {
-    const cls = severity === 'critical'
-        ? 'bg-red-100 text-red-700'
-        : severity === 'warning'
-        ? 'bg-amber-100 text-amber-700'
-        : 'bg-blue-100 text-blue-700';
-    return (
-        <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${cls}`}>
-            {severity}
-        </span>
-    );
+    href?: string;
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -138,126 +95,92 @@ export default function IdtDashboard({ departmentLabel, role }: Props) {
         }).finally(() => setLoading(false));
     }, []);
 
+    // Build ActionItems for Today's Meetings
+    const meetingItems: ActionItem[] = (meetings?.meetings ?? []).map(m => ({
+        label: m.type_label,
+        href: m.run_url,
+        badge: m.status === 'in_progress' ? 'In Progress' : 'Scheduled',
+        badgeColor: m.status === 'in_progress'
+            ? 'bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300'
+            : 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300',
+        sublabel: `${m.meeting_time ?? '-'} | ${m.site ?? 'All Sites'}${m.facilitator ? ` | ${m.facilitator}` : ''}`,
+    }));
+
+    // Build ActionItems for Overdue SDRs — flatten all groups into one list
+    const sdrItems: ActionItem[] = (sdrs?.departments ?? []).flatMap(g =>
+        g.sdrs.map(s => ({
+            label: `${s.participant?.name ?? '-'} : ${s.type_label}`,
+            href: s.href ?? `/sdrs/${s.id}`,
+            badge: s.hours_overdue != null ? `${s.hours_overdue}h overdue` : 'Overdue',
+            badgeColor: 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300',
+            sublabel: g.department.replace(/_/g, ' '),
+        }))
+    );
+
+    // Build ActionItems for Care Plans
+    const carePlanItems: ActionItem[] = (carePlans?.care_plans ?? []).map(p => ({
+        label: p.participant?.name ?? '-',
+        href: p.href ?? (p.participant ? `/participants/${p.participant.id}?tab=care-plans` : '/clinical/care-plans'),
+        badge: p.is_overdue
+            ? `${Math.abs(p.days_until_due ?? 0)}d overdue`
+            : `${p.days_until_due}d`,
+        badgeColor: p.is_overdue
+            ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300'
+            : 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
+        sublabel: p.status.replace(/_/g, ' '),
+    }));
+
+    // Build ActionItems for Alerts (24h)
+    const alertItems: ActionItem[] = (alerts?.alerts ?? []).map(a => ({
+        label: a.title,
+        href: a.href ?? (a.participant ? `/participants/${a.participant.id}` : '/qa/dashboard'),
+        badge: a.severity,
+        badgeColor: a.severity === 'critical'
+            ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300'
+            : a.severity === 'warning'
+            ? 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300'
+            : 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300',
+        sublabel: `${a.participant?.name ?? 'System'} | ${a.created_at}`,
+    }));
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-            {/* Today's Meetings */}
-            <WidgetCard
+            <ActionWidget
                 title="Today's IDT Meetings"
-                badge={meetings?.count ? { label: `${meetings.count} scheduled`, color: 'bg-blue-100 text-blue-700' } : undefined}
-            >
-                {loading ? <Skeleton /> : !meetings?.has_meeting_today ? (
-                    <div className="py-4 text-center space-y-2">
-                        <p className="text-xs text-slate-400">No meetings scheduled today</p>
-                        <a href="/idt/meetings/create" className="inline-flex text-xs text-blue-600 hover:underline">
-                            + Schedule a Meeting
-                        </a>
-                    </div>
-                ) : (
-                    <div className="space-y-2">
-                        {meetings!.meetings.map(m => (
-                            <div key={m.id} className="flex items-center justify-between p-2 rounded-lg border border-slate-200 hover:bg-slate-50">
-                                <div>
-                                    <p className="text-xs font-medium text-slate-800">{m.type_label}</p>
-                                    <p className="text-[10px] text-slate-500">
-                                        {m.meeting_time ?? '—'} · {m.site ?? 'All Sites'} · {m.facilitator ?? '?'}
-                                    </p>
-                                </div>
-                                <a href={m.run_url}
-                                   className="text-[10px] px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 whitespace-nowrap">
-                                    {m.status === 'in_progress' ? 'Resume' : 'Start'}
-                                </a>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </WidgetCard>
+                description="IDT meetings scheduled for today. Click a meeting to open the run sheet and document participant reviews."
+                items={meetingItems}
+                emptyMessage="No meetings scheduled today"
+                viewAllHref="/idt/meetings"
+                loading={loading}
+            />
 
-            {/* Overdue SDRs by Department */}
-            <WidgetCard
+            <ActionWidget
                 title="Escalated SDRs"
-                badge={sdrs?.total_count ? { label: `${sdrs.total_count} escalated`, color: 'bg-red-100 text-red-700' } : undefined}
-            >
-                {loading ? <Skeleton /> : !sdrs?.departments.length ? <Empty message="No escalated SDRs" /> : (
-                    <div className="space-y-2">
-                        {sdrs.departments.map(g => (
-                            <div key={g.department} className="p-2 rounded-lg border border-slate-200 bg-slate-50">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-slate-700 capitalize">
-                                        {g.department.replace('_', ' ')}
-                                    </span>
-                                    <span className="text-xs font-bold text-red-600">{g.count} overdue</span>
-                                </div>
-                                {g.sdrs.slice(0, 2).map(s => (
-                                    <p key={s.id} className="text-[10px] text-slate-500 mt-0.5">
-                                        {s.participant?.name ?? '—'} · {s.type_label} · {s.hours_overdue}h overdue
-                                    </p>
-                                ))}
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </WidgetCard>
+                description="Escalated SDRs across all departments that have passed their 72-hour deadline. Group by department for follow-up."
+                items={sdrItems}
+                emptyMessage="No escalated SDRs"
+                viewAllHref="/sdrs"
+                loading={loading}
+            />
 
-            {/* Care Plans Due for Review */}
-            <WidgetCard
+            <ActionWidget
                 title="Care Plans Due Within 30 Days"
-                badge={carePlans ? {
-                    label: `${(carePlans.overdue_count || 0) + (carePlans.due_soon_count || 0)} plans`,
-                    color: carePlans.overdue_count > 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700',
-                } : undefined}
-            >
-                {loading ? <Skeleton /> : !carePlans?.care_plans.length ? <Empty message="No care plans due within 30 days" /> : (
-                    <div className="overflow-auto">
-                        <table className="w-full text-xs">
-                            <thead>
-                                <tr className="border-b border-slate-100">
-                                    <th className="text-left py-1 font-medium text-slate-500">Participant</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Status</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Due</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {carePlans.care_plans.map(p => (
-                                    <tr key={p.id} className={p.is_overdue ? 'bg-red-50' : 'hover:bg-slate-50'}>
-                                        <td className="py-1.5 font-medium text-slate-800">{p.participant?.name ?? '—'}</td>
-                                        <td className="py-1.5 capitalize text-slate-600">{p.status.replace('_', ' ')}</td>
-                                        <td className={`py-1.5 ${p.is_overdue ? 'text-red-600 font-semibold' : 'text-slate-600'}`}>
-                                            {p.is_overdue
-                                                ? `${Math.abs(p.days_until_due ?? 0)}d overdue`
-                                                : `${p.days_until_due}d`}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </WidgetCard>
+                description="Active care plans with a review date within 30 days or past due. Review scheduled at next IDT meeting."
+                items={carePlanItems}
+                emptyMessage="No care plans due within 30 days"
+                viewAllHref="/clinical/care-plans"
+                loading={loading}
+            />
 
-            {/* Cross-Dept Alert Feed (24h) */}
-            <WidgetCard
-                title="Alerts — Last 24 Hours"
-                badge={alerts?.alerts.length
-                    ? { label: `${alerts.alerts.length} active`, color: alerts.critical_count > 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700' }
-                    : undefined}
-            >
-                {loading ? <Skeleton /> : !alerts?.alerts.length ? <Empty message="No alerts in the last 24 hours" /> : (
-                    <div className="space-y-1.5 overflow-auto max-h-52">
-                        {alerts.alerts.map(a => (
-                            <div key={a.id} className="flex items-start gap-2 py-1 border-b border-slate-50 last:border-0">
-                                <SeverityBadge severity={a.severity} />
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-medium text-slate-800 truncate">{a.title}</p>
-                                    <p className="text-[10px] text-slate-500">
-                                        {a.participant?.name ?? 'System'} · {a.created_at}
-                                    </p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </WidgetCard>
+            <ActionWidget
+                title="Alerts: Last 24 Hours"
+                description="All active alerts created in the last 24 hours across all departments. IDT coordinates cross-discipline follow-up."
+                items={alertItems}
+                emptyMessage="No alerts in the last 24 hours"
+                viewAllHref="/qa/dashboard"
+                loading={loading}
+            />
 
         </div>
     );

@@ -10,6 +10,7 @@
 
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import ActionWidget, { ActionItem } from '@/Components/Dashboard/ActionWidget';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -34,6 +35,7 @@ interface InteractionAlert {
     severity_color: string;
     description: string | null;
     created_at: string;
+    href: string;
 }
 
 interface ControlledRecord {
@@ -47,6 +49,7 @@ interface ControlledRecord {
     administered_by: string | null;
     witness: string | null;
     needs_witness: boolean;
+    href: string;
 }
 
 interface RefillItem {
@@ -58,52 +61,7 @@ interface RefillItem {
     last_filled_date: string | null;
     days_since_filled: number | null;
     reason: 'no_refills' | 'overdue_refill';
-}
-
-// ── Widget shell ────────────────────────────────────────────────────────────────
-
-function WidgetCard({ title, badge, children }: {
-    title: string;
-    badge?: { label: string; color: string };
-    children: React.ReactNode;
-}) {
-    return (
-        <div className="card p-5 flex flex-col">
-            <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
-                {badge && (
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
-                        {badge.label}
-                    </span>
-                )}
-            </div>
-            {children}
-        </div>
-    );
-}
-
-function Skeleton() {
-    return (
-        <div className="space-y-2 animate-pulse">
-            {[1, 2, 3].map(i => <div key={i} className="h-8 bg-slate-100 rounded" />)}
-        </div>
-    );
-}
-
-function Empty({ message }: { message: string }) {
-    return <p className="text-xs text-slate-400 py-4 text-center">{message}</p>;
-}
-
-function SeverityBadge({ severity }: { severity: string }) {
-    const cls = severity === 'contraindicated' ? 'bg-red-100 text-red-700'
-        : severity === 'major'   ? 'bg-orange-100 text-orange-700'
-        : severity === 'moderate'? 'bg-amber-100 text-amber-700'
-        : 'bg-yellow-100 text-yellow-700';
-    return (
-        <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${cls}`}>
-            {severity}
-        </span>
-    );
+    href: string;
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -134,152 +92,99 @@ export default function PharmacyDashboard({ departmentLabel, role }: Props) {
         }).finally(() => setLoading(false));
     }, []);
 
+    // Build ActionItems for Med Changes — flatten new orders + discontinued into one list
+    const medChangeItems: ActionItem[] = medChanges
+        ? [
+            ...medChanges.new_orders.map(m => ({
+                label: `${m.participant?.name ?? '-'} : ${m.drug_name}`,
+                href: m.participant ? `/participants/${m.participant.id}?tab=medications` : '/clinical/medications',
+                badge: 'New',
+                badgeColor: 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300',
+                sublabel: m.prescriber ?? undefined,
+            })),
+            ...medChanges.discontinued.map(m => ({
+                label: `${m.participant?.name ?? '-'} : ${m.drug_name}`,
+                href: m.participant ? `/participants/${m.participant.id}?tab=medications` : '/clinical/medications',
+                badge: 'D/C',
+                badgeColor: 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300',
+                sublabel: m.discontinued_reason ?? undefined,
+            })),
+          ]
+        : [];
+
+    // Build ActionItems for Drug Interactions
+    const interactionItems: ActionItem[] = (interactions?.alerts ?? []).map(a => ({
+        label: `${a.drug_name_1} : ${a.drug_name_2}`,
+        href: a.href ?? (a.participant ? `/participants/${a.participant.id}?tab=medications` : '/clinical/medications'),
+        badge: a.severity,
+        badgeColor: a.severity === 'contraindicated'
+            ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300'
+            : a.severity === 'major'
+            ? 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300'
+            : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300',
+        sublabel: `${a.participant?.name ?? '-'} | ${a.created_at}`,
+    }));
+
+    // Build ActionItems for Controlled Substances
+    const controlledItems: ActionItem[] = (controlled?.records ?? []).map(r => ({
+        label: `${r.participant?.name ?? '-'} : ${r.drug_name ?? '-'}`,
+        href: r.href ?? (r.participant ? `/participants/${r.participant.id}?tab=emar` : '/clinical/medications'),
+        badge: r.needs_witness ? 'Missing Witness' : r.controlled_schedule ?? undefined,
+        badgeColor: r.needs_witness
+            ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300'
+            : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300',
+        sublabel: `${r.controlled_schedule ?? '?'} | ${r.status}${r.scheduled_time ? ` | ${r.scheduled_time}` : ''}`,
+    }));
+
+    // Build ActionItems for Refills
+    const refillItems: ActionItem[] = (refills?.medications ?? []).map(m => ({
+        label: `${m.participant?.name ?? '-'} : ${m.drug_name}`,
+        href: m.href ?? (m.participant ? `/participants/${m.participant.id}?tab=medications` : '/clinical/medications'),
+        badge: m.refills_remaining === 0 ? '0 refills' : m.days_since_filled != null ? `${m.days_since_filled}d` : undefined,
+        badgeColor: m.refills_remaining === 0
+            ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300'
+            : 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
+        sublabel: m.last_filled_date ? `Last filled: ${m.last_filled_date}` : 'Never filled',
+    }));
+
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-            {/* Medication Changes Today */}
-            <WidgetCard
+            <ActionWidget
                 title="Medication Changes Today"
-                badge={medChanges ? {
-                    label: `${(medChanges.new_orders_count || 0) + (medChanges.discontinued_count || 0)} changes`,
-                    color: 'bg-blue-100 text-blue-700',
-                } : undefined}
-            >
-                {loading ? <Skeleton /> : (
-                    <div className="space-y-3">
-                        <div>
-                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
-                                New Orders <span className="text-blue-600">({medChanges?.new_orders_count ?? 0})</span>
-                            </p>
-                            {!medChanges?.new_orders.length
-                                ? <p className="text-xs text-slate-400">None today</p>
-                                : medChanges.new_orders.map(m => (
-                                    <div key={m.id} className="flex items-center justify-between py-1 border-b border-slate-50 last:border-0">
-                                        <span className="text-xs font-medium text-slate-800 truncate">{m.drug_name}</span>
-                                        <span className="text-[10px] text-slate-500 ml-2 shrink-0">{m.participant?.name ?? '—'}</span>
-                                    </div>
-                                ))
-                            }
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
-                                Discontinued <span className="text-red-600">({medChanges?.discontinued_count ?? 0})</span>
-                            </p>
-                            {!medChanges?.discontinued.length
-                                ? <p className="text-xs text-slate-400">None today</p>
-                                : medChanges.discontinued.map(m => (
-                                    <div key={m.id} className="flex items-center justify-between py-1 border-b border-slate-50 last:border-0">
-                                        <span className="text-xs font-medium text-slate-700 truncate line-through">{m.drug_name}</span>
-                                        <span className="text-[10px] text-slate-500 ml-2 shrink-0">{m.participant?.name ?? '—'}</span>
-                                    </div>
-                                ))
-                            }
-                        </div>
-                    </div>
-                )}
-            </WidgetCard>
+                description="New medication orders and discontinuations today. Review for interactions and formulary compliance."
+                items={medChangeItems}
+                emptyMessage="No medication changes today"
+                viewAllHref="/clinical/medications"
+                loading={loading}
+            />
 
-            {/* Drug Interaction Alerts */}
-            <WidgetCard
+            <ActionWidget
                 title="Drug Interaction Alerts"
-                badge={interactions?.total_count
-                    ? { label: `${interactions.total_count} unreviewed`, color: 'bg-red-100 text-red-700' }
-                    : undefined}
-            >
-                {loading ? <Skeleton /> : !interactions?.alerts.length ? <Empty message="No unacknowledged interaction alerts" /> : (
-                    <div className="space-y-2">
-                        {interactions.alerts.map(a => (
-                            <div key={a.id} className="flex items-start gap-2 p-2 rounded-lg border border-slate-200 bg-slate-50">
-                                <SeverityBadge severity={a.severity} />
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-xs font-medium text-slate-800">
-                                        {a.drug_name_1} ↔ {a.drug_name_2}
-                                    </p>
-                                    <p className="text-[10px] text-slate-500">
-                                        {a.participant?.name ?? '—'} · {a.created_at}
-                                    </p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </WidgetCard>
+                description="Unacknowledged drug interaction alerts. Contraindicated = red (immediate review). Major = amber."
+                items={interactionItems}
+                emptyMessage="No unacknowledged interaction alerts"
+                viewAllHref="/clinical/medications"
+                loading={loading}
+            />
 
-            {/* Controlled Substance Log */}
-            <WidgetCard
-                title="Controlled Substance Log — Today"
-                badge={controlled?.count ? { label: `${controlled.count} records`, color: 'bg-purple-100 text-purple-700' } : undefined}
-            >
-                {loading ? <Skeleton /> : !controlled?.records.length ? <Empty message="No controlled substance records today" /> : (
-                    <div className="overflow-auto">
-                        <table className="w-full text-xs">
-                            <thead>
-                                <tr className="border-b border-slate-100">
-                                    <th className="text-left py-1 font-medium text-slate-500">Participant</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Drug</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Sch</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Status</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Witness</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {controlled.records.map(r => (
-                                    <tr key={r.id} className={r.needs_witness ? 'bg-red-50' : 'hover:bg-slate-50'}>
-                                        <td className="py-1.5 font-medium text-slate-800">{r.participant?.name ?? '—'}</td>
-                                        <td className="py-1.5 text-slate-700">{r.drug_name ?? '—'}</td>
-                                        <td className="py-1.5 text-slate-500">{r.controlled_schedule ?? '?'}</td>
-                                        <td className="py-1.5 text-slate-600">{r.status}</td>
-                                        <td className="py-1.5">
-                                            {r.needs_witness
-                                                ? <span className="text-red-600 font-medium text-[10px]">MISSING</span>
-                                                : <span className="text-slate-500">{r.witness ?? '—'}</span>
-                                            }
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </WidgetCard>
+            <ActionWidget
+                title="Controlled Substance Log: Today"
+                description="Controlled substance administrations recorded today. Verify witness documentation for Schedule II/III."
+                items={controlledItems}
+                emptyMessage="No controlled substance records today"
+                viewAllHref="/clinical/medications"
+                loading={loading}
+            />
 
-            {/* Refill Tracking */}
-            <WidgetCard
+            <ActionWidget
                 title="Refill Attention Required"
-                badge={refills?.count ? { label: `${refills.count} items`, color: 'bg-amber-100 text-amber-700' } : undefined}
-            >
-                {loading ? <Skeleton /> : !refills?.medications.length ? <Empty message="No refills require attention" /> : (
-                    <div className="overflow-auto">
-                        <table className="w-full text-xs">
-                            <thead>
-                                <tr className="border-b border-slate-100">
-                                    <th className="text-left py-1 font-medium text-slate-500">Participant</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Medication</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Refills</th>
-                                    <th className="text-left py-1 font-medium text-slate-500">Last Filled</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-50">
-                                {refills.medications.map(m => (
-                                    <tr key={m.id} className="hover:bg-slate-50">
-                                        <td className="py-1.5 font-medium text-slate-800">{m.participant?.name ?? '—'}</td>
-                                        <td className="py-1.5 text-slate-700">{m.drug_name}</td>
-                                        <td className={`py-1.5 font-semibold ${m.refills_remaining === 0 ? 'text-red-600' : 'text-slate-600'}`}>
-                                            {m.refills_remaining ?? '—'}
-                                        </td>
-                                        <td className="py-1.5 text-slate-500">
-                                            {m.last_filled_date ?? 'Never'}
-                                            {m.days_since_filled != null && m.days_since_filled > 28 && (
-                                                <span className="text-amber-600 ml-1">({m.days_since_filled}d)</span>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </WidgetCard>
+                description="Medications with 0 refills remaining or last filled more than 28 days ago."
+                items={refillItems}
+                emptyMessage="No refills require attention"
+                viewAllHref="/clinical/medications"
+                loading={loading}
+            />
 
         </div>
     );

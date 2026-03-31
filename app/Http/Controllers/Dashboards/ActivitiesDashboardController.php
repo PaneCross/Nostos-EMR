@@ -64,6 +64,9 @@ class ActivitiesDashboardController extends Controller
                 'scheduled_start'  => $a->scheduled_start?->toTimeString('minute'),
                 'scheduled_end'    => $a->scheduled_end?->toTimeString('minute'),
                 'status'           => $a->status,
+                'href'             => $a->participant
+                    ? "/participants/{$a->participant->id}"
+                    : '/schedule',
             ]);
 
         // Day center attendance count
@@ -106,6 +109,9 @@ class ActivitiesDashboardController extends Controller
                     'id'   => $g->carePlan->participant->id,
                     'name' => $g->carePlan->participant->first_name . ' ' . $g->carePlan->participant->last_name,
                 ] : null,
+                'href'             => $g->carePlan?->participant?->id
+                    ? "/participants/{$g->carePlan->participant->id}?tab=careplan"
+                    : '/participants',
             ]);
 
         return response()->json(['goals' => $goals]);
@@ -139,6 +145,7 @@ class ActivitiesDashboardController extends Controller
                 'is_overdue'      => $s->isOverdue(),
                 'hours_remaining' => round($s->hoursRemaining(), 1),
                 'due_at'          => $s->due_at?->toDateTimeString(),
+                'href'            => '/sdrs',
             ]);
 
         return response()->json([
@@ -177,6 +184,9 @@ class ActivitiesDashboardController extends Controller
                     : null,
                 'visit_date' => $n->visit_date?->toDateString(),
                 'created_at' => $n->created_at?->diffForHumans(),
+                'href'       => $n->participant
+                    ? "/participants/{$n->participant->id}?tab=chart"
+                    : '/clinical/notes',
             ]);
 
         return response()->json([

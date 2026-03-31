@@ -36,9 +36,9 @@ interface Props extends PageProps {
 // ── Status Badge ──────────────────────────────────────────────────────────────
 
 const statusColors: Record<string, string> = {
-    draft:     'bg-gray-100 text-gray-700',
-    submitted: 'bg-blue-100 text-blue-700',
-    confirmed: 'bg-green-100 text-green-700',
+    draft:     'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300',
+    submitted: 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300',
+    confirmed: 'bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300',
 };
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -94,18 +94,18 @@ export default function Hpms({ auth, submissions, submissionTypes }: Props) {
             <Head title="HPMS Submissions" />
             <div className="max-w-7xl mx-auto px-4 py-8">
 
-                <h1 className="text-2xl font-bold text-gray-900 mb-6">HPMS File Submissions</h1>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-6">HPMS File Submissions</h1>
 
                 {/* Generate Section */}
-                <div className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
-                    <h2 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wide">Generate New Submission</h2>
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6 mb-8">
+                    <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-4 uppercase tracking-wide">Generate New Submission</h2>
                     <div className="flex flex-wrap gap-3 items-end">
                         <div>
-                            <label className="block text-xs text-gray-500 mb-1">Type</label>
+                            <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Type</label>
                             <select
                                 value={genType}
                                 onChange={e => setGenType(e.target.value)}
-                                className="border rounded-lg px-3 py-2 text-sm min-w-40"
+                                className="border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm min-w-40 dark:bg-slate-700 dark:text-slate-100"
                             >
                                 {Object.entries(submissionTypes).map(([k, v]) => (
                                     <option key={k} value={k}>{v}</option>
@@ -115,12 +115,12 @@ export default function Hpms({ auth, submissions, submissionTypes }: Props) {
 
                         {(genType === 'enrollment' || genType === 'disenrollment') && (
                             <div>
-                                <label className="block text-xs text-gray-500 mb-1">Month</label>
+                                <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Month</label>
                                 <input
                                     type="month"
                                     value={genMonth}
                                     onChange={e => setGenMonth(e.target.value)}
-                                    className="border rounded-lg px-3 py-2 text-sm"
+                                    className="border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm dark:bg-slate-700 dark:text-slate-100"
                                 />
                             </div>
                         )}
@@ -128,23 +128,23 @@ export default function Hpms({ auth, submissions, submissionTypes }: Props) {
                         {(genType === 'quality_data' || genType === 'hos_m') && (
                             <>
                                 <div>
-                                    <label className="block text-xs text-gray-500 mb-1">Year</label>
+                                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Year</label>
                                     <input
                                         type="number"
                                         value={genYear}
                                         min={2020}
                                         max={2035}
                                         onChange={e => setGenYear(parseInt(e.target.value))}
-                                        className="border rounded-lg px-3 py-2 text-sm w-24"
+                                        className="border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm w-24 dark:bg-slate-700 dark:text-slate-100"
                                     />
                                 </div>
                                 {genType === 'quality_data' && (
                                     <div>
-                                        <label className="block text-xs text-gray-500 mb-1">Quarter</label>
+                                        <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Quarter</label>
                                         <select
                                             value={genQuarter}
                                             onChange={e => setGenQuarter(parseInt(e.target.value))}
-                                            className="border rounded-lg px-3 py-2 text-sm"
+                                            className="border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm dark:bg-slate-700 dark:text-slate-100"
                                         >
                                             <option value={1}>Q1</option>
                                             <option value={2}>Q2</option>
@@ -165,14 +165,14 @@ export default function Hpms({ auth, submissions, submissionTypes }: Props) {
                         </button>
                     </div>
                     {genMsg && (
-                        <p className="text-sm text-green-700 mt-3">{genMsg}</p>
+                        <p className="text-sm text-green-700 dark:text-green-300 mt-3">{genMsg}</p>
                     )}
                 </div>
 
                 {/* Submissions Table */}
-                <div className="overflow-x-auto rounded-lg border border-gray-200">
+                <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-700">
                     <table className="w-full text-sm">
-                        <thead className="bg-gray-50 text-gray-600 text-xs uppercase">
+                        <thead className="bg-gray-50 dark:bg-slate-700/50 text-gray-600 dark:text-slate-400 text-xs uppercase">
                             <tr>
                                 <th className="px-3 py-2 text-left">Type</th>
                                 <th className="px-3 py-2 text-left">Period</th>
@@ -182,29 +182,29 @@ export default function Hpms({ auth, submissions, submissionTypes }: Props) {
                                 <th className="px-3 py-2 text-left">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                             {submissions.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-3 py-8 text-center text-gray-400">
+                                    <td colSpan={6} className="px-3 py-8 text-center text-gray-400 dark:text-slate-500">
                                         No submissions yet. Generate a file above to get started.
                                     </td>
                                 </tr>
                             ) : submissions.map(row => (
-                                <tr key={row.id} className="hover:bg-gray-50">
-                                    <td className="px-3 py-2 font-medium text-gray-800">
+                                <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                                    <td className="px-3 py-2 font-medium text-gray-800 dark:text-slate-200">
                                         {submissionTypes[row.submission_type] ?? row.submission_type}
                                     </td>
-                                    <td className="px-3 py-2 text-gray-600 text-xs">
-                                        {row.period_start} — {row.period_end}
+                                    <td className="px-3 py-2 text-gray-600 dark:text-slate-400 text-xs">
+                                        {row.period_start} - {row.period_end}
                                     </td>
-                                    <td className="px-3 py-2 text-right text-gray-700">{row.record_count}</td>
+                                    <td className="px-3 py-2 text-right text-gray-700 dark:text-slate-300">{row.record_count}</td>
                                     <td className="px-3 py-2">
-                                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColors[row.status] ?? 'bg-gray-100 text-gray-700'}`}>
+                                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColors[row.status] ?? 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'}`}>
                                             {row.status}
                                         </span>
                                     </td>
-                                    <td className="px-3 py-2 text-xs text-gray-500">
-                                        {row.submitted_at ? new Date(row.submitted_at).toLocaleDateString() : '—'}
+                                    <td className="px-3 py-2 text-xs text-gray-500 dark:text-slate-400">
+                                        {row.submitted_at ? new Date(row.submitted_at).toLocaleDateString() : '-'}
                                     </td>
                                     <td className="px-3 py-2">
                                         <div className="flex gap-2">
@@ -217,7 +217,7 @@ export default function Hpms({ auth, submissions, submissionTypes }: Props) {
                                             {row.status === 'draft' && (
                                                 <button
                                                     onClick={() => setConfirmSubmit(row)}
-                                                    className="text-xs text-green-600 hover:underline"
+                                                    className="text-xs text-green-600 dark:text-green-400 hover:underline"
                                                 >
                                                     Mark Submitted
                                                 </button>
@@ -233,16 +233,16 @@ export default function Hpms({ auth, submissions, submissionTypes }: Props) {
                 {/* Submit Confirmation Modal */}
                 {confirmSubmit && (
                     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-                        <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-lg">
-                            <h2 className="text-lg font-bold text-gray-900 mb-2">Confirm Submission</h2>
-                            <p className="text-sm text-gray-600 mb-4">
+                        <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-md shadow-lg">
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100 mb-2">Confirm Submission</h2>
+                            <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
                                 Mark this {submissionTypes[confirmSubmit.submission_type]} file as submitted to CMS HPMS?
                                 This action cannot be undone.
                             </p>
                             <div className="flex justify-end gap-3">
                                 <button
                                     onClick={() => setConfirmSubmit(null)}
-                                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+                                    className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200"
                                 >
                                     Cancel
                                 </button>

@@ -76,6 +76,9 @@ class PrimaryCareDashboardController extends Controller
                 'provider_name'    => $a->provider
                     ? $a->provider->first_name . ' ' . $a->provider->last_name
                     : null,
+                'href'             => $a->participant
+                    ? "/participants/{$a->participant->id}"
+                    : '/schedule',
             ]);
 
         return response()->json(['appointments' => $appointments]);
@@ -117,6 +120,9 @@ class PrimaryCareDashboardController extends Controller
                     'name' => $a->participant->first_name . ' ' . $a->participant->last_name,
                 ] : null,
                 'created_at'     => $a->created_at?->diffForHumans(),
+                'href'           => $a->participant
+                    ? "/participants/{$a->participant->id}"
+                    : '/alerts',
             ]);
 
         return response()->json(['alerts' => $alerts]);
@@ -152,6 +158,9 @@ class PrimaryCareDashboardController extends Controller
                     : null,
                 'visit_date'    => $n->visit_date?->toDateString(),
                 'created_at'    => $n->created_at?->diffForHumans(),
+                'href'          => $n->participant
+                    ? "/participants/{$n->participant->id}?tab=chart"
+                    : '/clinical/notes',
             ]);
 
         // Overdue assessments in nursing/medical domain types
@@ -177,6 +186,9 @@ class PrimaryCareDashboardController extends Controller
                 'days_overdue'    => $a->next_due_date
                     ? abs((int) now()->diffInDays($a->next_due_date))
                     : null,
+                'href'            => $a->participant
+                    ? "/participants/{$a->participant->id}?tab=assessments"
+                    : '/clinical/assessments',
             ]);
 
         return response()->json([
@@ -219,6 +231,9 @@ class PrimaryCareDashboardController extends Controller
                 'recorded_by'  => $v->recordedBy
                     ? $v->recordedBy->first_name . ' ' . $v->recordedBy->last_name
                     : null,
+                'href'         => $v->participant
+                    ? "/participants/{$v->participant->id}?tab=chart"
+                    : '/participants',
             ]);
 
         return response()->json(['vitals' => $vitals]);

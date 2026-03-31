@@ -165,8 +165,8 @@ class PermissionService
                 'icon'  => 'team',
                 'items' => [
                     ['label' => 'IDT Dashboard',    'module' => 'idt_dashboard',    'href' => '/idt'],
-                    ['label' => 'Meeting Minutes',  'module' => 'idt_minutes',      'href' => '/idt/minutes'],
-                    ['label' => 'SDR Tracker',      'module' => 'sdr_tracker',      'href' => '/idt/sdr'],
+                    ['label' => 'Meeting Minutes',  'module' => 'idt_minutes',      'href' => '/idt/meetings'],
+                    ['label' => 'SDR Tracker',      'module' => 'sdr_tracker',      'href' => '/sdrs'],
                 ],
             ],
             [

@@ -42,7 +42,7 @@ export default function PlannedFeatureBanner({ title, description, phase }: Plan
                 {/* Status badge */}
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-600/20 mb-4">
                     <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
-                    Planned for Future Release{phase ? ` — ${phase}` : ''}
+                    Planned for Future Release{phase ? `: ${phase}` : ''}
                 </span>
 
                 {/* Title */}

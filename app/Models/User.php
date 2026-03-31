@@ -30,6 +30,7 @@ class User extends Authenticatable
         'provisioned_by_user_id',
         'provisioned_at',
         'notification_preferences',
+        'theme_preference',
     ];
 
     protected $hidden = [
@@ -43,6 +44,7 @@ class User extends Authenticatable
         'provisioned_at'             => 'datetime',
         'failed_login_attempts'      => 'integer',
         'notification_preferences'   => 'array',
+        'theme_preference'           => 'string',
     ];
 
     // Passwordless — no password column needed

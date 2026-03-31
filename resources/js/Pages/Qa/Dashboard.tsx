@@ -90,8 +90,8 @@ type ComplianceTab = 'incidents' | 'unsigned_notes' | 'overdue_assessments';
 // ── Status badge helper ────────────────────────────────────────────────────────
 function statusBadge(status: string): React.ReactElement {
     const classes: Record<string, string> = {
-        open:         'bg-blue-50 text-blue-700 ring-blue-600/20',
-        under_review: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+        open:         'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 ring-blue-600/20',
+        under_review: 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 ring-amber-600/20',
         rca_in_progress: 'bg-orange-50 text-orange-700 ring-orange-600/20',
         closed:       'bg-gray-50 text-gray-600 ring-gray-500/10',
     };
@@ -127,17 +127,17 @@ function KpiCard({ label, value, sublabel, color, alert }: KpiCardProps) {
         slate:  'border-l-slate-400',
     };
     const valueClasses: Record<string, string> = {
-        blue:   'text-blue-700',
-        amber:  'text-amber-700',
-        red:    'text-red-700',
-        green:  'text-green-700',
-        purple: 'text-purple-700',
-        slate:  'text-slate-700',
+        blue:   'text-blue-700 dark:text-blue-300',
+        amber:  'text-amber-700 dark:text-amber-300',
+        red:    'text-red-700 dark:text-red-300',
+        green:  'text-green-700 dark:text-green-300',
+        purple: 'text-purple-700 dark:text-purple-300',
+        slate:  'text-slate-700 dark:text-slate-300',
     };
     return (
-        <div className={`bg-white rounded-lg border border-gray-200 border-l-4 ${borderClasses[color]} p-5 shadow-sm`}>
+        <div className={`bg-white dark:bg-slate-800 rounded-lg border border-gray-200 border-l-4 ${borderClasses[color]} p-5 shadow-sm`}>
             <p className="text-sm font-medium text-gray-500">{label}</p>
-            <p className={`mt-1 text-3xl font-bold ${alert ? 'text-red-600' : valueClasses[color]}`}>
+            <p className={`mt-1 text-3xl font-bold ${alert ? 'text-red-600 dark:text-red-400' : valueClasses[color]}`}>
                 {value}
             </p>
             <p className="mt-1 text-xs text-gray-400">{sublabel}</p>
@@ -183,20 +183,20 @@ function UnsignedNotesTab({ tenantId }: { tenantId: number }) {
                         <th className="px-4 py-3 text-right font-semibold text-gray-600">Hours Overdue</th>
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 bg-white">
+                <tbody className="divide-y divide-gray-100 bg-white dark:bg-slate-800">
                     {notes.map(note => (
                         <tr key={note.id} className="hover:bg-gray-50">
                             <td className="px-4 py-3">
                                 {note.participant
                                     ? <><span className="font-medium">{note.participant.name}</span> <span className="text-gray-400 text-xs">{note.participant.mrn}</span></>
-                                    : <span className="text-gray-400">—</span>}
+                                    : <span className="text-gray-400">-</span>}
                             </td>
                             <td className="px-4 py-3 capitalize">{note.note_type.replace(/_/g, ' ')}</td>
                             <td className="px-4 py-3 capitalize">{note.department?.replace(/_/g, ' ')}</td>
-                            <td className="px-4 py-3">{note.author ?? '—'}</td>
+                            <td className="px-4 py-3">{note.author ?? '-'}</td>
                             <td className="px-4 py-3 text-gray-500">{new Date(note.created_at).toLocaleDateString()}</td>
                             <td className="px-4 py-3 text-right">
-                                <span className="font-semibold text-amber-600">{note.hours_overdue}h</span>
+                                <span className="font-semibold text-amber-600 dark:text-amber-400">{note.hours_overdue}h</span>
                             </td>
                         </tr>
                     ))}
@@ -243,19 +243,19 @@ function OverdueAssessmentsTab() {
                         <th className="px-4 py-3 text-right font-semibold text-gray-600">Days Overdue</th>
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 bg-white">
+                <tbody className="divide-y divide-gray-100 bg-white dark:bg-slate-800">
                     {assessments.map(a => (
                         <tr key={a.id} className="hover:bg-gray-50">
                             <td className="px-4 py-3">
                                 {a.participant
                                     ? <><span className="font-medium">{a.participant.name}</span> <span className="text-gray-400 text-xs">{a.participant.mrn}</span></>
-                                    : <span className="text-gray-400">—</span>}
+                                    : <span className="text-gray-400">-</span>}
                             </td>
                             <td className="px-4 py-3 capitalize">{a.assessment_type.replace(/_/g, ' ')}</td>
-                            <td className="px-4 py-3 capitalize">{a.department?.replace(/_/g, ' ') ?? '—'}</td>
-                            <td className="px-4 py-3 text-gray-500">{a.next_due_date ?? '—'}</td>
+                            <td className="px-4 py-3 capitalize">{a.department?.replace(/_/g, ' ') ?? '-'}</td>
+                            <td className="px-4 py-3 text-gray-500">{a.next_due_date ?? '-'}</td>
                             <td className="px-4 py-3 text-right">
-                                <span className={`font-semibold ${a.days_overdue >= 7 ? 'text-red-600' : 'text-amber-600'}`}>
+                                <span className={`font-semibold ${a.days_overdue >= 7 ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}>
                                     {a.days_overdue}d
                                 </span>
                             </td>
@@ -353,7 +353,7 @@ export default function QaDashboard() {
             </div>
 
             {/* ── Compliance tabs section ───────────────────────────────────── */}
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+            <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 shadow-sm">
 
                 {/* Tab bar */}
                 <div className="border-b border-gray-200 px-4 flex gap-1 pt-1">
@@ -367,23 +367,23 @@ export default function QaDashboard() {
                             onClick={() => setComplianceTab(key)}
                             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                                 complianceTab === key
-                                    ? 'border-blue-600 text-blue-700'
+                                    ? 'border-blue-600 text-blue-700 dark:text-blue-300'
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                             }`}
                         >
                             {label}
                             {key === 'incidents' && kpis.open_incidents_count > 0 && (
-                                <span className="ml-1.5 bg-blue-100 text-blue-700 text-xs px-1.5 py-0.5 rounded-full">
+                                <span className="ml-1.5 bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs px-1.5 py-0.5 rounded-full">
                                     {kpis.open_incidents_count}
                                 </span>
                             )}
                             {key === 'unsigned_notes' && kpis.unsigned_notes_count > 0 && (
-                                <span className="ml-1.5 bg-amber-100 text-amber-700 text-xs px-1.5 py-0.5 rounded-full">
+                                <span className="ml-1.5 bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 text-xs px-1.5 py-0.5 rounded-full">
                                     {kpis.unsigned_notes_count}
                                 </span>
                             )}
                             {key === 'overdue_assessments' && kpis.overdue_assessments_count > 0 && (
-                                <span className="ml-1.5 bg-amber-100 text-amber-700 text-xs px-1.5 py-0.5 rounded-full">
+                                <span className="ml-1.5 bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 text-xs px-1.5 py-0.5 rounded-full">
                                     {kpis.overdue_assessments_count}
                                 </span>
                             )}
@@ -439,14 +439,14 @@ function IncidentQueueTable({ incidents, incidentTypes, statuses }: IncidentQueu
                         <th className="px-4 py-3 text-left font-semibold text-gray-600">Status</th>
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 bg-white">
+                <tbody className="divide-y divide-gray-100 bg-white dark:bg-slate-800">
                     {incidents.map(inc => (
                         <tr key={inc.id} className="hover:bg-gray-50">
                             <td className="px-4 py-3 text-gray-400 text-xs">#{inc.id}</td>
                             <td className="px-4 py-3">
                                 {inc.participant
                                     ? <><span className="font-medium">{inc.participant.name}</span> <span className="text-gray-400 text-xs">{inc.participant.mrn}</span></>
-                                    : <span className="text-gray-400">—</span>}
+                                    : <span className="text-gray-400">-</span>}
                             </td>
                             <td className="px-4 py-3">
                                 {incidentTypes[inc.incident_type] ?? inc.incident_type}
@@ -457,21 +457,21 @@ function IncidentQueueTable({ incidents, incidentTypes, statuses }: IncidentQueu
                             <td className="px-4 py-3 text-gray-500">
                                 {inc.reportedBy
                                     ? `${inc.reportedBy.first_name} ${inc.reportedBy.last_name}`
-                                    : '—'}
+                                    : '-'}
                             </td>
                             <td className="px-4 py-3">
                                 {inc.rca_required ? (
                                     inc.rca_completed
-                                        ? <span className="text-green-600 text-xs font-medium">Done</span>
-                                        : <span className="text-red-600 text-xs font-semibold">Pending</span>
+                                        ? <span className="text-green-600 dark:text-green-400 text-xs font-medium">Done</span>
+                                        : <span className="text-red-600 dark:text-red-400 text-xs font-semibold">Pending</span>
                                 ) : (
                                     <span className="text-gray-300 text-xs">N/A</span>
                                 )}
                             </td>
                             <td className="px-4 py-3">
                                 {inc.cms_reportable
-                                    ? <span className="text-xs bg-red-50 text-red-700 px-1.5 py-0.5 rounded ring-1 ring-red-200">CMS</span>
-                                    : <span className="text-gray-300 text-xs">—</span>}
+                                    ? <span className="text-xs bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 px-1.5 py-0.5 rounded ring-1 ring-red-200">CMS</span>
+                                    : <span className="text-gray-300 text-xs">-</span>}
                             </td>
                             <td className="px-4 py-3">{statusBadge(inc.status)}</td>
                         </tr>

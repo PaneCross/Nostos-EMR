@@ -71,6 +71,36 @@ class IdtMeetingController extends Controller
     }
 
     /**
+     * GET /idt/meetings
+     * Inertia page: paginated list of all IDT meetings (upcoming + past).
+     * Accessible by idt department + it_admin + super_admin.
+     */
+    public function meetingsList(Request $request): Response
+    {
+        $user   = $request->user();
+        $status = $request->query('status', '');
+        $perPage = 20;
+
+        $query = IdtMeeting::where('tenant_id', $user->tenant_id)
+            ->with('facilitator:id,first_name,last_name')
+            ->orderByDesc('meeting_date')
+            ->orderByDesc('meeting_time');
+
+        if ($status === 'scheduled' || $status === 'in_progress') {
+            $query->where('status', $status);
+        } elseif ($status === 'completed') {
+            $query->completed();
+        }
+
+        $meetings = $query->paginate($perPage)->withQueryString();
+
+        return Inertia::render('Idt/Meetings', [
+            'meetings' => $meetings,
+            'filters'  => ['status' => $status],
+        ]);
+    }
+
+    /**
      * POST /idt/meetings
      * Schedule a new IDT meeting.
      */

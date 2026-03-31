@@ -69,13 +69,13 @@ function ModuleCard({ title, desc, icon }: { title: string; desc: string; icon: 
             <div className="flex items-start gap-3">
                 <span className="text-2xl leading-none mt-0.5">{icon}</span>
                 <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 group-hover:text-blue-700 transition-colors">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 group-hover:text-blue-700 transition-colors">
                         {title}
                     </p>
-                    <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{desc}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">{desc}</p>
                 </div>
             </div>
-            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
+            <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
                 <span className="text-xs text-slate-400">Click to open</span>
                 <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
@@ -88,16 +88,16 @@ function ModuleCard({ title, desc, icon }: { title: string; desc: string; icon: 
 // ─── Stat card (placeholder metrics — non-clinical depts) ─────────────────────
 function StatCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
     const colors: Record<string, string> = {
-        blue:   'bg-blue-50 border-blue-200',
-        green:  'bg-emerald-50 border-emerald-200',
-        amber:  'bg-amber-50 border-amber-200',
-        red:    'bg-red-50 border-red-200',
+        blue:   'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800',
+        green:  'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800',
+        amber:  'bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800',
+        red:    'bg-red-50 dark:bg-red-950/60 border-red-200 dark:border-red-800',
     };
     return (
         <div className={`rounded-xl border p-4 ${colors[color] ?? colors.blue}`}>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</p>
-            <p className="text-2xl font-bold text-slate-800 mt-1">{value}</p>
-            <p className="text-xs text-slate-500 mt-0.5">{sub}</p>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">{label}</p>
+            <p className="text-2xl font-bold text-slate-800 dark:text-slate-200 mt-1">{value}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{sub}</p>
         </div>
     );
 }
@@ -183,7 +183,7 @@ export default function DashboardIndex() {
             <div className="mb-6">
                 <div className="flex items-start justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-900">
+                        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                             Welcome back, {user.first_name}
                         </h1>
                         <div className="flex items-center gap-2 mt-1">
@@ -209,7 +209,7 @@ export default function DashboardIndex() {
                     </div>
 
                     <div className="mb-4 flex items-center justify-between">
-                        <h2 className="text-base font-semibold text-slate-700">Your Modules</h2>
+                        <h2 className="text-base font-semibold text-slate-700 dark:text-slate-300">Your Modules</h2>
                         <span className="text-xs text-slate-400">{modules.length} modules available</span>
                     </div>
 
@@ -219,9 +219,9 @@ export default function DashboardIndex() {
                         ))}
                     </div>
 
-                    <div className="mt-8 p-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 text-center">
+                    <div className="mt-8 p-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 dark:bg-slate-900 text-center">
                         <p className="text-sm text-slate-400">
-                            <span className="font-medium text-slate-500">Phase 1 Scaffold</span> — Module pages are wired up in subsequent phases.
+                            <span className="font-medium text-slate-500 dark:text-slate-400">Phase 1 Scaffold</span>: Module pages are wired up in subsequent phases.
                             Navigation, permissions, and layout are fully functional.
                         </p>
                     </div>

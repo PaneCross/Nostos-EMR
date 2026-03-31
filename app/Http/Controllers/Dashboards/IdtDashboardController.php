@@ -64,6 +64,7 @@ class IdtDashboardController extends Controller
                 'site'          => $m->site?->name,
                 // Route used by 'Start Meeting' button — matches existing GET /idt/meetings/{id}
                 'run_url'       => "/idt/meetings/{$m->id}",
+                'href'          => "/idt/meetings/{$m->id}",
             ]);
 
         return response()->json([
@@ -105,6 +106,7 @@ class IdtDashboardController extends Controller
                 'hours_overdue'       => $s->due_at
                     ? abs((int) now()->diffInHours($s->due_at))
                     : null,
+                'href'                => '/sdrs',
             ]);
 
         // Group by department for the IDT escalation view
@@ -153,6 +155,9 @@ class IdtDashboardController extends Controller
                 'days_until_due'  => $p->review_due_date
                     ? (int) now()->startOfDay()->diffInDays($p->review_due_date, false)
                     : null,
+                'href'            => $p->participant
+                    ? "/participants/{$p->participant->id}?tab=careplan"
+                    : '/participants',
             ]);
 
         return response()->json([
@@ -193,6 +198,9 @@ class IdtDashboardController extends Controller
                     'name' => $a->participant->first_name . ' ' . $a->participant->last_name,
                 ] : null,
                 'created_at'       => $a->created_at?->diffForHumans(),
+                'href'             => $a->participant
+                    ? "/participants/{$a->participant->id}"
+                    : '/alerts',
             ]);
 
         return response()->json([

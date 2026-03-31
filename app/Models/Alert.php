@@ -31,7 +31,7 @@ class Alert extends Model
     public const UPDATED_AT = null;
 
     // ── Source modules ────────────────────────────────────────────────────────
-    public const SOURCE_MODULES = ['adl', 'assessment', 'sdr', 'allergy', 'manual'];
+    public const SOURCE_MODULES = ['adl', 'assessment', 'sdr', 'allergy', 'manual', 'chat'];
 
     // ── Severity levels ───────────────────────────────────────────────────────
     public const SEVERITIES = ['info', 'warning', 'critical'];
@@ -45,6 +45,7 @@ class Alert extends Model
         'message',
         'severity',
         'target_departments',
+        'metadata',
         'created_by_system',
         'created_by_user_id',
         'acknowledged_by_user_id',
@@ -55,6 +56,7 @@ class Alert extends Model
 
     protected $casts = [
         'target_departments' => 'array',
+        'metadata'           => 'array',
         'created_by_system'  => 'boolean',
         'is_active'          => 'boolean',
         'acknowledged_at'    => 'datetime',
@@ -99,6 +101,20 @@ class Alert extends Model
     public function scopeUnread(Builder $query): Builder
     {
         return $query->whereNull('acknowledged_at');
+    }
+
+    /**
+     * Alerts that should appear in the notification bell.
+     * Shows: unacknowledged alerts, OR alerts acknowledged within the last 24 hours.
+     * Alerts acknowledged more than 24 hours ago are hidden automatically so the
+     * bell clears out over time without requiring any user action.
+     */
+    public function scopeBellVisible(Builder $query): Builder
+    {
+        return $query->where(function (Builder $q) {
+            $q->whereNull('acknowledged_at')
+              ->orWhere('acknowledged_at', '>', now()->subHours(24));
+        });
     }
 
     /**

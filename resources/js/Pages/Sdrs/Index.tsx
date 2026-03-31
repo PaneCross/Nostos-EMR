@@ -73,16 +73,16 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const PRIORITY_CLASSES: Record<string, string> = {
-    emergent: 'bg-red-50 text-red-700 ring-red-600/20',
-    urgent:   'bg-amber-50 text-amber-700 ring-amber-600/20',
+    emergent: 'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 ring-red-600/20',
+    urgent:   'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 ring-amber-600/20',
     routine:  'bg-gray-50 text-gray-600 ring-gray-500/10',
 };
 
 const STATUS_CLASSES: Record<string, string> = {
-    submitted:    'bg-blue-50 text-blue-700',
-    acknowledged: 'bg-purple-50 text-purple-700',
-    in_progress:  'bg-amber-50 text-amber-700',
-    completed:    'bg-green-50 text-green-700',
+    submitted:    'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300',
+    acknowledged: 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300',
+    in_progress:  'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300',
+    completed:    'bg-green-50 dark:bg-green-950/60 text-green-700 dark:text-green-300',
     cancelled:    'bg-gray-50 text-gray-400 line-through',
 };
 
@@ -95,10 +95,10 @@ function hoursRemaining(dueAt: string): number {
 }
 
 function urgencyColor(hrs: number): string {
-    if (hrs < 0)  return 'text-red-700 bg-red-50';
+    if (hrs < 0)  return 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/60';
     if (hrs <= 8)  return 'text-orange-700 bg-orange-50';
-    if (hrs <= 24) return 'text-amber-700 bg-amber-50';
-    return 'text-slate-600 bg-slate-50';
+    if (hrs <= 24) return 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60';
+    return 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900';
 }
 
 function formatHours(hrs: number): string {
@@ -152,9 +152,9 @@ function NewSdrModal({ requestTypes, departments, onClose, onSaved }: NewSdrModa
 
     return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg" data-testid="new-sdr-modal">
-                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                    <h2 className="font-semibold text-slate-800">Submit Service Delivery Request</h2>
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg" data-testid="new-sdr-modal">
+                <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                    <h2 className="font-semibold text-slate-800 dark:text-slate-200">Submit Service Delivery Request</h2>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -162,10 +162,10 @@ function NewSdrModal({ requestTypes, departments, onClose, onSaved }: NewSdrModa
                     </button>
                 </div>
                 <div className="px-6 py-5 space-y-4">
-                    {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+                    {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/60 rounded-lg px-3 py-2">{error}</p>}
 
                     <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                             Participant ID <span className="text-red-500">*</span>
                         </label>
                         <input
@@ -180,7 +180,7 @@ function NewSdrModal({ requestTypes, departments, onClose, onSaved }: NewSdrModa
 
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">Request Type</label>
+                            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Request Type</label>
                             <select
                                 value={form.request_type}
                                 onChange={e => field('request_type', e.target.value)}
@@ -193,7 +193,7 @@ function NewSdrModal({ requestTypes, departments, onClose, onSaved }: NewSdrModa
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-slate-700 mb-1">Priority</label>
+                            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Priority</label>
                             <select
                                 value={form.priority}
                                 onChange={e => field('priority', e.target.value)}
@@ -208,7 +208,7 @@ function NewSdrModal({ requestTypes, departments, onClose, onSaved }: NewSdrModa
                     </div>
 
                     <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">Assign To Department</label>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Assign To Department</label>
                         <select
                             value={form.assigned_department}
                             onChange={e => field('assigned_department', e.target.value)}
@@ -222,7 +222,7 @@ function NewSdrModal({ requestTypes, departments, onClose, onSaved }: NewSdrModa
                     </div>
 
                     <div>
-                        <label className="block text-xs font-medium text-slate-700 mb-1">
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                             Description <span className="text-red-500">*</span>
                         </label>
                         <textarea
@@ -238,8 +238,8 @@ function NewSdrModal({ requestTypes, departments, onClose, onSaved }: NewSdrModa
                         </p>
                     </div>
                 </div>
-                <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
-                    <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-lg border border-slate-200">
+                <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3">
+                    <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-700">
                         Cancel
                     </button>
                     <button
@@ -275,23 +275,23 @@ function SdrCard({ sdr, onUpdated }: { sdr: SdrItem; onUpdated: () => void }) {
     return (
         <div
             data-testid={`sdr-card-${sdr.id}`}
-            className={`rounded-xl border bg-white p-4 space-y-3 ${sdr.escalated ? 'border-red-300' : 'border-slate-200'}`}
+            className={`rounded-xl border bg-white dark:bg-slate-800 p-4 space-y-3 ${sdr.escalated ? 'border-red-300' : 'border-slate-200 dark:border-slate-700'}`}
         >
             {/* Top row */}
             <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-semibold text-sm text-slate-800 truncate">
+                        <span className="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate">
                             {sdr.participant.first_name} {sdr.participant.last_name}
                         </span>
                         <span className="text-xs text-slate-400">· {sdr.participant.mrn}</span>
                         {sdr.escalated && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[10px] font-bold ring-1 ring-red-300">
-                                ⚠ ESCALATED
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 rounded text-[10px] font-bold ring-1 ring-red-300">
+                                ! ESCALATED
                             </span>
                         )}
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         {TYPE_LABELS[sdr.request_type] ?? sdr.request_type}
                         {' · '}
                         <span className="text-slate-400">
@@ -314,7 +314,7 @@ function SdrCard({ sdr, onUpdated }: { sdr: SdrItem; onUpdated: () => void }) {
             </div>
 
             {/* Description */}
-            <p className="text-xs text-slate-600 line-clamp-2">{sdr.description}</p>
+            <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2">{sdr.description}</p>
 
             {/* Footer row */}
             <div className="flex items-center justify-between gap-2">
@@ -329,7 +329,7 @@ function SdrCard({ sdr, onUpdated }: { sdr: SdrItem; onUpdated: () => void }) {
                                 onClick={() => updateStatus('acknowledged')}
                                 disabled={updating}
                                 data-testid={`ack-sdr-${sdr.id}`}
-                                className="px-2 py-1 text-[11px] font-medium border border-slate-300 text-slate-700 rounded hover:bg-slate-50 disabled:opacity-50"
+                                className="px-2 py-1 text-[11px] font-medium border border-slate-300 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
                             >
                                 Acknowledge
                             </button>
@@ -366,7 +366,7 @@ function SdrCard({ sdr, onUpdated }: { sdr: SdrItem; onUpdated: () => void }) {
 function SdrList({ sdrs, label, onUpdated }: { sdrs: SdrItem[]; label: string; onUpdated: () => void }) {
     if (sdrs.length === 0) {
         return (
-            <div className="rounded-xl border border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-500">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-6 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
                 No {label.toLowerCase()} at this time.
             </div>
         );
@@ -414,13 +414,13 @@ export default function SdrsIndex() {
 
     return (
         <AppShell breadcrumbs={[{ label: 'Service Delivery Requests' }]}>
-            <Head title="SDRs — Service Delivery Requests" />
+            <Head title="SDRs: Service Delivery Requests" />
 
             {/* ── Header ──────────────────────────────────────────────────── */}
             <div className="flex items-center justify-between mb-5">
                 <div>
-                    <h1 className="text-xl font-bold text-slate-900">Service Delivery Requests</h1>
-                    <p className="text-sm text-slate-500 mt-0.5">
+                    <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Service Delivery Requests</h1>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                         72-hour completion window · Requests are escalated automatically when overdue
                     </p>
                 </div>
@@ -440,20 +440,20 @@ export default function SdrsIndex() {
             {overdueSdrs.length > 0 && tab !== 'overdue' && (
                 <div
                     data-testid="overdue-banner"
-                    className="mb-4 flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3"
+                    className="mb-4 flex items-center gap-3 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3"
                 >
                     <svg className="w-5 h-5 text-red-500 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                     </svg>
                     <div className="flex-1">
-                        <p className="text-sm font-semibold text-red-800">
+                        <p className="text-sm font-semibold text-red-800 dark:text-red-300">
                             {overdueSdrs.length} SDR{overdueSdrs.length !== 1 ? 's' : ''} past the 72-hour window
                         </p>
-                        <p className="text-xs text-red-700">These have been escalated and flagged for QA review.</p>
+                        <p className="text-xs text-red-700 dark:text-red-300">These have been escalated and flagged for QA review.</p>
                     </div>
                     <button
                         onClick={() => setTab('overdue')}
-                        className="text-xs font-medium text-red-700 hover:text-red-900 underline shrink-0"
+                        className="text-xs font-medium text-red-700 dark:text-red-300 hover:text-red-900 underline shrink-0"
                     >
                         View overdue →
                     </button>
@@ -461,7 +461,7 @@ export default function SdrsIndex() {
             )}
 
             {/* ── Tabs ──────────────────────────────────────────────────────── */}
-            <div className="border-b border-slate-200 mb-5" data-testid="sdr-tabs">
+            <div className="border-b border-slate-200 dark:border-slate-700 mb-5" data-testid="sdr-tabs">
                 <nav className="flex gap-1" aria-label="SDR tabs">
                     {TABS.filter(t => t.visible).map(t => (
                         <button
@@ -470,16 +470,16 @@ export default function SdrsIndex() {
                             data-testid={`tab-${t.key}`}
                             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
                                 tab === t.key
-                                    ? 'border-blue-600 text-blue-700'
-                                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                                    ? 'border-blue-600 text-blue-700 dark:text-blue-300'
+                                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 hover:border-slate-300'
                             }`}
                         >
                             {t.label}
                             {t.count !== null && t.count > 0 && (
                                 <span className={`ml-1.5 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold min-w-[18px] ${
                                     t.key === 'overdue'
-                                        ? 'bg-red-100 text-red-700'
-                                        : 'bg-slate-100 text-slate-600'
+                                        ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                                 }`}>
                                     {t.count}
                                 </span>

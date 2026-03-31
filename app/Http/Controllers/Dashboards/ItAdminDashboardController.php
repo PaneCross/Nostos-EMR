@@ -21,6 +21,7 @@ use App\Models\IntegrationLog;
 use App\Models\Site;
 use App\Models\Tenant;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -63,6 +64,7 @@ class ItAdminDashboardController extends Controller
                 'role'       => $u->role,
                 'is_active'  => $u->is_active,
                 'created_at' => $u->created_at?->diffForHumans(),
+                'href'       => '/it-admin/users',
             ]);
 
         // Recently deactivated (is_active=false, updated in last 30 days)
@@ -79,6 +81,7 @@ class ItAdminDashboardController extends Controller
                 'department' => $u->department,
                 'is_active'  => $u->is_active,
                 'updated_at' => $u->updated_at?->diffForHumans(),
+                'href'       => '/it-admin/users',
             ]);
 
         $totalActive   = User::where('tenant_id', $tenantId)->where('is_active', true)->count();
@@ -115,7 +118,8 @@ class ItAdminDashboardController extends Controller
                 ->where('status', 'failed')
                 ->count();
 
-            $lastMessageAt = $last?->created_at;
+            // IntegrationLog has $timestamps=false; created_at is a raw string — parse to Carbon
+            $lastMessageAt = $last?->created_at ? Carbon::parse($last->created_at) : null;
             $isStale = $lastMessageAt
                 ? $lastMessageAt->diffInHours(now()) > 24
                 : true; // Never received = stale
@@ -131,6 +135,7 @@ class ItAdminDashboardController extends Controller
                     ->forConnector($connectorType)
                     ->whereDate('created_at', today())
                     ->count(),
+                'href'              => '/it-admin/integrations',
             ];
         }
 
@@ -169,6 +174,7 @@ class ItAdminDashboardController extends Controller
                 'resource_id'   => $log->resource_id,
                 'ip_address'    => $log->ip_address,
                 'created_at'    => $log->created_at?->diffForHumans(),
+                'href'          => '/it-admin/audit',
             ]);
 
         return response()->json(['entries' => $entries]);
@@ -193,6 +199,7 @@ class ItAdminDashboardController extends Controller
                 'id'         => $s->id,
                 'name'       => $s->name,
                 'mrn_prefix' => $s->mrn_prefix,
+                'href'       => '/it-admin/users',
             ]);
 
         return response()->json([

@@ -8,6 +8,7 @@
 //
 // Routes:
 //   GET  /chat                          → index()         Inertia page
+//   GET  /chat/users/search?q={term}    → searchUsers()   JSON: tenant user search (DM typeahead)
 //   GET  /chat/channels                 → channels()      JSON: my channels + unread counts
 //   GET  /chat/channels/{id}/messages   → messages()      JSON: paginated messages
 //   POST /chat/channels/{id}/messages   → send()          JSON: new message + Reverb broadcast
@@ -24,6 +25,7 @@ use App\Models\AuditLog;
 use App\Models\ChatChannel;
 use App\Models\ChatMessage;
 use App\Models\User;
+use App\Services\AlertService;
 use App\Services\ChatService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,7 +35,10 @@ use Inertia\Response as InertiaResponse;
 
 class ChatController extends Controller
 {
-    public function __construct(private readonly ChatService $chatService) {}
+    public function __construct(
+        private readonly ChatService  $chatService,
+        private readonly AlertService $alertService,
+    ) {}
 
     // ── Inertia page ──────────────────────────────────────────────────────────
 
@@ -61,6 +66,44 @@ class ChatController extends Controller
     // ── API endpoints (JSON) ──────────────────────────────────────────────────
 
     /**
+     * Search users within the current tenant for the DM user-search typeahead.
+     * Requires at least 2 characters. Returns max 20 results, excluding self.
+     * Used by the frontend "New Message" DM search field in Chat/Index.tsx.
+     */
+    public function searchUsers(Request $request): JsonResponse
+    {
+        $q = trim((string) $request->query('q', ''));
+
+        if (strlen($q) < 2) {
+            return response()->json(['users' => []]);
+        }
+
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+
+        $results = User::where('tenant_id', $user->tenant_id)
+            ->where('id', '!=', $user->id)
+            ->where('is_active', true)
+            ->where(function ($query) use ($q) {
+                $like = '%' . strtolower($q) . '%';
+                $query->whereRaw("LOWER(first_name) LIKE ?", [$like])
+                      ->orWhereRaw("LOWER(last_name) LIKE ?", [$like])
+                      ->orWhereRaw("LOWER(CONCAT(first_name, ' ', last_name)) LIKE ?", [$like]);
+            })
+            ->orderBy('first_name')
+            ->limit(20)
+            ->get(['id', 'first_name', 'last_name', 'department', 'role'])
+            ->map(fn (User $u) => [
+                'id'         => $u->id,
+                'name'       => $u->first_name . ' ' . $u->last_name,
+                'department' => $u->department,
+                'role'       => $u->role,
+            ]);
+
+        return response()->json(['users' => $results]);
+    }
+
+    /**
      * List all channels the authenticated user belongs to, grouped by type,
      * with unread message counts.
      */
@@ -77,17 +120,20 @@ class ChatController extends Controller
             ->get()
             ->map(function (ChatChannel $ch) use ($user) {
                 $membership = $ch->memberships->first();
-                $unread = $ch->messages()
+                $unreadQuery = $ch->messages()
                     ->withoutTrashed()
-                    ->when($membership?->last_read_at, fn ($q) => $q->where('sent_at', '>', $membership->last_read_at))
-                    ->count();
+                    ->when($membership?->last_read_at, fn ($q) => $q->where('sent_at', '>', $membership->last_read_at));
+
+                $unread       = (clone $unreadQuery)->count();
+                $urgentUnread = (clone $unreadQuery)->where('priority', 'urgent')->count();
 
                 return [
-                    'id'           => $ch->id,
-                    'channel_type' => $ch->channel_type,
-                    'name'         => $ch->displayName($user),
-                    'unread_count' => $unread,
-                    'is_active'    => $ch->is_active,
+                    'id'                  => $ch->id,
+                    'channel_type'        => $ch->channel_type,
+                    'name'                => $ch->displayName($user),
+                    'unread_count'        => $unread,
+                    'urgent_unread_count' => $urgentUnread,
+                    'is_active'           => $ch->is_active,
                 ];
             });
 
@@ -118,8 +164,9 @@ class ChatController extends Controller
 
     /**
      * Send a message to a channel and broadcast via Reverb.
-     * If priority=urgent, also creates a critical alert targeting
-     * all members' departments.
+     * If priority=urgent, creates a critical severity alert for all non-sender
+     * channel members, with metadata.channel_id for deep-link navigation to
+     * /chat?channel={id} from the notification bell or critical banner.
      */
     public function send(Request $request, ChatChannel $channel): JsonResponse
     {
@@ -151,6 +198,33 @@ class ChatController extends Controller
             ->where('user_id', '!=', $user->id)
             ->pluck('user_id')
             ->each(fn ($memberId) => broadcast(new ChatActivityEvent($memberId, $channel->id)));
+
+        // Urgent messages create a critical alert so all channel members see a
+        // full-width banner. metadata.channel_id enables deep-link to the channel.
+        if (($data['priority'] ?? 'standard') === 'urgent') {
+            $memberDepts = $channel->memberships()
+                ->where('user_id', '!=', $user->id)
+                ->join('shared_users', 'emr_chat_memberships.user_id', '=', 'shared_users.id')
+                ->pluck('shared_users.department')
+                ->unique()
+                ->values()
+                ->toArray();
+
+            if (! empty($memberDepts)) {
+                $this->alertService->create([
+                    'tenant_id'          => $user->tenant_id,
+                    'source_module'      => 'chat',
+                    'alert_type'         => 'urgent_chat_message',
+                    'title'              => 'Urgent message from ' . $user->first_name . ' ' . $user->last_name,
+                    'message'            => mb_strimwidth($data['message_text'], 0, 200, '…'),
+                    'severity'           => 'critical',
+                    'target_departments' => $memberDepts,
+                    'created_by_system'  => false,
+                    'created_by_user_id' => $user->id,
+                    'metadata'           => ['channel_id' => $channel->id],
+                ]);
+            }
+        }
 
         AuditLog::create([
             'user_id'       => $user->id,

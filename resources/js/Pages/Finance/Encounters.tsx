@@ -50,16 +50,16 @@ interface Filters {
 // ── Status Badge ──────────────────────────────────────────────────────────────
 
 const statusColors: Record<string, string> = {
-    pending:   'bg-yellow-100 text-yellow-800',
-    submitted: 'bg-blue-100 text-blue-800',
-    accepted:  'bg-green-100 text-green-800',
-    rejected:  'bg-red-100 text-red-800',
-    void:      'bg-gray-100 text-gray-600',
+    pending:   'bg-yellow-100 dark:bg-yellow-900/60 text-yellow-800 dark:text-yellow-300',
+    submitted: 'bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300',
+    accepted:  'bg-green-100 dark:bg-green-900/60 text-green-800 dark:text-green-300',
+    rejected:  'bg-red-100 dark:bg-red-900/60 text-red-800 dark:text-red-300',
+    void:      'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400',
 };
 
 function StatusBadge({ status }: { status: string }) {
     return (
-        <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColors[status] ?? 'bg-gray-100 text-gray-700'}`}>
+        <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColors[status] ?? 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'}`}>
             {status.charAt(0).toUpperCase() + status.slice(1)}
         </span>
     );
@@ -136,8 +136,8 @@ export default function Encounters({ auth }: PageProps) {
                 {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Encounter Submission Queue</h1>
-                        <p className="text-sm text-gray-500 mt-1">
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Encounter Submission Queue</h1>
+                        <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
                             837P billing encounters for CMS Encounter Data submission
                         </p>
                     </div>
@@ -153,7 +153,7 @@ export default function Encounters({ auth }: PageProps) {
                 </div>
 
                 {batchMsg && (
-                    <div className="mb-4 p-3 rounded-lg bg-blue-50 text-blue-800 text-sm">{batchMsg}</div>
+                    <div className="mb-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 text-sm">{batchMsg}</div>
                 )}
 
                 {/* Filter Bar */}
@@ -163,12 +163,12 @@ export default function Encounters({ auth }: PageProps) {
                         placeholder="Participant ID"
                         value={filters.participant_id}
                         onChange={e => setFilters(f => ({ ...f, participant_id: e.target.value }))}
-                        className="border rounded px-3 py-1.5 text-sm w-36"
+                        className="border border-gray-300 dark:border-slate-600 rounded px-3 py-1.5 text-sm w-36 bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
                     />
                     <select
                         value={filters.service_type}
                         onChange={e => setFilters(f => ({ ...f, service_type: e.target.value }))}
-                        className="border rounded px-3 py-1.5 text-sm"
+                        className="border border-gray-300 dark:border-slate-600 rounded px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
                     >
                         <option value="">All Service Types</option>
                         <option value="primary_care">Primary Care</option>
@@ -180,7 +180,7 @@ export default function Encounters({ auth }: PageProps) {
                     <select
                         value={filters.submission_status}
                         onChange={e => setFilters(f => ({ ...f, submission_status: e.target.value }))}
-                        className="border rounded px-3 py-1.5 text-sm"
+                        className="border border-gray-300 dark:border-slate-600 rounded px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
                     >
                         <option value="">All Statuses</option>
                         <option value="pending">Pending</option>
@@ -192,17 +192,17 @@ export default function Encounters({ auth }: PageProps) {
                         type="date"
                         value={filters.date_from}
                         onChange={e => setFilters(f => ({ ...f, date_from: e.target.value }))}
-                        className="border rounded px-3 py-1.5 text-sm"
+                        className="border border-gray-300 dark:border-slate-600 rounded px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
                     />
                     <input
                         type="date"
                         value={filters.date_to}
                         onChange={e => setFilters(f => ({ ...f, date_to: e.target.value }))}
-                        className="border rounded px-3 py-1.5 text-sm"
+                        className="border border-gray-300 dark:border-slate-600 rounded px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
                     />
                     <button
                         onClick={load}
-                        className="px-3 py-1.5 bg-gray-100 rounded text-sm text-gray-700 hover:bg-gray-200"
+                        className="px-3 py-1.5 bg-gray-100 dark:bg-slate-700 rounded text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600"
                     >
                         Filter
                     </button>
@@ -210,18 +210,18 @@ export default function Encounters({ auth }: PageProps) {
 
                 {/* Table */}
                 {loading ? (
-                    <div className="text-center py-12 text-gray-400">Loading encounters…</div>
+                    <div className="text-center py-12 text-gray-400 dark:text-slate-500">Loading encounters…</div>
                 ) : encounters.length === 0 ? (
-                    <div className="text-center py-12 text-gray-400">
-                        <p className="text-base font-medium text-gray-500">No encounters found.</p>
-                        <p className="text-sm text-gray-400 mt-1">
+                    <div className="text-center py-12 text-gray-400 dark:text-slate-500">
+                        <p className="text-base font-medium text-gray-500 dark:text-slate-400">No encounters found.</p>
+                        <p className="text-sm text-gray-400 dark:text-slate-500 mt-1">
                             Encounters are created automatically from clinical activity and integration events.
                         </p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto rounded-lg border border-gray-200">
+                    <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-700">
                         <table className="w-full text-sm">
-                            <thead className="bg-gray-50 text-gray-600 text-xs uppercase">
+                            <thead className="bg-gray-50 dark:bg-slate-700/50 text-gray-600 dark:text-slate-400 text-xs uppercase">
                                 <tr>
                                     <th className="px-3 py-2 text-left">
                                         <input
@@ -239,9 +239,9 @@ export default function Encounters({ auth }: PageProps) {
                                     <th className="px-3 py-2 text-left">Status</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100">
+                            <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                                 {encounters.map(enc => (
-                                    <tr key={enc.id} className="hover:bg-gray-50">
+                                    <tr key={enc.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
                                         <td className="px-3 py-2">
                                             <input
                                                 type="checkbox"
@@ -249,27 +249,27 @@ export default function Encounters({ auth }: PageProps) {
                                                 onChange={() => toggleSelect(enc.id)}
                                             />
                                         </td>
-                                        <td className="px-3 py-2 font-medium text-gray-900">
+                                        <td className="px-3 py-2 font-medium text-gray-900 dark:text-slate-100">
                                             {enc.participant
                                                 ? `${enc.participant.first_name} ${enc.participant.last_name}`
                                                 : `ID ${enc.id}`}
                                             {enc.participant && (
-                                                <div className="text-xs text-gray-400">{enc.participant.mrn}</div>
+                                                <div className="text-xs text-gray-400 dark:text-slate-500">{enc.participant.mrn}</div>
                                             )}
                                         </td>
-                                        <td className="px-3 py-2 text-gray-600">{enc.service_date}</td>
-                                        <td className="px-3 py-2 text-gray-600 capitalize">{enc.service_type.replace('_', ' ')}</td>
-                                        <td className="px-3 py-2 text-gray-500 font-mono text-xs">{enc.procedure_code ?? '—'}</td>
+                                        <td className="px-3 py-2 text-gray-600 dark:text-slate-400">{enc.service_date}</td>
+                                        <td className="px-3 py-2 text-gray-600 dark:text-slate-400 capitalize">{enc.service_type.replace('_', ' ')}</td>
+                                        <td className="px-3 py-2 text-gray-500 dark:text-slate-400 font-mono text-xs">{enc.procedure_code ?? '-'}</td>
                                         <td className="px-3 py-2">
                                             {enc.diagnosis_codes && enc.diagnosis_codes.length > 0 ? (
-                                                <span className="text-xs text-green-700 font-medium">
+                                                <span className="text-xs text-green-700 dark:text-green-300 font-medium">
                                                     {enc.diagnosis_codes.length} code{enc.diagnosis_codes.length !== 1 ? 's' : ''}
                                                 </span>
                                             ) : (
                                                 <span className="text-xs text-red-500">Missing</span>
                                             )}
                                         </td>
-                                        <td className="px-3 py-2 text-right text-gray-700">
+                                        <td className="px-3 py-2 text-right text-gray-700 dark:text-slate-300">
                                             ${parseFloat(enc.charge_amount).toFixed(2)}
                                         </td>
                                         <td className="px-3 py-2">

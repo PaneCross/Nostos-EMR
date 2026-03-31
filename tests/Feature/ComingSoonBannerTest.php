@@ -83,11 +83,12 @@ class ComingSoonBannerTest extends TestCase
 
     // ── CAT2: Live redirects ────────────────────────────────────────────────────
 
-    public function test_idt_minutes_redirects_to_idt_dashboard(): void
+    public function test_idt_minutes_redirects_to_idt_meetings(): void
     {
+        // W3-2: /idt/minutes now redirects to the live Meetings list, not /idt dashboard
         $this->actingAs($this->user)
             ->get('/idt/minutes')
-            ->assertRedirect('/idt');
+            ->assertRedirect('/idt/meetings');
     }
 
     public function test_idt_sdr_redirects_to_sdrs(): void
@@ -137,10 +138,12 @@ class ComingSoonBannerTest extends TestCase
         $this->assertEquals('planned', $props['mode'] ?? null);
     }
 
-    public function test_scheduling_day_center_returns_coming_soon_planned_mode(): void
+    public function test_scheduling_day_center_returns_ok(): void
     {
-        $props = $this->inertiaGet('/scheduling/day-center');
-        $this->assertEquals('planned', $props['mode'] ?? null);
+        // W3-2: /scheduling/day-center is now a live Inertia page (DayCenterController)
+        $this->actingAs($this->user)
+            ->get('/scheduling/day-center')
+            ->assertOk();
     }
 
     public function test_billing_claims_redirects_to_encounters(): void
@@ -151,16 +154,20 @@ class ComingSoonBannerTest extends TestCase
             ->assertRedirect('/billing/encounters');
     }
 
-    public function test_reports_returns_coming_soon_planned_mode(): void
+    public function test_reports_returns_ok(): void
     {
-        $props = $this->inertiaGet('/reports');
-        $this->assertEquals('planned', $props['mode'] ?? null);
+        // W3-2: /reports is now a live Inertia page (ReportsController)
+        $this->actingAs($this->user)
+            ->get('/reports')
+            ->assertOk();
     }
 
-    public function test_admin_settings_returns_coming_soon_planned_mode(): void
+    public function test_admin_settings_returns_ok(): void
     {
-        $props = $this->inertiaGet('/admin/settings');
-        $this->assertEquals('planned', $props['mode'] ?? null);
+        // W3-2: /admin/settings is now a live Inertia page (SystemSettingsController)
+        $this->actingAs($this->user)
+            ->get('/admin/settings')
+            ->assertOk();
     }
 
     // ── Auth guard ─────────────────────────────────────────────────────────────

@@ -50,6 +50,9 @@ class HandleInertiaRequests extends Middleware
             // is_super_admin: always false for the effective user when impersonating
             // (so impersonated user doesn't accidentally see super-admin controls)
             'is_super_admin'   => $impersonatedUser ? false : ($realUser?->isSuperAdmin() ?? false),
+            // Theme preference belongs to the REAL user, not the impersonated user.
+            // This keeps the SA's display mode consistent during impersonation sessions.
+            'theme_preference' => $realUser?->theme_preference ?? 'light',
             'tenant'           => $effectiveUser->tenant ? [
                 'id'                  => $effectiveUser->tenant->id,
                 'name'                => $effectiveUser->tenant->name,

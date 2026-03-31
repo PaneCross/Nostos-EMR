@@ -44,10 +44,10 @@ interface Props extends PageProps {
 
 function KpiCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
     return (
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</div>
-            <div className="text-2xl font-bold text-gray-900 mt-1">{value}</div>
-            {sub && <div className="text-xs text-gray-400 mt-0.5">{sub}</div>}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
+            <div className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">{label}</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-slate-100 mt-1">{value}</div>
+            {sub && <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{sub}</div>}
         </div>
     );
 }
@@ -88,13 +88,13 @@ export default function Capitation({ auth, kpis, records, currentMonthYear }: Pr
                 {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Capitation Records</h1>
-                        <p className="text-sm text-gray-500 mt-1">CMS monthly capitation with HCC risk adjustment</p>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Capitation Records</h1>
+                        <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">CMS monthly capitation with HCC risk adjustment</p>
                     </div>
                     <div className="flex gap-2">
                         <button
                             onClick={() => setShowImport(true)}
-                            className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                            className="px-4 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700"
                         >
                             Bulk Import CSV
                         </button>
@@ -102,7 +102,7 @@ export default function Capitation({ auth, kpis, records, currentMonthYear }: Pr
                 </div>
 
                 {importMsg && (
-                    <div className="mb-4 p-3 rounded-lg bg-blue-50 text-blue-800 text-sm">{importMsg}</div>
+                    <div className="mb-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 text-sm">{importMsg}</div>
                 )}
 
                 {/* KPI Row */}
@@ -123,9 +123,9 @@ export default function Capitation({ auth, kpis, records, currentMonthYear }: Pr
                 </div>
 
                 {/* Records Table */}
-                <div className="overflow-x-auto rounded-lg border border-gray-200">
+                <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-700">
                     <table className="w-full text-sm">
-                        <thead className="bg-gray-50 text-gray-600 text-xs uppercase">
+                        <thead className="bg-gray-50 dark:bg-slate-700/50 text-gray-600 dark:text-slate-400 text-xs uppercase">
                             <tr>
                                 <th className="px-3 py-2 text-left">Month</th>
                                 <th className="px-3 py-2 text-left">Participant</th>
@@ -135,35 +135,35 @@ export default function Capitation({ auth, kpis, records, currentMonthYear }: Pr
                                 <th className="px-3 py-2 text-left">Eligibility</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                             {records.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-3 py-8 text-center text-gray-400">
+                                    <td colSpan={6} className="px-3 py-8 text-center text-gray-400 dark:text-slate-500">
                                         No capitation records found.
                                     </td>
                                 </tr>
                             ) : records.map(rec => (
-                                <tr key={rec.id} className="hover:bg-gray-50">
-                                    <td className="px-3 py-2 font-medium text-gray-700">{rec.month_year}</td>
+                                <tr key={rec.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                                    <td className="px-3 py-2 font-medium text-gray-700 dark:text-slate-300">{rec.month_year}</td>
                                     <td className="px-3 py-2">
                                         {rec.participant
                                             ? `${rec.participant.first_name} ${rec.participant.last_name}`
-                                            : '—'}
+                                            : '-'}
                                         {rec.participant && (
-                                            <div className="text-xs text-gray-400">{rec.participant.mrn}</div>
+                                            <div className="text-xs text-gray-400 dark:text-slate-500">{rec.participant.mrn}</div>
                                         )}
                                     </td>
-                                    <td className="px-3 py-2 text-right text-gray-700">
+                                    <td className="px-3 py-2 text-right text-gray-700 dark:text-slate-300">
                                         ${parseFloat(rec.total_capitation).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                                     </td>
-                                    <td className="px-3 py-2 text-right text-gray-600">
-                                        {rec.hcc_risk_score ? parseFloat(rec.hcc_risk_score).toFixed(4) : '—'}
+                                    <td className="px-3 py-2 text-right text-gray-600 dark:text-slate-400">
+                                        {rec.hcc_risk_score ? parseFloat(rec.hcc_risk_score).toFixed(4) : '-'}
                                     </td>
-                                    <td className="px-3 py-2 text-gray-500 capitalize">
-                                        {rec.adjustment_type?.replace('_', ' ') ?? '—'}
+                                    <td className="px-3 py-2 text-gray-500 dark:text-slate-400 capitalize">
+                                        {rec.adjustment_type?.replace('_', ' ') ?? '-'}
                                     </td>
-                                    <td className="px-3 py-2 text-gray-500">
-                                        {rec.eligibility_category ?? '—'}
+                                    <td className="px-3 py-2 text-gray-500 dark:text-slate-400">
+                                        {rec.eligibility_category ?? '-'}
                                     </td>
                                 </tr>
                             ))}
@@ -174,27 +174,27 @@ export default function Capitation({ auth, kpis, records, currentMonthYear }: Pr
                 {/* Bulk Import Modal */}
                 {showImport && (
                     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-                        <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-lg">
-                            <h2 className="text-lg font-bold text-gray-900 mb-2">Bulk Import Capitation CSV</h2>
-                            <p className="text-sm text-gray-500 mb-4">
-                                CSV columns: <code className="text-xs bg-gray-100 px-1 rounded">participant_id</code> or{' '}
-                                <code className="text-xs bg-gray-100 px-1 rounded">medicare_id</code>,{' '}
-                                <code className="text-xs bg-gray-100 px-1 rounded">month_year</code>,{' '}
-                                <code className="text-xs bg-gray-100 px-1 rounded">total_capitation</code>,{' '}
-                                <code className="text-xs bg-gray-100 px-1 rounded">hcc_risk_score</code> (optional),{' '}
-                                <code className="text-xs bg-gray-100 px-1 rounded">adjustment_type</code> (optional)
+                        <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-lg shadow-lg">
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100 mb-2">Bulk Import Capitation CSV</h2>
+                            <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
+                                CSV columns: <code className="text-xs bg-gray-100 dark:bg-slate-700 dark:text-slate-300 px-1 rounded">participant_id</code> or{' '}
+                                <code className="text-xs bg-gray-100 dark:bg-slate-700 dark:text-slate-300 px-1 rounded">medicare_id</code>,{' '}
+                                <code className="text-xs bg-gray-100 dark:bg-slate-700 dark:text-slate-300 px-1 rounded">month_year</code>,{' '}
+                                <code className="text-xs bg-gray-100 dark:bg-slate-700 dark:text-slate-300 px-1 rounded">total_capitation</code>,{' '}
+                                <code className="text-xs bg-gray-100 dark:bg-slate-700 dark:text-slate-300 px-1 rounded">hcc_risk_score</code> (optional),{' '}
+                                <code className="text-xs bg-gray-100 dark:bg-slate-700 dark:text-slate-300 px-1 rounded">adjustment_type</code> (optional)
                             </p>
                             <input
                                 type="file"
                                 accept=".csv,text/csv"
                                 onChange={e => setImportFile(e.target.files?.[0] ?? null)}
-                                className="block w-full text-sm border rounded-lg px-3 py-2 mb-4"
+                                className="block w-full text-sm border dark:border-slate-600 rounded-lg px-3 py-2 mb-4 dark:bg-slate-700 dark:text-slate-100"
                             />
-                            {importMsg && <p className="text-sm text-red-600 mb-3">{importMsg}</p>}
+                            {importMsg && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{importMsg}</p>}
                             <div className="flex justify-end gap-3">
                                 <button
                                     onClick={() => { setShowImport(false); setImportMsg(null); }}
-                                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+                                    className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200"
                                 >
                                     Cancel
                                 </button>

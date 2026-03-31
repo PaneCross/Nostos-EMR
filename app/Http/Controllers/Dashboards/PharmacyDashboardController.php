@@ -66,6 +66,9 @@ class PharmacyDashboardController extends Controller
                     ? $m->prescribingProvider->first_name . ' ' . $m->prescribingProvider->last_name
                     : null,
                 'is_controlled' => $m->is_controlled,
+                'href'          => $m->participant
+                    ? "/participants/{$m->participant->id}?tab=medications"
+                    : '/participants',
             ]);
 
         // Discontinued today: medications where status changed to discontinued
@@ -86,6 +89,9 @@ class PharmacyDashboardController extends Controller
                 ] : null,
                 'drug_name'           => $m->drug_name,
                 'discontinued_reason' => $m->discontinued_reason,
+                'href'                => $m->participant
+                    ? "/participants/{$m->participant->id}?tab=medications"
+                    : '/participants',
             ]);
 
         return response()->json([
@@ -130,6 +136,9 @@ class PharmacyDashboardController extends Controller
                 'severity_color' => $a->severityColor(),
                 'description'    => $a->description,
                 'created_at'     => $a->created_at?->diffForHumans(),
+                'href'           => $a->participant
+                    ? "/participants/{$a->participant->id}?tab=medications"
+                    : '/participants',
             ]);
 
         return response()->json([
@@ -186,6 +195,9 @@ class PharmacyDashboardController extends Controller
                     ? $r->witness->first_name . ' ' . $r->witness->last_name
                     : null,
                 'needs_witness'       => $r->medication?->requiresWitness() && $r->status === 'given' && is_null($r->witness_user_id),
+                'href'                => $r->participant
+                    ? "/participants/{$r->participant->id}?tab=medications"
+                    : '/participants',
             ]);
 
         return response()->json([
@@ -235,6 +247,9 @@ class PharmacyDashboardController extends Controller
                 'reason'            => $m->refills_remaining === 0
                     ? 'no_refills'
                     : 'overdue_refill',
+                'href'              => $m->participant
+                    ? "/participants/{$m->participant->id}?tab=medications"
+                    : '/participants',
             ]);
 
         return response()->json([

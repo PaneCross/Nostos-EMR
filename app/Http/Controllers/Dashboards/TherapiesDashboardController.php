@@ -68,6 +68,9 @@ class TherapiesDashboardController extends Controller
                 'provider_name'    => $a->provider
                     ? $a->provider->first_name . ' ' . $a->provider->last_name
                     : null,
+                'href'             => $a->participant
+                    ? "/participants/{$a->participant->id}"
+                    : '/schedule',
             ]);
 
         return response()->json(['appointments' => $appointments]);
@@ -106,6 +109,9 @@ class TherapiesDashboardController extends Controller
                     'id'   => $g->carePlan->participant->id,
                     'name' => $g->carePlan->participant->first_name . ' ' . $g->carePlan->participant->last_name,
                 ] : null,
+                'href'             => $g->carePlan?->participant?->id
+                    ? "/participants/{$g->carePlan->participant->id}?tab=careplan"
+                    : '/participants',
             ]);
 
         return response()->json(['goals' => $goals]);
@@ -140,6 +146,7 @@ class TherapiesDashboardController extends Controller
                 'is_overdue'       => $s->isOverdue(),
                 'hours_remaining'  => round($s->hoursRemaining(), 1),
                 'due_at'           => $s->due_at?->toDateTimeString(),
+                'href'             => '/sdrs',
             ]);
 
         return response()->json([
@@ -178,6 +185,9 @@ class TherapiesDashboardController extends Controller
                     : null,
                 'visit_date' => $n->visit_date?->toDateString(),
                 'created_at' => $n->created_at?->diffForHumans(),
+                'href'       => $n->participant
+                    ? "/participants/{$n->participant->id}?tab=chart"
+                    : '/clinical/notes',
             ]);
 
         return response()->json([

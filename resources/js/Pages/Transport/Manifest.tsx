@@ -29,6 +29,13 @@ import axios from 'axios';
 import AppShell from '@/Layouts/AppShell';
 import ComingSoonBanner from '@/Components/ComingSoonBanner';
 import { PageProps } from '@/types';
+import {
+    UserIcon,
+    MinusSmallIcon,
+    BeakerIcon,
+    ExclamationTriangleIcon,
+    ClipboardDocumentListIcon,
+} from '@heroicons/react/24/outline';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -100,14 +107,14 @@ interface ManifestProps extends PageProps {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { label: string; rowClass: string; badgeClass: string }> = {
-    requested:  { label: 'Requested',  rowClass: 'border-l-slate-300',  badgeClass: 'bg-slate-100 text-slate-600' },
-    scheduled:  { label: 'Scheduled',  rowClass: 'border-l-blue-400',   badgeClass: 'bg-blue-100 text-blue-700' },
-    dispatched: { label: 'Dispatched', rowClass: 'border-l-indigo-400', badgeClass: 'bg-indigo-100 text-indigo-700' },
-    en_route:   { label: 'En Route',   rowClass: 'border-l-amber-400',  badgeClass: 'bg-amber-100 text-amber-700' },
-    arrived:    { label: 'Arrived',    rowClass: 'border-l-teal-400',   badgeClass: 'bg-teal-100 text-teal-700' },
-    completed:  { label: 'Completed',  rowClass: 'border-l-green-500',  badgeClass: 'bg-green-100 text-green-700' },
-    no_show:    { label: 'No Show',    rowClass: 'border-l-red-500 bg-red-50/40', badgeClass: 'bg-red-100 text-red-700' },
-    cancelled:  { label: 'Cancelled',  rowClass: 'border-l-slate-200 opacity-60', badgeClass: 'bg-slate-100 text-slate-400' },
+    requested:  { label: 'Requested',  rowClass: 'border-l-slate-300',  badgeClass: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400' },
+    scheduled:  { label: 'Scheduled',  rowClass: 'border-l-blue-400',   badgeClass: 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300' },
+    dispatched: { label: 'Dispatched', rowClass: 'border-l-indigo-400', badgeClass: 'bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300' },
+    en_route:   { label: 'En Route',   rowClass: 'border-l-amber-400',  badgeClass: 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300' },
+    arrived:    { label: 'Arrived',    rowClass: 'border-l-teal-400',   badgeClass: 'bg-teal-100 text-teal-700 dark:text-teal-300' },
+    completed:  { label: 'Completed',  rowClass: 'border-l-green-500',  badgeClass: 'bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300' },
+    no_show:    { label: 'No Show',    rowClass: 'border-l-red-500 bg-red-50 dark:bg-red-950/60/40', badgeClass: 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300' },
+    cancelled:  { label: 'Cancelled',  rowClass: 'border-l-slate-200 opacity-60', badgeClass: 'bg-slate-100 dark:bg-slate-800 text-slate-400' },
 };
 
 const TRIP_TYPE_LABELS: Record<string, string> = {
@@ -118,11 +125,11 @@ const TRIP_TYPE_LABELS: Record<string, string> = {
     add_on:        'Add-On',
 };
 
-const FLAG_ICONS: Record<string, string> = {
-    wheelchair: '♿',
-    stretcher:  '🛏',
-    oxygen:     '💨',
-    behavioral: '⚠',
+const FLAG_ICONS: Record<string, React.ReactNode> = {
+    wheelchair: <UserIcon className="w-3 h-3" />,
+    stretcher:  <MinusSmallIcon className="w-3 h-3" />,
+    oxygen:     <BeakerIcon className="w-3 h-3" />,
+    behavioral: <ExclamationTriangleIcon className="w-3 h-3" />,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -132,13 +139,13 @@ function todayISO(): string {
 }
 
 function fmtTime(iso: string | null): string {
-    if (!iso) return '—';
+    if (!iso) return '-';
     const d = new Date(iso);
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 function FlagPills({ flags }: { flags: ManifestFlag[] }) {
-    if (!flags.length) return <span className="text-slate-300 text-xs">—</span>;
+    if (!flags.length) return <span className="text-slate-300 text-xs">-</span>;
     return (
         <div className="flex flex-wrap gap-1">
             {flags.map((f, i) => (
@@ -147,11 +154,11 @@ function FlagPills({ flags }: { flags: ManifestFlag[] }) {
                     title={f.description ?? f.flag_type}
                     className={`inline-flex items-center gap-0.5 text-[11px] px-1.5 py-0.5 rounded font-medium ring-1 ring-inset ${
                         f.flag_type === 'behavioral'
-                            ? 'bg-red-100 text-red-700 ring-red-600/20'
-                            : 'bg-blue-100 text-blue-700 ring-blue-600/20'
+                            ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 ring-red-600/20'
+                            : 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 ring-blue-600/20'
                     }`}
                 >
-                    {FLAG_ICONS[f.flag_type] ?? '◉'} {f.flag_type}
+                    {FLAG_ICONS[f.flag_type] ?? null} {f.flag_type}
                 </span>
             ))}
         </div>
@@ -248,16 +255,16 @@ function AddOnModal({
             className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
             onClick={e => { if (e.target === e.currentTarget) onClose(); }}
         >
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6" data-testid="addon-modal">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg p-6" data-testid="addon-modal">
                 <div className="flex items-center justify-between mb-5">
-                    <h2 className="text-base font-semibold text-slate-900">New Add-On Transport Request</h2>
+                    <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">New Add-On Transport Request</h2>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {/* Participant search */}
                     <div className="relative">
-                        <label className="block text-xs font-medium text-slate-600 mb-1">Participant *</label>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Participant *</label>
                         <input
                             type="text"
                             value={participantSearch}
@@ -267,15 +274,15 @@ function AddOnModal({
                             data-testid="addon-participant-search"
                         />
                         {participantResults.length > 0 && (
-                            <div className="absolute z-10 top-full left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
+                            <div className="absolute z-10 top-full left-0 right-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
                                 {participantResults.map(p => (
                                     <button
                                         key={p.id}
                                         type="button"
                                         onClick={() => selectParticipant(p)}
-                                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2"
+                                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
                                     >
-                                        <span className="font-medium text-slate-800">{p.name}</span>
+                                        <span className="font-medium text-slate-800 dark:text-slate-200">{p.name}</span>
                                         <span className="text-xs text-slate-400">{p.mrn}</span>
                                     </button>
                                 ))}
@@ -285,7 +292,7 @@ function AddOnModal({
 
                     {/* Pickup time */}
                     <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">Requested Pickup Time *</label>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Requested Pickup Time *</label>
                         <input
                             type="datetime-local"
                             value={form.requested_pickup_time}
@@ -298,7 +305,7 @@ function AddOnModal({
                     {/* Locations */}
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">Pickup Location *</label>
+                            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Pickup Location *</label>
                             <select
                                 value={form.pickup_location_id}
                                 onChange={e => setForm(f => ({ ...f, pickup_location_id: parseInt(e.target.value) || '' }))}
@@ -312,7 +319,7 @@ function AddOnModal({
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">Drop-off Location *</label>
+                            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Drop-off Location *</label>
                             <select
                                 value={form.dropoff_location_id}
                                 onChange={e => setForm(f => ({ ...f, dropoff_location_id: parseInt(e.target.value) || '' }))}
@@ -329,7 +336,7 @@ function AddOnModal({
 
                     {/* Special instructions */}
                     <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">Special Instructions</label>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Special Instructions</label>
                         <textarea
                             value={form.special_instructions}
                             onChange={e => setForm(f => ({ ...f, special_instructions: e.target.value }))}
@@ -341,11 +348,11 @@ function AddOnModal({
                     </div>
 
                     {error && (
-                        <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+                        <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/60 rounded-lg px-3 py-2">{error}</p>
                     )}
 
                     <div className="flex justify-end gap-2 pt-1">
-                        <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 border border-slate-200 rounded-lg hover:bg-slate-50">
+                        <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700">
                             Cancel
                         </button>
                         <button
@@ -384,68 +391,68 @@ function RunSheetTab({ runs, loading }: { runs: ManifestRun[]; loading: boolean 
 
     return (
         <div className="overflow-x-auto" data-testid="run-sheet-table">
-            <table className="min-w-full divide-y divide-slate-100 text-sm">
-                <thead className="bg-slate-50">
+            <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-700 text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-900">
                     <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Participant</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Mobility Flags</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Type</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Pickup Time</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Pickup Location</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Drop-off Location</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Driver Notes</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Participant</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Mobility Flags</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Type</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Pickup Time</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Pickup Location</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Drop-off Location</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Driver Notes</th>
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700 bg-white dark:bg-slate-800">
                     {active.map(run => {
                         const cfg = STATUS_CONFIG[run.status] ?? STATUS_CONFIG['requested'];
                         return (
                             <tr
                                 key={run.id}
-                                className={`border-l-4 ${cfg.rowClass} hover:bg-slate-50/60 transition-colors`}
+                                className={`border-l-4 ${cfg.rowClass} hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors`}
                                 data-testid={`run-row-${run.id}`}
                             >
                                 <td className="px-4 py-3">
-                                    <p className="font-medium text-slate-800">{run.participant_name}</p>
+                                    <p className="font-medium text-slate-800 dark:text-slate-200">{run.participant_name}</p>
                                     <p className="text-xs text-slate-400">{run.mrn}</p>
                                 </td>
                                 <td className="px-4 py-3">
                                     {/* Snapshot flags shown as-of request time (not current flags) */}
                                     <FlagPills flags={run.mobility_flags} />
                                 </td>
-                                <td className="px-4 py-3 text-slate-600 text-xs">
+                                <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs">
                                     {TRIP_TYPE_LABELS[run.trip_type] ?? run.trip_type}
                                 </td>
-                                <td className="px-4 py-3 text-slate-700 font-mono text-xs">
+                                <td className="px-4 py-3 text-slate-700 dark:text-slate-300 font-mono text-xs">
                                     {/* Show scheduled time if set, otherwise requested time */}
                                     {run.scheduled_pickup_time
                                         ? <span title={`Requested: ${fmtTime(run.requested_pickup_time)}`}>{fmtTime(run.scheduled_pickup_time)}</span>
                                         : <span className="text-slate-400" title="Not yet scheduled">{fmtTime(run.requested_pickup_time)} *</span>
                                     }
                                     {run.actual_pickup_time && (
-                                        <p className="text-[10px] text-green-600">Actual: {fmtTime(run.actual_pickup_time)}</p>
+                                        <p className="text-[10px] text-green-600 dark:text-green-400">Actual: {fmtTime(run.actual_pickup_time)}</p>
                                     )}
                                 </td>
-                                <td className="px-4 py-3 text-slate-600 text-xs">{run.pickup_location}</td>
-                                <td className="px-4 py-3 text-slate-600 text-xs">{run.dropoff_location}</td>
+                                <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs">{run.pickup_location}</td>
+                                <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs">{run.dropoff_location}</td>
                                 <td className="px-4 py-3">
                                     <StatusBadge status={run.status} />
                                 </td>
-                                <td className="px-4 py-3 text-xs text-slate-500 max-w-[200px] truncate" title={run.driver_notes ?? ''}>
+                                <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400 max-w-[200px] truncate" title={run.driver_notes ?? ''}>
                                     {run.special_instructions && (
                                         <p className="text-slate-400 mb-0.5" title={run.special_instructions}>
-                                            📋 {run.special_instructions.slice(0, 60)}{run.special_instructions.length > 60 ? '…' : ''}
+                                            <ClipboardDocumentListIcon className="w-3 h-3 inline-block mr-0.5" />{run.special_instructions.slice(0, 60)}{run.special_instructions.length > 60 ? '…' : ''}
                                         </p>
                                     )}
-                                    {run.driver_notes ?? '—'}
+                                    {run.driver_notes ?? '-'}
                                 </td>
                             </tr>
                         );
                     })}
                 </tbody>
             </table>
-            <p className="px-4 py-2 text-[11px] text-slate-400 bg-slate-50 border-t border-slate-100">
+            <p className="px-4 py-2 text-[11px] text-slate-400 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-700">
                 * Asterisk indicates unconfirmed requested time. Mobility flags shown as captured at time of request.
             </p>
         </div>
@@ -480,19 +487,19 @@ function AddOnQueueTab({
     }
 
     return (
-        <div className="divide-y divide-slate-100" data-testid="addon-queue">
+        <div className="divide-y divide-slate-100 dark:divide-slate-700" data-testid="addon-queue">
             {queue.map(item => (
-                <div key={item.id} className="px-5 py-4 flex items-start gap-4 hover:bg-slate-50/60">
+                <div key={item.id} className="px-5 py-4 flex items-start gap-4 hover:bg-slate-50 dark:hover:bg-slate-700/60">
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                            <p className="font-medium text-slate-800">{item.participant_name}</p>
+                            <p className="font-medium text-slate-800 dark:text-slate-200">{item.participant_name}</p>
                             <span className="text-xs text-slate-400">{item.mrn}</span>
-                            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700">Add-On</span>
+                            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300">Add-On</span>
                         </div>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 mb-1.5">
-                            <span>Pickup: <strong className="text-slate-700">{fmtTime(item.requested_pickup_time)}</strong></span>
-                            <span>From: <strong className="text-slate-700">{item.pickup_location}</strong></span>
-                            <span>To: <strong className="text-slate-700">{item.dropoff_location}</strong></span>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+                            <span>Pickup: <strong className="text-slate-700 dark:text-slate-300">{fmtTime(item.requested_pickup_time)}</strong></span>
+                            <span>From: <strong className="text-slate-700 dark:text-slate-300">{item.pickup_location}</strong></span>
+                            <span>To: <strong className="text-slate-700 dark:text-slate-300">{item.dropoff_location}</strong></span>
                         </div>
                         <FlagPills flags={item.mobility_flags} />
                         {item.special_instructions && (
@@ -514,7 +521,7 @@ function AddOnQueueTab({
                             </button>
                             <button
                                 onClick={() => onDeny(item.id)}
-                                className="px-3 py-1.5 text-xs font-medium border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                                className="px-3 py-1.5 text-xs font-medium border border-red-300 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 transition-colors"
                                 data-testid={`deny-addon-${item.id}`}
                             >
                                 Deny
@@ -655,7 +662,7 @@ export default function Manifest() {
                 ──────────────────────────────────────────────────────────────── */}
             <ComingSoonBanner
                 title="Transport Manifest"
-                section="Live Dispatch Sync — Nostos Integration Required"
+                section="Live Dispatch Sync: Nostos Integration Required"
                 message="The transport manifest run-sheet requires a live connection to the Nostos transportation platform. A PACE-specific deployment of Nostos transport is required before real-time manifest data is available here. PACE staff can still submit transport requests from the participant profile and those requests will be queued for dispatch once the integration is active."
             />
 
@@ -670,8 +677,8 @@ export default function Manifest() {
             {/* Header */}
             <div className="flex items-center justify-between mb-5" data-print-hide>
                 <div>
-                    <h1 className="text-xl font-bold text-slate-900">Transport Manifest</h1>
-                    <p className="text-sm text-slate-500 mt-0.5">
+                    <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Transport Manifest</h1>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                         Daily run sheet · real-time status via Reverb
                     </p>
                 </div>
@@ -689,7 +696,7 @@ export default function Manifest() {
                     </button>
                     <button
                         onClick={handlePrint}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-slate-300 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                         data-testid="print-manifest-btn"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -703,7 +710,7 @@ export default function Manifest() {
             {/* Filters */}
             <div className="flex flex-wrap items-center gap-3 mb-5" data-print-hide>
                 <div className="flex items-center gap-2">
-                    <label className="text-xs font-medium text-slate-600">Date</label>
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Date</label>
                     <input
                         type="date"
                         value={date}
@@ -714,7 +721,7 @@ export default function Manifest() {
                 </div>
                 {sites.length > 1 && (
                     <div className="flex items-center gap-2">
-                        <label className="text-xs font-medium text-slate-600">Site</label>
+                        <label className="text-xs font-medium text-slate-600 dark:text-slate-400">Site</label>
                         <select
                             value={siteId}
                             onChange={e => setSiteId(parseInt(e.target.value) || '')}
@@ -727,22 +734,22 @@ export default function Manifest() {
                         </select>
                     </div>
                 )}
-                <div className="ml-auto flex items-center gap-4 text-xs text-slate-500">
-                    <span><strong className="text-slate-700">{stats.total}</strong> trips</span>
-                    <span><strong className="text-green-600">{stats.completed}</strong> completed</span>
-                    {stats.en_route > 0 && <span><strong className="text-amber-600">{stats.en_route}</strong> en route</span>}
-                    {stats.no_show > 0 && <span><strong className="text-red-600">{stats.no_show}</strong> no-show</span>}
+                <div className="ml-auto flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+                    <span><strong className="text-slate-700 dark:text-slate-300">{stats.total}</strong> trips</span>
+                    <span><strong className="text-green-600 dark:text-green-400">{stats.completed}</strong> completed</span>
+                    {stats.en_route > 0 && <span><strong className="text-amber-600 dark:text-amber-400">{stats.en_route}</strong> en route</span>}
+                    {stats.no_show > 0 && <span><strong className="text-red-600 dark:text-red-400">{stats.no_show}</strong> no-show</span>}
                 </div>
             </div>
 
             {/* Print header (shown only in print) */}
             <div className="hidden mb-4" data-print-show>
-                <h1 className="text-lg font-bold">Transport Manifest — {date}</h1>
-                <p className="text-sm text-slate-500">{sites.find(s => s.id === siteId)?.name ?? 'All Sites'}</p>
+                <h1 className="text-lg font-bold">Transport Manifest: {date}</h1>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{sites.find(s => s.id === siteId)?.name ?? 'All Sites'}</p>
             </div>
 
             {/* Tabs */}
-            <div className="border-b border-slate-200 mb-0" data-print-hide>
+            <div className="border-b border-slate-200 dark:border-slate-700 mb-0" data-print-hide>
                 <nav className="flex gap-1">
                     {[
                         { key: 'runsheet', label: 'Run Sheet', count: stats.total },
@@ -753,15 +760,15 @@ export default function Manifest() {
                             onClick={() => setActiveTab(tab.key as 'runsheet' | 'addons')}
                             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                                 activeTab === tab.key
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 hover:border-slate-300'
                             }`}
                             data-testid={`tab-${tab.key}`}
                         >
                             {tab.label}
                             {tab.count > 0 && (
                                 <span className={`ml-1.5 inline-flex items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${
-                                    activeTab === tab.key ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'
+                                    activeTab === tab.key ? 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                                 }`}>
                                     {tab.count}
                                 </span>
@@ -772,7 +779,7 @@ export default function Manifest() {
             </div>
 
             {/* Tab content */}
-            <div className="bg-white border border-slate-200 border-t-0 rounded-b-xl overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 border-t-0 rounded-b-xl overflow-hidden">
                 {activeTab === 'runsheet' ? (
                     <RunSheetTab runs={runs} loading={runsLoading} />
                 ) : (

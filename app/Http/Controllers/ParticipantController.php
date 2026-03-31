@@ -188,6 +188,24 @@ class ParticipantController extends Controller
             'noteTemplates'                => $this->noteTemplateService->all(),
             // ──────────────────────────────────────────────────────────────────
 
+            // ── W3-6: site transfer context ────────────────────────────────────
+            // has_multiple_sites: true when the participant has completed transfers.
+            // completed_transfers: ordered list used to draw transfer lines on vitals chart
+            // and show site badges on clinical notes.
+            'hasMultipleSites'  => $participant->hasMultipleSites(),
+            'completedTransfers' => $participant->siteTransfers()
+                ->where('status', 'completed')
+                ->with(['fromSite:id,name', 'toSite:id,name'])
+                ->orderBy('effective_date')
+                ->get()
+                ->map(fn ($t) => [
+                    'effective_date'  => $t->effective_date?->format('Y-m-d'),
+                    'from_site_name'  => $t->fromSite?->name,
+                    'to_site_name'    => $t->toSite?->name,
+                ])
+                ->toArray(),
+            // ──────────────────────────────────────────────────────────────────
+
             'auditLogs'    => $canViewAudit
                 ? AuditLog::where('resource_type', 'participant')
                     ->where('resource_id', $participant->id)

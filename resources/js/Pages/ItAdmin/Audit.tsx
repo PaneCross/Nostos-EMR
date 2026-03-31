@@ -94,14 +94,14 @@ export default function Audit({ initialCount }: Props) {
 
     return (
         <AppShell>
-            <Head title="IT Admin — Audit Log" />
+            <Head title="IT Admin: Audit Log" />
 
             <div className="max-w-7xl mx-auto px-4 py-8">
                 {/* ── Header ─────────────────────────────────────────────────── */}
                 <div className="flex items-center justify-between mb-6">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Audit Log</h1>
-                        <p className="text-sm text-gray-500 mt-0.5">{initialCount.toLocaleString()} total entries</p>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Audit Log</h1>
+                        <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{initialCount.toLocaleString()} total entries</p>
                     </div>
                     <button
                         onClick={handleExport}
@@ -113,13 +113,13 @@ export default function Audit({ initialCount }: Props) {
                 </div>
 
                 {/* ── Filter Bar ─────────────────────────────────────────────── */}
-                <div className="flex flex-wrap gap-3 mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div className="flex flex-wrap gap-3 mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200 dark:bg-slate-800 dark:border-slate-700">
                     <input
                         type="text"
                         placeholder="Filter by action…"
                         value={filterAction}
                         onChange={e => setFilterAction(e.target.value)}
-                        className="border border-gray-300 rounded px-3 py-1.5 text-sm w-48"
+                        className="border border-gray-300 rounded px-3 py-1.5 text-sm w-48 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                         data-testid="filter-action"
                     />
                     <input
@@ -127,39 +127,39 @@ export default function Audit({ initialCount }: Props) {
                         placeholder="Resource type…"
                         value={filterResType}
                         onChange={e => setFilterResType(e.target.value)}
-                        className="border border-gray-300 rounded px-3 py-1.5 text-sm w-40"
+                        className="border border-gray-300 rounded px-3 py-1.5 text-sm w-40 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                         data-testid="filter-resource-type"
                     />
                     <input
                         type="date"
                         value={filterDateFrom}
                         onChange={e => setFilterDateFrom(e.target.value)}
-                        className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+                        className="border border-gray-300 rounded px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                         data-testid="filter-date-from"
                     />
-                    <span className="self-center text-gray-400 text-sm">to</span>
+                    <span className="self-center text-gray-400 text-sm dark:text-slate-500">to</span>
                     <input
                         type="date"
                         value={filterDateTo}
                         onChange={e => setFilterDateTo(e.target.value)}
-                        className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+                        className="border border-gray-300 rounded px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                         data-testid="filter-date-to"
                     />
                     {pagination && (
-                        <span className="ml-auto self-center text-sm text-gray-500">
+                        <span className="ml-auto self-center text-sm text-gray-500 dark:text-slate-400">
                             {pagination.total.toLocaleString()} results
                         </span>
                     )}
                 </div>
 
                 {/* ── Audit Log Table ─────────────────────────────────────────── */}
-                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 overflow-hidden dark:border-slate-700">
                     {loading && (
-                        <div className="py-8 text-center text-gray-400 text-sm">Loading…</div>
+                        <div className="py-8 text-center text-gray-400 text-sm dark:text-slate-500">Loading…</div>
                     )}
                     {!loading && (
                         <table className="w-full text-sm">
-                            <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                            <thead className="bg-gray-50 text-xs text-gray-500 uppercase dark:bg-slate-700/50 dark:text-slate-400">
                                 <tr>
                                     <th className="text-left px-4 py-3">Action</th>
                                     <th className="text-left px-4 py-3">Resource</th>
@@ -168,35 +168,35 @@ export default function Audit({ initialCount }: Props) {
                                     <th className="text-left px-4 py-3">Time</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-100">
+                            <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                                 {entries.length === 0 && (
                                     <tr>
-                                        <td colSpan={5} className="text-center py-8 text-gray-400">
+                                        <td colSpan={5} className="text-center py-8 text-gray-400 dark:text-slate-500">
                                             No entries found.
                                         </td>
                                     </tr>
                                 )}
                                 {entries.map(entry => (
-                                    <tr key={entry.id} className="hover:bg-gray-50">
-                                        <td className="px-4 py-2 font-mono text-xs text-gray-700">
+                                    <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                                        <td className="px-4 py-2 font-mono text-xs text-gray-700 dark:text-slate-300">
                                             {entry.action}
                                         </td>
-                                        <td className="px-4 py-2 text-gray-600">
+                                        <td className="px-4 py-2 text-gray-600 dark:text-slate-400">
                                             {entry.resource_type
                                                 ? `${entry.resource_type} #${entry.resource_id}`
-                                                : '—'
+                                                : '-'
                                             }
                                         </td>
-                                        <td className="px-4 py-2 text-gray-600">
+                                        <td className="px-4 py-2 text-gray-600 dark:text-slate-400">
                                             {entry.user
                                                 ? `${entry.user.first_name} ${entry.user.last_name}`
                                                 : 'System'
                                             }
                                         </td>
-                                        <td className="px-4 py-2 text-gray-400 text-xs">
-                                            {entry.ip_address ?? '—'}
+                                        <td className="px-4 py-2 text-gray-400 text-xs dark:text-slate-500">
+                                            {entry.ip_address ?? '-'}
                                         </td>
-                                        <td className="px-4 py-2 text-gray-500 text-xs">
+                                        <td className="px-4 py-2 text-gray-500 text-xs dark:text-slate-400">
                                             {new Date(entry.created_at).toLocaleString()}
                                         </td>
                                     </tr>
@@ -212,17 +212,17 @@ export default function Audit({ initialCount }: Props) {
                         <button
                             onClick={() => setPage(p => Math.max(1, p - 1))}
                             disabled={page <= 1}
-                            className="px-3 py-1.5 border rounded disabled:opacity-40 hover:bg-gray-50"
+                            className="px-3 py-1.5 border rounded disabled:opacity-40 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700/50"
                         >
                             Previous
                         </button>
-                        <span className="text-gray-500">
+                        <span className="text-gray-500 dark:text-slate-400">
                             Page {page} of {pagination.last_page}
                         </span>
                         <button
                             onClick={() => setPage(p => Math.min(pagination.last_page, p + 1))}
                             disabled={page >= pagination.last_page}
-                            className="px-3 py-1.5 border rounded disabled:opacity-40 hover:bg-gray-50"
+                            className="px-3 py-1.5 border rounded disabled:opacity-40 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700/50"
                         >
                             Next
                         </button>

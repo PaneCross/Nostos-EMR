@@ -50,10 +50,10 @@ interface Props extends PageProps {
 /** Color-code status badges. */
 function statusColor(status: string): string {
     return {
-        pending:   'bg-yellow-100 text-yellow-800',
-        processed: 'bg-green-100 text-green-800',
-        failed:    'bg-red-100 text-red-800',
-        retried:   'bg-blue-100 text-blue-800',
+        pending:   'bg-yellow-100 dark:bg-yellow-900/60 text-yellow-800 dark:text-yellow-300',
+        processed: 'bg-green-100 dark:bg-green-900/60 text-green-800 dark:text-green-300',
+        failed:    'bg-red-100 dark:bg-red-900/60 text-red-800 dark:text-red-300',
+        retried:   'bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300',
     }[status] ?? 'bg-gray-100 text-gray-700';
 }
 
@@ -105,7 +105,7 @@ export default function Integrations({ summary, recentLog, connectorTypes }: Pro
 
     return (
         <AppShell>
-            <Head title="IT Admin — Integrations" />
+            <Head title="IT Admin: Integrations" />
 
             <div className="max-w-7xl mx-auto px-4 py-8">
                 <h1 className="text-2xl font-bold text-gray-900 mb-6">Integration Monitoring</h1>
@@ -116,7 +116,7 @@ export default function Integrations({ summary, recentLog, connectorTypes }: Pro
                         const s = summary[type];
                         return (
                             <div key={type}
-                                className={`rounded-lg border p-4 ${s?.failed_count > 0 ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-white'}`}
+                                className={`rounded-lg border p-4 ${s?.failed_count > 0 ? 'border-red-300 bg-red-50 dark:bg-red-950/60' : 'border-gray-200 bg-white dark:bg-slate-800'}`}
                                 data-testid={`connector-card-${type}`}
                             >
                                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -129,7 +129,7 @@ export default function Integrations({ summary, recentLog, connectorTypes }: Pro
                                     }
                                 </p>
                                 {s?.failed_count > 0 && (
-                                    <p className="mt-1 text-sm font-semibold text-red-600">
+                                    <p className="mt-1 text-sm font-semibold text-red-600 dark:text-red-400">
                                         {s.failed_count} failed
                                     </p>
                                 )}
@@ -144,7 +144,7 @@ export default function Integrations({ summary, recentLog, connectorTypes }: Pro
                 </div>
 
                 {/* ── Message Log ─────────────────────────────────────────────── */}
-                <div className="bg-white rounded-lg border border-gray-200">
+                <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200">
                     <div className="px-6 py-4 border-b border-gray-200 flex flex-wrap items-center gap-3">
                         <h2 className="text-base font-semibold text-gray-800 mr-auto">Message Log</h2>
 
@@ -209,15 +209,15 @@ export default function Integrations({ summary, recentLog, connectorTypes }: Pro
                                     <td className="px-4 py-2 text-gray-500">
                                         {new Date(entry.created_at).toLocaleString()}
                                     </td>
-                                    <td className="px-4 py-2 text-red-600 text-xs max-w-xs truncate">
-                                        {entry.error_message ?? '—'}
+                                    <td className="px-4 py-2 text-red-600 dark:text-red-400 text-xs max-w-xs truncate">
+                                        {entry.error_message ?? '-'}
                                     </td>
                                     <td className="px-4 py-2 text-right">
                                         {entry.status === 'failed' && (
                                             <button
                                                 onClick={() => handleRetry(entry)}
                                                 disabled={retrying === entry.id}
-                                                className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
+                                                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 font-medium disabled:opacity-50"
                                                 data-testid={`retry-btn-${entry.id}`}
                                             >
                                                 {retrying === entry.id ? 'Retrying…' : 'Retry'}

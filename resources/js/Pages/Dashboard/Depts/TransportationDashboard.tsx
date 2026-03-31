@@ -20,7 +20,7 @@ function WidgetCard({ title, children }: {
     return (
         <div className="card p-5 flex flex-col">
             <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
+                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">{title}</h3>
             </div>
             {children}
         </div>

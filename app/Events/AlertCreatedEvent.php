@@ -54,9 +54,13 @@ class AlertCreatedEvent implements ShouldBroadcast
         return [
             'id'                  => $this->alert->id,
             'alert_type'          => $this->alert->alert_type,
+            'source_module'       => $this->alert->source_module,
             'severity'            => $this->alert->severity,
             'title'               => $this->alert->title,
             'message'             => $this->alert->message,
+            'is_active'           => $this->alert->is_active,
+            'acknowledged_at'     => $this->alert->acknowledged_at?->toIso8601String(),
+            'metadata'            => $this->alert->metadata,
             'target_departments'  => $this->alert->target_departments,
             'participant_id'      => $this->alert->participant_id,
             'created_at'          => $this->alert->created_at?->toIso8601String(),

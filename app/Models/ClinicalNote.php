@@ -65,6 +65,11 @@ class ClinicalNote extends Model
         return $this->belongsTo(Tenant::class);
     }
 
+    public function site(): BelongsTo
+    {
+        return $this->belongsTo(Site::class, 'site_id');
+    }
+
     public function author(): BelongsTo
     {
         return $this->belongsTo(User::class, 'authored_by_user_id');

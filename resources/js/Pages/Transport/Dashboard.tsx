@@ -50,29 +50,25 @@ interface TransportDashboardProps extends PageProps {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const FLAG_CONFIG: Record<string, { label: string; icon: string; classes: string; dotColor: string }> = {
+const FLAG_CONFIG: Record<string, { label: string; classes: string; dotColor: string }> = {
     wheelchair: {
         label:    'Wheelchair',
-        icon:     '♿',
-        classes:  'bg-blue-100 text-blue-800 ring-blue-600/20',
+        classes:  'bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300 ring-blue-600/20',
         dotColor: 'bg-blue-500',
     },
     stretcher: {
         label:    'Stretcher',
-        icon:     '🛏',
         classes:  'bg-orange-100 text-orange-800 ring-orange-600/20',
         dotColor: 'bg-orange-500',
     },
     oxygen: {
         label:    'Oxygen',
-        icon:     '💨',
-        classes:  'bg-teal-100 text-teal-800 ring-teal-600/20',
+        classes:  'bg-teal-100 text-teal-800 dark:text-teal-300 ring-teal-600/20',
         dotColor: 'bg-teal-500',
     },
     behavioral: {
         label:    'Behavioral',
-        icon:     '⚠',
-        classes:  'bg-red-100 text-red-800 ring-red-600/20',
+        classes:  'bg-red-100 dark:bg-red-900/60 text-red-800 dark:text-red-300 ring-red-600/20',
         dotColor: 'bg-red-500',
     },
 };
@@ -130,8 +126,8 @@ export default function TransportDashboard() {
             {/* Header */}
             <div className="flex items-center justify-between mb-5">
                 <div>
-                    <h1 className="text-xl font-bold text-slate-900">Transport Dashboard</h1>
-                    <p className="text-sm text-slate-500 mt-0.5">
+                    <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Transport Dashboard</h1>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                         Active participant transport needs · mobility equipment · behavioral flags · click a row to view profile
                     </p>
                 </div>
@@ -140,12 +136,12 @@ export default function TransportDashboard() {
             {/* Stat chips */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
                 {[
-                    { label: 'Active Census',  count: stats.total_active,     color: 'bg-slate-50 border-slate-200 text-slate-700',     filter: '' },
-                    { label: 'Wheelchair',     count: stats.needs_wheelchair, color: 'bg-blue-50 border-blue-200 text-blue-800',         filter: 'wheelchair' },
+                    { label: 'Active Census',  count: stats.total_active,     color: 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300',     filter: '' },
+                    { label: 'Wheelchair',     count: stats.needs_wheelchair, color: 'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300',         filter: 'wheelchair' },
                     { label: 'Stretcher',      count: stats.needs_stretcher,  color: 'bg-orange-50 border-orange-200 text-orange-800',   filter: 'stretcher' },
-                    { label: 'Oxygen',         count: stats.needs_oxygen,     color: 'bg-teal-50 border-teal-200 text-teal-800',         filter: 'oxygen' },
-                    { label: 'Behavioral',     count: stats.has_behavioral,   color: 'bg-red-50 border-red-200 text-red-800',            filter: 'behavioral' },
-                    { label: 'No Flags',       count: stats.no_flags,         color: 'bg-green-50 border-green-200 text-green-800',      filter: 'none' },
+                    { label: 'Oxygen',         count: stats.needs_oxygen,     color: 'bg-teal-50 dark:bg-teal-950/60 border-teal-200 text-teal-800 dark:text-teal-300',         filter: 'oxygen' },
+                    { label: 'Behavioral',     count: stats.has_behavioral,   color: 'bg-red-50 dark:bg-red-950/60 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300',            filter: 'behavioral' },
+                    { label: 'No Flags',       count: stats.no_flags,         color: 'bg-green-50 dark:bg-green-950/60 border-green-200 dark:border-green-800 text-green-800 dark:text-green-300',      filter: 'none' },
                 ].map(chip => (
                     <button
                         key={chip.label}
@@ -162,15 +158,15 @@ export default function TransportDashboard() {
 
             {/* Behavioral warning banner */}
             {behavioralParticipants.length > 0 && (
-                <div className="mb-4 flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                <div className="mb-4 flex items-start gap-3 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
                     <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                     </svg>
                     <div>
-                        <p className="text-sm font-semibold text-red-800">
+                        <p className="text-sm font-semibold text-red-800 dark:text-red-300">
                             {behavioralParticipants.length} participant{behavioralParticipants.length !== 1 ? 's' : ''} with active behavioral flag{behavioralParticipants.length !== 1 ? 's' : ''}
                         </p>
-                        <p className="text-xs text-red-700 mt-0.5">
+                        <p className="text-xs text-red-700 dark:text-red-300 mt-0.5">
                             {behavioralParticipants.map(p => `${p.first_name} ${p.last_name}`).join(', ')}
                         </p>
                     </div>
@@ -201,32 +197,32 @@ export default function TransportDashboard() {
                 {(flagFilter || search) && (
                     <button
                         onClick={() => { setFlagFilter(''); setSearch(''); }}
-                        className="text-sm text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50"
+                        className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700"
                     >
                         Clear
                     </button>
                 )}
-                <span className="ml-auto text-sm text-slate-500">
+                <span className="ml-auto text-sm text-slate-500 dark:text-slate-400">
                     {filtered.length} participant{filtered.length !== 1 ? 's' : ''}
                 </span>
             </div>
 
             {/* Table */}
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
                 {filtered.length === 0 ? (
-                    <div className="px-6 py-12 text-center text-sm text-slate-500">
+                    <div className="px-6 py-12 text-center text-sm text-slate-500 dark:text-slate-400">
                         No participants match the current filters.
                     </div>
                 ) : (
-                    <table className="min-w-full divide-y divide-slate-100 text-sm">
-                        <thead className="bg-slate-50">
+                    <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-700 text-sm">
+                        <thead className="bg-slate-50 dark:bg-slate-900">
                             <tr>
-                                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Participant</th>
-                                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Transport Flags</th>
-                                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Home Address</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Participant</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Transport Flags</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Home Address</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                             {filtered.map(p => {
                                 const hasBehavioral = p.flags.some(f => f.flag_type === 'behavioral');
                                 const hasHighPriority = p.flags.some(f => f.severity === 'critical' || f.severity === 'high');
@@ -234,15 +230,15 @@ export default function TransportDashboard() {
                                     <tr
                                         key={p.id}
                                         onClick={() => router.visit(`/participants/${p.id}?tab=flags`)}
-                                        className={`cursor-pointer hover:bg-slate-50 transition-colors border-l-4 ${
-                                            hasBehavioral   ? 'border-l-red-500 bg-red-50/20'
+                                        className={`cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-l-4 ${
+                                            hasBehavioral   ? 'border-l-red-500 bg-red-50 dark:bg-red-950/60/20'
                                             : hasHighPriority ? 'border-l-orange-400'
                                             : p.flags.length > 0 ? 'border-l-blue-400'
                                             : 'border-l-transparent'
                                         }`}
                                     >
                                         <td className="px-4 py-3">
-                                            <p className="font-medium text-slate-800">{p.first_name} {p.last_name}</p>
+                                            <p className="font-medium text-slate-800 dark:text-slate-200">{p.first_name} {p.last_name}</p>
                                             <p className="text-xs text-slate-400">{p.mrn}</p>
                                         </td>
                                         <td className="px-4 py-3">
@@ -256,7 +252,7 @@ export default function TransportDashboard() {
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-slate-600">
+                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
                                             {p.address ? (
                                                 <div>
                                                     <p className="text-sm">{p.address.line}</p>

@@ -74,8 +74,8 @@ export default function ProfileNotifications() {
         <AppShell>
             <div className="max-w-2xl mx-auto px-6 py-8">
                 <div className="mb-6">
-                    <h1 className="text-xl font-semibold text-slate-900">Notification Preferences</h1>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Notification Preferences</h1>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                         Control how you receive notifications. Emails contain no patient or clinical
                         information in compliance with HIPAA.
                     </p>
@@ -85,9 +85,9 @@ export default function ProfileNotifications() {
                     {pref_keys.map(key => (
                         <div
                             key={key}
-                            className="rounded-xl border border-slate-200 bg-white p-5"
+                            className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5"
                         >
-                            <h3 className="text-sm font-semibold text-slate-800 mb-3">
+                            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3">
                                 {PREF_LABELS[key] ?? key}
                             </h3>
                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -101,8 +101,8 @@ export default function ProfileNotifications() {
                                             title={VALUE_DESCRIPTIONS[val]}
                                             className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
                                                 isSelected
-                                                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-slate-100'
+                                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
+                                                    : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                                             }`}
                                         >
                                             <p className="text-xs font-medium">{VALUE_LABELS[val]}</p>
@@ -128,7 +128,7 @@ export default function ProfileNotifications() {
                         {saving ? 'Saving…' : 'Save Preferences'}
                     </button>
                     {saved && (
-                        <span className="text-sm text-green-600 font-medium">
+                        <span className="text-sm text-green-600 dark:text-green-400 font-medium">
                             ✓ Saved
                         </span>
                     )}

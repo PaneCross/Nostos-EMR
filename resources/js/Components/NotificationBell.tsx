@@ -9,10 +9,11 @@
 //   - Critical-severity banner at top of panel
 //   - Acknowledge button per alert
 //   - Dismiss (close panel) on outside click / Escape
+//   - Full dark mode support
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { usePage } from '@inertiajs/react';
+import { usePage, router } from '@inertiajs/react';
 import axios from 'axios';
 import { PageProps } from '@/types';
 
@@ -28,6 +29,8 @@ interface AlertItem {
     is_active: boolean;
     acknowledged_at: string | null;
     created_at: string;
+    /** Arbitrary context payload — chat alerts include { channel_id } for deep linking. */
+    metadata?: { channel_id?: number } | null;
     participant?: {
         id: number;
         mrn: string;
@@ -36,19 +39,36 @@ interface AlertItem {
     } | null;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Severity styling — includes dark: variants so Tailwind does not purge ────
 
 const SEVERITY_CLASSES: Record<string, string> = {
-    critical: 'bg-red-50 border-l-4 border-l-red-500 text-red-900',
-    warning:  'bg-amber-50 border-l-4 border-l-amber-500 text-amber-900',
-    info:     'bg-blue-50 border-l-4 border-l-blue-400 text-blue-900',
+    critical: 'bg-red-50 dark:bg-red-900/20 border-l-4 border-l-red-500 text-red-900 dark:text-red-200',
+    warning:  'bg-amber-50 dark:bg-amber-900/20 border-l-4 border-l-amber-500 text-amber-900 dark:text-amber-200',
+    info:     'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-l-blue-400 text-blue-900 dark:text-blue-200',
 };
 
 const SEVERITY_BADGE: Record<string, string> = {
-    critical: 'bg-red-100 text-red-700 ring-red-600/20',
-    warning:  'bg-amber-100 text-amber-700 ring-amber-600/20',
-    info:     'bg-blue-100 text-blue-700 ring-blue-600/20',
+    critical: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 ring-red-600/20 dark:ring-red-400/20',
+    warning:  'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 ring-amber-600/20 dark:ring-amber-400/20',
+    info:     'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 ring-blue-600/20 dark:ring-blue-400/20',
 };
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Returns the navigation href for an alert, if any.
+ * Chat alerts with metadata.channel_id link to /chat?channel={id}.
+ * Participant alerts with a participant.id link to the participant profile.
+ */
+function alertHref(alert: AlertItem): string | null {
+    if (alert.source_module === 'chat' && alert.metadata?.channel_id) {
+        return `/chat?channel=${alert.metadata.channel_id}`;
+    }
+    if (alert.participant?.id) {
+        return `/participants/${alert.participant.id}`;
+    }
+    return null;
+}
 
 function timeAgo(dateStr: string): string {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -66,12 +86,12 @@ export default function NotificationBell() {
     const { auth } = usePage<PageProps>().props;
     const user = auth.user!;
 
-    const [open, setOpen]         = useState(false);
-    const [count, setCount]       = useState(0);
-    const [alerts, setAlerts]     = useState<AlertItem[]>([]);
-    const [loading, setLoading]   = useState(false);
-    const [pulse, setPulse]       = useState(false);
-    const panelRef = useRef<HTMLDivElement>(null);
+    const [open, setOpen]       = useState(false);
+    const [count, setCount]     = useState(0);
+    const [alerts, setAlerts]   = useState<AlertItem[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [pulse, setPulse]     = useState(false);
+    const panelRef  = useRef<HTMLDivElement>(null);
     const prevCount = useRef(0);
 
     // ── Fetch unread count ──────────────────────────────────────────────────
@@ -123,16 +143,32 @@ export default function NotificationBell() {
         if (!window.Echo || !user.tenant?.id) return;
 
         const channel = window.Echo.channel(`tenant.${user.tenant.id}`);
-        channel.listen('.alert.created', (_payload: unknown) => {
+        channel.listen('.alert.created', (raw: unknown) => {
+            const payload = raw as AlertItem;
+
+            // Immediately increment badge — no network roundtrip needed.
+            // prevCount ref stays in sync so pulse fires correctly.
+            setCount(prev => {
+                const next = prev + 1;
+                prevCount.current = next;
+                setPulse(true);
+                setTimeout(() => setPulse(false), 2000);
+                return next;
+            });
+
+            // If panel is open, prepend the new alert instantly so the user
+            // sees it (and the "Go to chat" link) without waiting for a fetch.
+            setAlerts(prev => [payload, ...prev].slice(0, 10));
+
+            // Background sync to keep the true server count accurate
+            // (handles cases where this tab missed earlier events).
             fetchCount();
-            // If panel is already open, refresh the list
-            if (open) fetchAlerts();
         });
 
         return () => {
             window.Echo?.leaveChannel(`tenant.${user.tenant!.id}`);
         };
-    }, [user.tenant?.id, open, fetchCount, fetchAlerts]);
+    }, [user.tenant?.id, fetchCount]);
 
     // ── Panel open/close ────────────────────────────────────────────────────
 
@@ -165,14 +201,30 @@ export default function NotificationBell() {
     const acknowledge = async (alertId: number) => {
         try {
             await axios.patch(`/alerts/${alertId}/acknowledge`);
+            // Optimistically update local state
             setAlerts(prev => prev.map(a =>
                 a.id === alertId
                     ? { ...a, acknowledged_at: new Date().toISOString() }
                     : a
             ));
             setCount(prev => Math.max(0, prev - 1));
-        } catch {
-            // ignore
+        } catch (err) {
+            console.error('[NotificationBell] acknowledge failed:', err);
+        }
+    };
+
+    // ── Dismiss (resolve) ────────────────────────────────────────────────────
+    // Resolves the alert (is_active = false) and removes it from the bell
+    // immediately. Useful when the user wants to manually clear an item before
+    // the 24-hour auto-expiry window. Decrements badge only if unacknowledged.
+
+    const dismiss = async (alertId: number, wasUnread: boolean) => {
+        try {
+            await axios.patch(`/alerts/${alertId}/resolve`);
+            setAlerts(prev => prev.filter(a => a.id !== alertId));
+            if (wasUnread) setCount(prev => Math.max(0, prev - 1));
+        } catch (err) {
+            console.error('[NotificationBell] dismiss failed:', err);
         }
     };
 
@@ -185,8 +237,10 @@ export default function NotificationBell() {
                 onClick={handleOpen}
                 data-testid="notification-bell"
                 aria-label={`Notifications${count > 0 ? ` (${count} unread)` : ''}`}
-                className={`relative p-1.5 rounded-lg hover:bg-slate-100 transition-colors ${
-                    open ? 'bg-slate-100 text-slate-700' : 'text-slate-500'
+                className={`relative p-1.5 rounded-lg transition-colors ${
+                    open
+                        ? 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
+                        : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
                 }`}
             >
                 <svg
@@ -202,7 +256,7 @@ export default function NotificationBell() {
                 {count > 0 && (
                     <span
                         data-testid="notification-badge"
-                        className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white"
+                        className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white dark:ring-slate-800"
                     >
                         {count > 9 ? '9+' : count}
                     </span>
@@ -213,19 +267,21 @@ export default function NotificationBell() {
             {open && (
                 <div
                     data-testid="notification-panel"
-                    className="absolute right-0 mt-2 w-96 max-h-[70vh] overflow-hidden rounded-xl bg-white shadow-xl ring-1 ring-slate-200 flex flex-col z-50"
+                    className="absolute right-0 mt-2 w-96 max-h-[70vh] overflow-hidden rounded-xl bg-white dark:bg-slate-800 shadow-xl ring-1 ring-slate-200 dark:ring-slate-700 flex flex-col z-50"
                 >
                     {/* Header */}
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-                        <h3 className="text-sm font-semibold text-slate-800">Notifications</h3>
-                        <span className="text-xs text-slate-500">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700">
+                        <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                            Notifications
+                        </h3>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
                             {count > 0 ? `${count} unread` : 'All caught up'}
                         </span>
                     </div>
 
                     {/* Critical banner (if any unacknowledged criticals) */}
                     {criticals.length > 0 && (
-                        <div className="bg-red-600 px-4 py-2 flex items-center gap-2 text-white text-xs font-semibold">
+                        <div className="bg-red-600 dark:bg-red-700 px-4 py-2 flex items-center gap-2 text-white text-xs font-semibold">
                             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                             </svg>
@@ -236,13 +292,13 @@ export default function NotificationBell() {
                     {/* Alert list */}
                     <div className="overflow-y-auto flex-1">
                         {loading && (
-                            <div className="px-4 py-8 text-center text-sm text-slate-500">
+                            <div className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
                                 Loading…
                             </div>
                         )}
 
                         {!loading && alerts.length === 0 && (
-                            <div className="px-4 py-8 text-center text-sm text-slate-500">
+                            <div className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
                                 No alerts at this time
                             </div>
                         )}
@@ -251,7 +307,7 @@ export default function NotificationBell() {
                             <div
                                 key={alert.id}
                                 data-testid={`alert-item-${alert.id}`}
-                                className={`px-4 py-3 border-b border-slate-100 ${SEVERITY_CLASSES[alert.severity] ?? ''} ${
+                                className={`px-4 py-3 border-b border-slate-100 dark:border-slate-700 ${SEVERITY_CLASSES[alert.severity] ?? ''} ${
                                     alert.acknowledged_at ? 'opacity-60' : ''
                                 }`}
                             >
@@ -262,31 +318,58 @@ export default function NotificationBell() {
                                                 {alert.severity.toUpperCase()}
                                             </span>
                                             {alert.participant && (
-                                                <span className="text-[11px] text-slate-500 truncate">
+                                                <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                                                     {alert.participant.first_name} {alert.participant.last_name}
                                                 </span>
                                             )}
                                         </div>
                                         <p className="text-xs font-semibold leading-snug">{alert.title}</p>
-                                        <p className="text-[11px] text-slate-600 mt-0.5 line-clamp-2">{alert.message}</p>
+                                        <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 line-clamp-2">
+                                            {alert.message}
+                                        </p>
                                     </div>
-                                    <span className="text-[10px] text-slate-400 whitespace-nowrap shrink-0 mt-0.5">
-                                        {timeAgo(alert.created_at)}
-                                    </span>
+                                    {/* Timestamp + dismiss button */}
+                                    <div className="flex items-center gap-1 shrink-0">
+                                        <span className="text-[10px] text-slate-400 dark:text-slate-500 whitespace-nowrap mt-0.5">
+                                            {timeAgo(alert.created_at)}
+                                        </span>
+                                        <button
+                                            onClick={() => dismiss(alert.id, !alert.acknowledged_at)}
+                                            aria-label="Dismiss alert"
+                                            title="Dismiss"
+                                            className="p-0.5 rounded text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-700 transition-colors"
+                                        >
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </div>
                                 </div>
 
-                                {/* Acknowledge button (only if unacknowledged and active) */}
-                                {!alert.acknowledged_at && alert.is_active && (
-                                    <button
-                                        onClick={() => acknowledge(alert.id)}
-                                        data-testid={`ack-alert-${alert.id}`}
-                                        className="mt-1.5 text-[11px] font-medium underline text-slate-500 hover:text-slate-700"
-                                    >
-                                        Acknowledge
-                                    </button>
-                                )}
+                                {/* Actions: navigate (if linkable) + acknowledge */}
+                                <div className="flex items-center gap-3 mt-1.5">
+                                    {alertHref(alert) && (
+                                        <a
+                                            href={alertHref(alert)!}
+                                            onClick={() => setOpen(false)}
+                                            data-testid={`alert-link-${alert.id}`}
+                                            className="text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline"
+                                        >
+                                            {alert.source_module === 'chat' ? 'Go to chat' : 'View'}
+                                        </a>
+                                    )}
+                                    {!alert.acknowledged_at && alert.is_active && (
+                                        <button
+                                            onClick={() => acknowledge(alert.id)}
+                                            data-testid={`ack-alert-${alert.id}`}
+                                            className="text-[11px] font-medium underline text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                                        >
+                                            Acknowledge
+                                        </button>
+                                    )}
+                                </div>
                                 {alert.acknowledged_at && (
-                                    <p className="mt-1 text-[10px] text-slate-400 italic">
+                                    <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500 italic">
                                         Acknowledged {timeAgo(alert.acknowledged_at)}
                                     </p>
                                 )}
@@ -295,10 +378,11 @@ export default function NotificationBell() {
                     </div>
 
                     {/* Footer */}
-                    <div className="border-t border-slate-100 px-4 py-2">
+                    <div className="border-t border-slate-100 dark:border-slate-700 px-4 py-2">
                         <a
                             href="/alerts"
-                            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                            onClick={(e) => { e.preventDefault(); setOpen(false); router.visit('/alerts'); }}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium"
                         >
                             View all alerts →
                         </a>

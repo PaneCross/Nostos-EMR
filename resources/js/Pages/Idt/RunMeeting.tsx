@@ -202,10 +202,10 @@ function ReviewPanel({ review, meetingId, locked, onReviewed }: ReviewPanelProps
             {/* Participant header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h3 className="font-semibold text-slate-900 text-base">
+                    <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-base">
                         {p.first_name} {p.last_name}
                     </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         MRN: {p.mrn}
                         {p.date_of_birth ? ` · DOB: ${p.date_of_birth}` : ''}
                     </p>
@@ -213,7 +213,7 @@ function ReviewPanel({ review, meetingId, locked, onReviewed }: ReviewPanelProps
                 <Link
                     href={`/participants/${p.id}`}
                     target="_blank"
-                    className="text-xs text-blue-600 hover:underline"
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                     data-testid={`view-participant-${p.id}`}
                 >
                     Open Chart →
@@ -222,7 +222,7 @@ function ReviewPanel({ review, meetingId, locked, onReviewed }: ReviewPanelProps
 
             {/* Status chip */}
             {isReviewed && (
-                <div className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded-full text-xs font-medium">
+                <div className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 dark:bg-green-950/60 text-green-700 dark:text-green-300 rounded-full text-xs font-medium">
                     <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
@@ -232,7 +232,7 @@ function ReviewPanel({ review, meetingId, locked, onReviewed }: ReviewPanelProps
 
             {/* Summary notes */}
             <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                     Summary / Notes
                 </label>
                 <textarea
@@ -249,12 +249,12 @@ function ReviewPanel({ review, meetingId, locked, onReviewed }: ReviewPanelProps
             {/* Action items */}
             <div>
                 <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-medium text-slate-700">Action Items</label>
+                    <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Action Items</label>
                     {!locked && !isReviewed && (
                         <button
                             onClick={addItem}
                             data-testid={`add-action-item-${review.id}`}
-                            className="text-xs text-blue-600 hover:underline font-medium"
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
                         >
                             + Add item
                         </button>
@@ -263,9 +263,9 @@ function ReviewPanel({ review, meetingId, locked, onReviewed }: ReviewPanelProps
                 <div className="space-y-1.5">
                     {items.map((item, idx) => (
                         locked || isReviewed ? (
-                            <div key={idx} className="flex items-center gap-2 text-xs text-slate-700 bg-slate-50 rounded px-2 py-1">
+                            <div key={idx} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 rounded px-2 py-1">
                                 <span className="flex-1">{item.description}</span>
-                                <span className="text-slate-500">{deptLabel(item.assigned_to_dept)}</span>
+                                <span className="text-slate-500 dark:text-slate-400">{deptLabel(item.assigned_to_dept)}</span>
                                 <span className="text-slate-400">{item.due_date}</span>
                             </div>
                         ) : (
@@ -285,12 +285,12 @@ function ReviewPanel({ review, meetingId, locked, onReviewed }: ReviewPanelProps
 
             {/* Footer buttons */}
             {!locked && !isReviewed && (
-                <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-3 pt-2 border-t border-slate-100 dark:border-slate-700">
                     <button
                         onClick={saveNow}
                         disabled={saving}
                         data-testid={`save-review-${review.id}`}
-                        className="px-3 py-1.5 text-xs font-medium border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 disabled:opacity-50"
+                        className="px-3 py-1.5 text-xs font-medium border border-slate-300 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
                     >
                         {saving ? 'Saving…' : 'Save Notes'}
                     </button>
@@ -367,26 +367,26 @@ export default function RunMeeting() {
     return (
         <AppShell breadcrumbs={[
             { label: 'IDT Dashboard', href: '/idt/meetings' },
-            { label: `${TYPE_LABELS[meeting.meeting_type] ?? 'Meeting'} — ${meeting.meeting_date}` }
+            { label: `${TYPE_LABELS[meeting.meeting_type] ?? 'Meeting'}: ${meeting.meeting_date}` }
         ]}>
-            <Head title={`IDT Meeting — ${meeting.meeting_date}`} />
+            <Head title={`IDT Meeting: ${meeting.meeting_date}`} />
 
             {/* ── Meeting header ───────────────────────────────────────────── */}
             <div className="flex items-center justify-between mb-5">
                 <div>
                     <div className="flex items-center gap-2">
-                        <h1 className="text-xl font-bold text-slate-900">
+                        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
                             {TYPE_LABELS[meeting.meeting_type] ?? meeting.meeting_type}
                         </h1>
                         <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
-                            meeting.status === 'in_progress' ? 'bg-amber-50 text-amber-700 ring-amber-600/20' :
-                            meeting.status === 'completed'   ? 'bg-green-50 text-green-700 ring-green-600/20' :
-                            'bg-blue-50 text-blue-700 ring-blue-600/20'
+                            meeting.status === 'in_progress' ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 ring-amber-600/20' :
+                            meeting.status === 'completed'   ? 'bg-green-50 dark:bg-green-950/60 text-green-700 dark:text-green-300 ring-green-600/20' :
+                            'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 ring-blue-600/20'
                         }`}>
                             {meeting.status.replace('_', ' ').toUpperCase()}
                         </span>
                     </div>
-                    <p className="text-sm text-slate-500 mt-0.5">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                         {meeting.meeting_date}
                         {meeting.meeting_time ? ` · ${meeting.meeting_time}` : ''}
                         {meeting.facilitator ? ` · Facilitator: ${meeting.facilitator.first_name} ${meeting.facilitator.last_name}` : ''}
@@ -394,7 +394,7 @@ export default function RunMeeting() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <span className="text-sm text-slate-500">
+                    <span className="text-sm text-slate-500 dark:text-slate-400">
                         {reviewedCount} / {sortedQueue.length} reviewed
                     </span>
                     {!locked && allReviewed && (
@@ -408,7 +408,7 @@ export default function RunMeeting() {
                         </button>
                     )}
                     {locked && (
-                        <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-sm font-medium">
+                        <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-50 dark:bg-green-950/60 text-green-700 dark:text-green-300 rounded-lg text-sm font-medium">
                             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                             </svg>
@@ -422,7 +422,7 @@ export default function RunMeeting() {
             <div className="flex gap-5 min-h-0" style={{ height: 'calc(100vh - 14rem)' }}>
                 {/* Left: participant queue */}
                 <div className="w-64 shrink-0 flex flex-col gap-2 overflow-y-auto" data-testid="participant-queue">
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-1">
+                    <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-1">
                         Participant Queue
                     </p>
                     {sortedQueue.length === 0 && (
@@ -435,12 +435,12 @@ export default function RunMeeting() {
                             data-testid={`queue-item-${review.id}`}
                             className={`w-full text-left rounded-xl px-3 py-2.5 border transition-colors ${
                                 activeReviewId === review.id
-                                    ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-300'
-                                    : 'border-slate-200 bg-white hover:bg-slate-50'
+                                    ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/60 ring-1 ring-blue-300'
+                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700'
                             }`}
                         >
                             <div className="flex items-center justify-between">
-                                <span className="text-xs font-medium text-slate-800 truncate">
+                                <span className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate">
                                     {review.participant.first_name} {review.participant.last_name}
                                 </span>
                                 {review.reviewed_at ? (
@@ -451,7 +451,7 @@ export default function RunMeeting() {
                                     <span className="text-[10px] text-slate-400">#{review.queue_order}</span>
                                 )}
                             </div>
-                            <p className="text-[10px] text-slate-500 mt-0.5">{review.participant.mrn}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{review.participant.mrn}</p>
                         </button>
                     ))}
                 </div>
@@ -459,7 +459,7 @@ export default function RunMeeting() {
                 {/* Right: review panel + minutes */}
                 <div className="flex-1 flex flex-col gap-4 min-w-0 overflow-hidden">
                     {/* Participant review area */}
-                    <div className="flex-1 rounded-xl border border-slate-200 bg-white overflow-y-auto">
+                    <div className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-y-auto">
                         {activeReview ? (
                             <ReviewPanel
                                 review={activeReview}
@@ -475,9 +475,9 @@ export default function RunMeeting() {
                     </div>
 
                     {/* Minutes textarea */}
-                    <div className="rounded-xl border border-slate-200 bg-white p-4 shrink-0">
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shrink-0">
                         <div className="flex items-center justify-between mb-2">
-                            <label className="text-xs font-semibold text-slate-700">Meeting Minutes</label>
+                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Meeting Minutes</label>
                             {!locked && (
                                 <span className="text-[10px] text-slate-400 italic">Auto-saved</span>
                             )}
@@ -489,7 +489,7 @@ export default function RunMeeting() {
                             rows={4}
                             data-testid="meeting-minutes-textarea"
                             placeholder="Record meeting minutes, key discussion points, and overall decisions here…"
-                            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500 resize-none disabled:bg-slate-50 disabled:text-slate-500"
+                            className="w-full text-sm border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500 resize-none disabled:bg-slate-50 disabled:text-slate-500"
                         />
                     </div>
                 </div>

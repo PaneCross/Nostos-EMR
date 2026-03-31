@@ -46,7 +46,7 @@ export default function ComingSoonBanner({ title, message, section }: ComingSoon
                 {/* Status badge */}
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20 mb-4">
                     <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                    Implementation Pending — Nostos Transport
+                    Implementation Pending: Nostos Transport
                 </span>
 
                 {/* Title */}

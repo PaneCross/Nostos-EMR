@@ -91,13 +91,13 @@ function glucoseSeverity(v: number | null): Severity {
 }
 
 function severityClass(s: Severity): string {
-    if (s === 'critical') return 'text-red-700 font-semibold bg-red-50 rounded px-1';
-    if (s === 'warning')  return 'text-amber-700 font-semibold bg-amber-50 rounded px-1';
-    return 'text-slate-700';
+    if (s === 'critical') return 'text-red-700 dark:text-red-300 font-semibold bg-red-50 dark:bg-red-950/60 rounded px-1';
+    if (s === 'warning')  return 'text-amber-700 dark:text-amber-300 font-semibold bg-amber-50 dark:bg-amber-950/60 rounded px-1';
+    return 'text-slate-700 dark:text-slate-300';
 }
 
 function Cell({ value, severity, suffix = '' }: { value: number | null; severity: Severity; suffix?: string }) {
-    if (value === null) return <span className="text-slate-300">—</span>;
+    if (value === null) return <span className="text-slate-300">-</span>;
     return (
         <span className={severityClass(severity)}>
             {value}{suffix}
@@ -106,7 +106,7 @@ function Cell({ value, severity, suffix = '' }: { value: number | null; severity
 }
 
 function timeAgo(iso: string | null): string {
-    if (!iso) return '—';
+    if (!iso) return '-';
     const diff = Date.now() - new Date(iso).getTime();
     const hrs  = Math.floor(diff / 3_600_000);
     if (hrs < 1)  return 'just now';
@@ -168,8 +168,8 @@ export default function ClinicalVitals() {
             {/* Header */}
             <div className="flex items-center justify-between mb-5">
                 <div>
-                    <h1 className="text-xl font-bold text-slate-900">Vitals Dashboard</h1>
-                    <p className="text-sm text-slate-500 mt-0.5">
+                    <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Vitals Dashboard</h1>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                         Most recent vitals per participant · Click a row to record or review vitals
                     </p>
                 </div>
@@ -178,10 +178,10 @@ export default function ClinicalVitals() {
             {/* Stat chips */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
                 {[
-                    { label: 'Critical Values',  count: criticals.length,  color: 'bg-red-50 border-red-200 text-red-800' },
-                    { label: 'Out of Range',      count: warnings.length,   color: 'bg-amber-50 border-amber-200 text-amber-800' },
-                    { label: 'Due / Overdue',     count: due.length,        color: 'bg-blue-50 border-blue-200 text-blue-800' },
-                    { label: 'Participants Total',count: vitals.length,     color: 'bg-slate-50 border-slate-200 text-slate-700' },
+                    { label: 'Critical Values',  count: criticals.length,  color: 'bg-red-50 dark:bg-red-950/60 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300' },
+                    { label: 'Out of Range',      count: warnings.length,   color: 'bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300' },
+                    { label: 'Due / Overdue',     count: due.length,        color: 'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300' },
+                    { label: 'Participants Total',count: vitals.length,     color: 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300' },
                 ].map(chip => (
                     <div key={chip.label} className={`border rounded-xl px-4 py-3 ${chip.color}`}>
                         <p className="text-2xl font-bold">{chip.count}</p>
@@ -192,15 +192,15 @@ export default function ClinicalVitals() {
 
             {/* Critical banner */}
             {criticals.length > 0 && (
-                <div className="mb-5 flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                <div className="mb-5 flex items-start gap-3 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">
                     <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                     </svg>
                     <div>
-                        <p className="text-sm font-semibold text-red-800">
+                        <p className="text-sm font-semibold text-red-800 dark:text-red-300">
                             {criticals.length} participant{criticals.length !== 1 ? 's' : ''} with critical vital values
                         </p>
-                        <p className="text-xs text-red-700 mt-0.5">
+                        <p className="text-xs text-red-700 dark:text-red-300 mt-0.5">
                             {criticals.map(v => `${v.participant?.first_name} ${v.participant?.last_name}`).join(', ')}
                         </p>
                     </div>
@@ -208,27 +208,27 @@ export default function ClinicalVitals() {
             )}
 
             {/* Table */}
-            <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-x-auto">
                 {sorted.length === 0 ? (
-                    <div className="px-6 py-12 text-center text-sm text-slate-500">
+                    <div className="px-6 py-12 text-center text-sm text-slate-500 dark:text-slate-400">
                         No vitals recorded yet. Go to a participant profile to record vitals.
                     </div>
                 ) : (
-                    <table className="min-w-full divide-y divide-slate-100 text-sm">
-                        <thead className="bg-slate-50">
+                    <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-700 text-sm">
+                        <thead className="bg-slate-50 dark:bg-slate-900">
                             <tr>
-                                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Participant</th>
-                                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Last Recorded</th>
-                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">BP (sys/dia)</th>
-                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Pulse</th>
-                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">O₂ Sat</th>
-                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Temp °F</th>
-                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Weight</th>
-                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Pain</th>
-                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Glucose</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Participant</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Last Recorded</th>
+                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">BP (sys/dia)</th>
+                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Pulse</th>
+                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">O₂ Sat</th>
+                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Temp °F</th>
+                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Weight</th>
+                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Pain</th>
+                                <th className="px-4 py-3 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Glucose</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                             {sorted.map(v => {
                                 const critical = rowHasCritical(v);
                                 const warning  = !critical && rowHasWarning(v);
@@ -238,25 +238,25 @@ export default function ClinicalVitals() {
                                     <tr
                                         key={v.id}
                                         onClick={() => router.visit(`/participants/${v.participant?.id}?tab=vitals`)}
-                                        className={`cursor-pointer transition-colors hover:bg-slate-50 border-l-4 ${
-                                            critical ? 'border-l-red-500 bg-red-50/30'
-                                            : warning  ? 'border-l-amber-400 bg-amber-50/20'
+                                        className={`cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-700 border-l-4 ${
+                                            critical ? 'border-l-red-500 bg-red-50/40 dark:bg-red-900/20'
+                                            : warning  ? 'border-l-amber-400 bg-amber-50/40 dark:bg-amber-900/15'
                                             : due_     ? 'border-l-blue-300'
                                             : 'border-l-transparent'
                                         }`}
                                     >
                                         <td className="px-4 py-3">
                                             <div>
-                                                <p className="font-medium text-slate-800">
+                                                <p className="font-medium text-slate-800 dark:text-slate-200">
                                                     {v.participant?.first_name} {v.participant?.last_name}
                                                 </p>
                                                 <p className="text-xs text-slate-400">{v.participant?.mrn}</p>
                                             </div>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <p className="text-slate-700">{timeAgo(v.recorded_at)}</p>
+                                            <p className="text-slate-700 dark:text-slate-300">{timeAgo(v.recorded_at)}</p>
                                             {due_ && (
-                                                <p className="text-[10px] text-blue-600 font-medium">Vitals due</p>
+                                                <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">Vitals due</p>
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-center">
@@ -266,7 +266,7 @@ export default function ClinicalVitals() {
                                                     <span className="text-slate-300 mx-0.5">/</span>
                                                     <Cell value={v.bp_diastolic} severity={bpDiastolicSeverity(v.bp_diastolic)} />
                                                 </span>
-                                            ) : <span className="text-slate-300">—</span>}
+                                            ) : <span className="text-slate-300">-</span>}
                                         </td>
                                         <td className="px-4 py-3 text-center">
                                             <Cell value={v.pulse} severity={pulseSeverity(v.pulse)} suffix=" bpm" />
@@ -277,8 +277,8 @@ export default function ClinicalVitals() {
                                         <td className="px-4 py-3 text-center">
                                             <Cell value={v.temperature_f} severity={tempSeverity(v.temperature_f)} />
                                         </td>
-                                        <td className="px-4 py-3 text-center text-slate-700">
-                                            {v.weight_lbs !== null ? `${v.weight_lbs} lbs` : <span className="text-slate-300">—</span>}
+                                        <td className="px-4 py-3 text-center text-slate-700 dark:text-slate-300">
+                                            {v.weight_lbs !== null ? `${v.weight_lbs} lbs` : <span className="text-slate-300">-</span>}
                                         </td>
                                         <td className="px-4 py-3 text-center">
                                             <Cell value={v.pain_score} severity={painSeverity(v.pain_score)} suffix="/10" />

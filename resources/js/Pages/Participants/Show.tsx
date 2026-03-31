@@ -19,10 +19,18 @@ import { Head, Link, router, usePage } from '@inertiajs/react'
 import AppShell from '@/Layouts/AppShell'
 import PhoneInput from '@/Components/PhoneInput'
 import axios from 'axios'
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts'
+import {
+  ExclamationTriangleIcon,
+  DocumentIcon,
+  PhotoIcon,
+  DocumentTextIcon,
+  PaperClipIcon,
+  ClockIcon,
+} from '@heroicons/react/24/outline'
 
 // ─── Phase 2 Types ────────────────────────────────────────────────────────────
 
@@ -136,6 +144,7 @@ interface ClinicalNote {
   signed_at:           string | null
   authored_by_user_id: number
   author:              { id: number; first_name: string; last_name: string } | null
+  site:                { id: number; name: string } | null
   created_at:          string
 }
 
@@ -167,7 +176,7 @@ interface Assessment {
 interface Problem {
   id:                   number
   icd10_code:           string
-  description:          string
+  icd10_description:    string
   category:             string | null
   status:               'active' | 'resolved' | 'chronic' | 'ruled_out'
   onset_date:           string | null
@@ -218,24 +227,27 @@ interface Props {
   vitals:                      Vital[]
   icd10Codes:                  Icd10Code[]
   noteTemplates:               Record<string, { label: string; departments: string[] }>
+  // W3-6: site transfer context
+  hasMultipleSites:    boolean
+  completedTransfers:  { effective_date: string; from_site_name: string | null; to_site_name: string | null }[]
 }
 
 // ─── Display Constants ────────────────────────────────────────────────────────
 
 const STATUS_COLORS: Record<string, string> = {
-  enrolled:    'bg-green-100 text-green-800',
-  referred:    'bg-blue-100 text-blue-800',
-  intake:      'bg-indigo-100 text-indigo-800',
-  pending:     'bg-yellow-100 text-yellow-800',
-  disenrolled: 'bg-gray-100 text-gray-600',
-  deceased:    'bg-gray-100 text-gray-500',
+  enrolled:    'bg-green-100 dark:bg-green-900/60 text-green-800 dark:text-green-300',
+  referred:    'bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300',
+  intake:      'bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-300',
+  pending:     'bg-yellow-100 dark:bg-yellow-900/60 text-yellow-800 dark:text-yellow-300',
+  disenrolled: 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400',
+  deceased:    'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-500',
 }
 
 const FLAG_SEVERITY_COLORS: Record<string, string> = {
-  low:      'bg-blue-100 text-blue-700 border-blue-200',
-  medium:   'bg-yellow-100 text-yellow-800 border-yellow-200',
-  high:     'bg-orange-100 text-orange-800 border-orange-200',
-  critical: 'bg-red-100 text-red-700 border-red-200',
+  low:      'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800',
+  medium:   'bg-yellow-100 dark:bg-yellow-900/60 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800',
+  high:     'bg-orange-100 dark:bg-orange-950/60 text-orange-800 dark:text-orange-300 border-orange-200 dark:border-orange-800',
+  critical: 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800',
 }
 
 const FLAG_LABELS: Record<string, string> = {
@@ -263,13 +275,13 @@ const PAYER_LABELS: Record<string, string> = {
 }
 
 const CONTACT_TYPE_COLORS: Record<string, string> = {
-  emergency:   'bg-red-100 text-red-700',
-  poa:         'bg-purple-100 text-purple-700',
-  next_of_kin: 'bg-blue-100 text-blue-700',
-  caregiver:   'bg-green-100 text-green-700',
-  pcp:         'bg-indigo-100 text-indigo-700',
-  specialist:  'bg-indigo-100 text-indigo-600',
-  other:       'bg-gray-100 text-gray-600',
+  emergency:   'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300',
+  poa:         'bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300',
+  next_of_kin: 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300',
+  caregiver:   'bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300',
+  pcp:         'bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300',
+  specialist:  'bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400',
+  other:       'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400',
 }
 
 const NOTE_TYPE_LABELS: Record<string, string> = {
@@ -307,11 +319,11 @@ const ADL_LEVEL_LABELS: Record<string, string> = {
 }
 
 const ADL_LEVEL_COLORS: Record<string, string> = {
-  independent:      'text-green-700 bg-green-50 border-green-200',
-  supervision:      'text-lime-700 bg-lime-50 border-lime-200',
-  limited_assist:   'text-yellow-700 bg-yellow-50 border-yellow-200',
-  extensive_assist: 'text-orange-700 bg-orange-50 border-orange-200',
-  total_dependent:  'text-red-700 bg-red-50 border-red-200',
+  independent:      'text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/60 border-green-200 dark:border-green-800',
+  supervision:      'text-lime-700 dark:text-lime-300 bg-lime-50 dark:bg-lime-950/60 border-lime-200 dark:border-lime-800',
+  limited_assist:   'text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-950/60 border-yellow-200 dark:border-yellow-800',
+  extensive_assist: 'text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/60 border-orange-200 dark:border-orange-800',
+  total_dependent:  'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/60 border-red-200 dark:border-red-800',
 }
 
 const ASSESSMENT_LABELS: Record<string, string> = {
@@ -333,11 +345,11 @@ const ALLERGY_TYPE_LABELS: Record<string, string> = {
 }
 
 const ALLERGY_SEVERITY_COLORS: Record<string, string> = {
-  life_threatening: 'text-red-700 bg-red-50 border-red-300',
-  severe:           'text-orange-700 bg-orange-50 border-orange-200',
-  moderate:         'text-amber-700 bg-amber-50 border-amber-200',
-  mild:             'text-yellow-700 bg-yellow-50 border-yellow-200',
-  intolerance:      'text-blue-700 bg-blue-50 border-blue-200',
+  life_threatening: 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/60 border-red-300',
+  severe:           'text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/60 border-orange-200 dark:border-orange-800',
+  moderate:         'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800',
+  mild:             'text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-950/60 border-yellow-200 dark:border-yellow-800',
+  intolerance:      'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800',
 }
 
 // ─── Utility Helpers ──────────────────────────────────────────────────────────
@@ -359,26 +371,28 @@ function today(): string {
 function DemoField({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div>
-      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</dt>
-      <dd className="mt-0.5 text-sm text-gray-900">{value || <span className="text-gray-300">—</span>}</dd>
+      <dt className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">{label}</dt>
+      <dd className="mt-0.5 text-sm text-gray-900 dark:text-slate-100">{value || <span className="text-gray-300 dark:text-slate-600">-</span>}</dd>
     </div>
   )
 }
 
 function LoadingSpinner() {
   return (
-    <div className="py-12 text-center text-gray-400 text-sm animate-pulse">
+    <div className="py-12 text-center text-gray-400 dark:text-slate-500 text-sm animate-pulse">
       Loading…
     </div>
   )
 }
 
 // ─── Sticky Participant Header ─────────────────────────────────────────────────
-// Shown at the top of every tab. Displays avatar, name, MRN, DOB, and active flag chips.
-function ParticipantHeader({ participant, activeFlags, canDelete }: {
-  participant: Participant
-  activeFlags: Flag[]
-  canDelete:   boolean
+// Shown at the top of every tab. Displays avatar, name, MRN, DOB, flag chips,
+// advance directive badge, and quick-access buttons.
+function ParticipantHeader({ participant, activeFlags, canDelete, onTabChange }: {
+  participant:  Participant
+  activeFlags:  Flag[]
+  canDelete:    boolean
+  onTabChange:  (tab: string) => void
 }) {
   const [deleting, setDeleting] = useState(false)
 
@@ -389,7 +403,7 @@ function ParticipantHeader({ participant, activeFlags, canDelete }: {
   }
 
   return (
-    <div className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-20 shadow-sm">
+    <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 sticky top-0 z-20 shadow-sm">
       <div className="flex items-start gap-4">
         <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
           {participant.first_name[0]}{participant.last_name[0]}
@@ -397,10 +411,10 @@ function ParticipantHeader({ participant, activeFlags, canDelete }: {
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-lg font-semibold text-gray-900">
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-slate-100">
               {participant.first_name} {participant.last_name}
               {participant.preferred_name && (
-                <span className="text-gray-400 font-normal text-base ml-1">"{participant.preferred_name}"</span>
+                <span className="text-gray-400 dark:text-slate-500 font-normal text-base ml-1">"{participant.preferred_name}"</span>
               )}
             </h1>
             <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[participant.enrollment_status] ?? ''}`}>
@@ -409,15 +423,15 @@ function ParticipantHeader({ participant, activeFlags, canDelete }: {
           </div>
 
           <div className="flex items-center gap-3 mt-1 flex-wrap">
-            <span className="font-mono text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{participant.mrn}</span>
-            <span className="text-xs text-gray-500">
+            <span className="font-mono text-xs bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 px-2 py-0.5 rounded">{participant.mrn}</span>
+            <span className="text-xs text-gray-500 dark:text-slate-400">
               {new Date(participant.dob).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-              <span className="ml-1 text-gray-400">({age(participant.dob)} yrs)</span>
+              <span className="ml-1 text-gray-400 dark:text-slate-500">({age(participant.dob)} yrs)</span>
             </span>
-            <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded">{participant.site.name}</span>
+            <span className="text-xs bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 px-2 py-0.5 rounded">{participant.site.name}</span>
           </div>
 
-          {activeFlags.length > 0 && (
+          {(activeFlags.length > 0 || participant.advance_directive_status) && (
             <div className="flex flex-wrap gap-1 mt-2">
               {activeFlags.map(f => (
                 <span
@@ -428,15 +442,43 @@ function ParticipantHeader({ participant, activeFlags, canDelete }: {
                   {FLAG_LABELS[f.flag_type] ?? f.flag_type}
                 </span>
               ))}
+              {/* Advance directive badge — 42 CFR 460.96 */}
+              {participant.advance_directive_type === 'dnr' && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded border text-xs font-bold bg-red-100 dark:bg-red-900/60 text-red-800 dark:text-red-300 border-red-300 dark:border-red-700">
+                  DNR
+                </span>
+              )}
+              {participant.advance_directive_type === 'polst' && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded border text-xs font-bold bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700">
+                  POLST
+                </span>
+              )}
+              {participant.advance_directive_status === 'has_directive' &&
+               participant.advance_directive_type !== 'dnr' &&
+               participant.advance_directive_type !== 'polst' && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded border text-xs font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 border-gray-300 dark:border-slate-600">
+                  Advance Directive on File
+                </span>
+              )}
+              {(participant.advance_directive_status === 'declined_directive' ||
+                participant.advance_directive_status === 'unknown' ||
+                participant.advance_directive_status === 'incapacitated_no_directive') && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded border text-xs font-medium bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 border-gray-300 dark:border-slate-600">
+                  No Directive
+                </span>
+              )}
             </div>
           )}
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
-          <Link href={`/participants/${participant.id}`} className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+          <button
+            onClick={() => onTabChange('careplan')}
+            className="text-xs px-3 py-1.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+          >
             Care Plan
-          </Link>
-          <Link href={`/participants/${participant.id}`} className="text-xs px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+          </button>
+          <Link href="/schedule" className="text-xs px-3 py-1.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
             Schedule
           </Link>
           {canDelete && (
@@ -444,7 +486,7 @@ function ParticipantHeader({ participant, activeFlags, canDelete }: {
               onClick={handleDelete}
               disabled={deleting}
               data-testid="deactivate-btn"
-              className="text-xs px-3 py-1.5 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+              className="text-xs px-3 py-1.5 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
             >
               {deleting ? 'Deactivating…' : 'Deactivate'}
             </button>
@@ -468,7 +510,7 @@ function LifeThreateningBanner({ count, onViewAllergies }: {
       data-testid="lt-allergy-banner"
       className="bg-red-600 text-white px-6 py-2 flex items-center gap-3 text-sm"
     >
-      <span className="text-lg leading-none">⚠</span>
+      <ExclamationTriangleIcon className="w-5 h-5 shrink-0" />
       <span className="font-semibold">ALLERGY ALERT:</span>
       <span>
         {count} life-threatening {count === 1 ? 'allergy' : 'allergies'} on file.
@@ -509,13 +551,18 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
   const printDate        = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 
   // Inject @media print CSS that isolates the facesheet content.
+  // zoom: 0.85 acts as a safety net to keep the sheet on one page even when
+  // the participant has many diagnoses or contacts — without it the footer
+  // clips onto page 2.
   useEffect(() => {
     const style = document.createElement('style')
     style.id = 'facesheet-print-style'
     style.innerHTML = `
       @media print {
-        body > * { display: none !important; }
-        #facesheet-print { display: block !important; position: fixed; top: 0; left: 0; width: 100%; }
+        @page { margin: 8mm; size: letter portrait; }
+        body * { visibility: hidden !important; }
+        #facesheet-print, #facesheet-print * { visibility: visible !important; }
+        #facesheet-print { position: absolute; top: 0; left: 0; width: 100%; zoom: 0.85; }
         #facesheet-no-print { display: none !important; }
       }
     `
@@ -527,10 +574,10 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
 
   // ── Severity colour for allergy badges
   const allergySeverityColor = (sev: Allergy['severity']): string => {
-    if (sev === 'life_threatening') return 'bg-red-100 text-red-800 border border-red-300'
-    if (sev === 'severe')           return 'bg-orange-100 text-orange-800 border border-orange-200'
-    if (sev === 'moderate')         return 'bg-yellow-100 text-yellow-800 border border-yellow-200'
-    return 'bg-gray-100 text-gray-600 border border-gray-200'
+    if (sev === 'life_threatening') return 'bg-red-100 dark:bg-red-900/60 text-red-800 dark:text-red-300 border border-red-300'
+    if (sev === 'severe')           return 'bg-orange-100 dark:bg-orange-950/60 text-orange-800 dark:text-orange-300 border border-orange-200 dark:border-orange-800'
+    if (sev === 'moderate')         return 'bg-yellow-100 dark:bg-yellow-900/60 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800'
+    return 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400 border border-gray-200 dark:border-slate-700'
   }
 
   // ── Category label for allergy type
@@ -564,69 +611,47 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
       </div>
 
       {/* ═══════════════════ FACESHEET ══════════════════════════════════════════ */}
-      <div id="facesheet-print" className="bg-white border border-gray-300 rounded-lg shadow-sm font-sans text-gray-900 text-[13px] leading-snug">
+      <div id="facesheet-print" className="bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-lg shadow-sm font-sans text-gray-900 dark:text-slate-100 text-[12px] leading-snug">
 
         {/* ── Header ────────────────────────────────────────────────────────── */}
-        <div className="bg-slate-800 text-white px-5 py-3 rounded-t-lg flex items-center justify-between">
+        <div className="bg-slate-800 text-white px-4 py-2 rounded-t-lg flex items-center justify-between">
           <div>
-            <p className="text-xs font-medium text-slate-300 uppercase tracking-widest">{participant.tenant.name}</p>
-            <p className="text-lg font-bold tracking-tight">PACE Participant Facesheet</p>
+            <p className="text-[10px] font-medium text-slate-300 uppercase tracking-widest">{participant.tenant.name}</p>
+            <p className="text-base font-bold tracking-tight">PACE Participant Facesheet</p>
           </div>
-          <div className="text-right text-xs text-slate-300">
-            <p className="font-semibold text-white text-sm">CONFIDENTIAL</p>
-            <p>HIPAA Protected Health Information</p>
+          <div className="text-right text-[11px] text-slate-300">
+            <p className="font-semibold text-white">CONFIDENTIAL · HIPAA PHI</p>
             <p className="mt-0.5">Printed: {printDate}</p>
           </div>
         </div>
 
-        {/* ── Patient identity strip ────────────────────────────────────────── */}
-        <div className="border-b border-gray-200 px-5 py-3 flex flex-wrap gap-x-8 gap-y-1 bg-slate-50">
-          <div>
-            <span className="text-xs text-gray-500 uppercase tracking-wide">Name</span>
-            <p className="font-bold text-base text-gray-900">
+        {/* ── Patient identity strip — two compact inline rows ──────────────── */}
+        <div className="border-b border-gray-200 dark:border-slate-700 px-4 py-2 bg-slate-50 dark:bg-slate-900 space-y-1">
+          {/* Row 1: name + core demographics */}
+          <div className="flex flex-wrap items-baseline gap-x-6 gap-y-0.5">
+            <span className="font-bold text-[14px] text-gray-900 dark:text-slate-100">
               {participant.last_name}, {participant.first_name}
-              {participant.preferred_name && <span className="font-normal text-gray-500 text-sm ml-2">"{participant.preferred_name}"</span>}
-            </p>
-          </div>
-          <div>
-            <span className="text-xs text-gray-500 uppercase tracking-wide">DOB</span>
-            <p className="font-semibold">{participant.dob ? new Date(participant.dob + 'T12:00:00').toLocaleDateString('en-US') : '—'}</p>
-          </div>
-          <div>
-            <span className="text-xs text-gray-500 uppercase tracking-wide">Age</span>
-            <p className="font-semibold">{age(participant.dob)} yrs</p>
-          </div>
-          <div>
-            <span className="text-xs text-gray-500 uppercase tracking-wide">Gender</span>
-            <p className="font-semibold">{participant.gender ?? '—'}</p>
-          </div>
-          <div>
-            <span className="text-xs text-gray-500 uppercase tracking-wide">Language</span>
-            <p className="font-semibold">
+              {participant.preferred_name && <span className="font-normal text-gray-500 dark:text-slate-400 text-[12px] ml-1.5">"{participant.preferred_name}"</span>}
+            </span>
+            <span className="text-gray-500 dark:text-slate-400">DOB: <span className="font-semibold text-gray-800 dark:text-slate-200">{participant.dob ? new Date(participant.dob + 'T12:00:00').toLocaleDateString('en-US') : '-'}</span></span>
+            <span className="text-gray-500 dark:text-slate-400">Age: <span className="font-semibold text-gray-800 dark:text-slate-200">{age(participant.dob)} yrs</span></span>
+            <span className="text-gray-500 dark:text-slate-400">Gender: <span className="font-semibold text-gray-800 dark:text-slate-200">{participant.gender ?? '-'}</span></span>
+            <span className="text-gray-500 dark:text-slate-400">Language: <span className="font-semibold text-gray-800 dark:text-slate-200">
               {participant.primary_language}
-              {participant.interpreter_needed && <span className="ml-1 text-amber-700">(Interp. needed{participant.interpreter_language ? `: ${participant.interpreter_language}` : ''})</span>}
-            </p>
+              {participant.interpreter_needed && <span className="font-normal text-amber-700 dark:text-amber-300 ml-1">(Interp.{participant.interpreter_language ? ` ${participant.interpreter_language}` : ''})</span>}
+            </span></span>
           </div>
-          <div>
-            <span className="text-xs text-gray-500 uppercase tracking-wide">MRN</span>
-            <p className="font-mono font-bold text-slate-700">{participant.mrn}</p>
-          </div>
-          <div>
-            <span className="text-xs text-gray-500 uppercase tracking-wide">Status</span>
-            <p className="font-semibold capitalize">{participant.enrollment_status}</p>
-          </div>
-          <div>
-            <span className="text-xs text-gray-500 uppercase tracking-wide">Site</span>
-            <p className="font-semibold">{participant.site.name}</p>
-          </div>
-          <div>
-            <span className="text-xs text-gray-500 uppercase tracking-wide">NF Eligible</span>
-            <p className="font-semibold">{participant.nursing_facility_eligible ? 'Yes' : 'No'}</p>
+          {/* Row 2: identifiers + enrollment info */}
+          <div className="flex flex-wrap items-baseline gap-x-6 gap-y-0.5">
+            <span className="text-gray-500 dark:text-slate-400">MRN: <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{participant.mrn}</span></span>
+            <span className="text-gray-500 dark:text-slate-400">Status: <span className="font-semibold text-gray-800 dark:text-slate-200 capitalize">{participant.enrollment_status}</span></span>
+            <span className="text-gray-500 dark:text-slate-400">Site: <span className="font-semibold text-gray-800 dark:text-slate-200">{participant.site.name}</span></span>
+            <span className="text-gray-500 dark:text-slate-400">NF Eligible: <span className="font-semibold text-gray-800 dark:text-slate-200">{participant.nursing_facility_eligible ? 'Yes' : 'No'}</span></span>
           </div>
         </div>
 
         {/* ── IDs strip ────────────────────────────────────────────────────── */}
-        <div className="border-b border-gray-200 px-5 py-2 flex flex-wrap gap-x-8 gap-y-0.5 bg-white">
+        <div className="border-b border-gray-200 dark:border-slate-700 px-5 py-2 flex flex-wrap gap-x-8 gap-y-0.5 bg-white dark:bg-slate-800">
           {[
             { label: 'Medicare ID',   value: participant.medicare_id },
             { label: 'Medicaid ID',   value: participant.medicaid_id },
@@ -636,44 +661,43 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
             { label: 'Enrolled',      value: participant.enrollment_date ? new Date(participant.enrollment_date + 'T12:00:00').toLocaleDateString('en-US') : null },
           ].map(({ label, value }) => value ? (
             <div key={label} className="flex items-center gap-1.5">
-              <span className="text-[11px] text-gray-400 uppercase tracking-wide">{label}:</span>
-              <span className="font-mono text-[12px] text-gray-800 font-medium">{value}</span>
+              <span className="text-[11px] text-gray-400 dark:text-slate-500 uppercase tracking-wide">{label}:</span>
+              <span className="font-mono text-[12px] text-gray-800 dark:text-slate-200 font-medium">{value}</span>
             </div>
           ) : null)}
         </div>
 
         {/* ── 3-column body ────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-gray-200 px-0">
+        <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-gray-200 dark:divide-slate-700 px-0">
 
           {/* ── Col 1: Address + Emergency Contacts + Enrollment ────────────── */}
-          <div className="p-4 space-y-4">
+          <div className="p-3 space-y-3">
             {/* Address */}
             <section>
-              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 border-b border-gray-100 pb-1">Home Address</h4>
+              <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1 border-b border-gray-100 dark:border-slate-700/50 pb-0.5">Home Address</h4>
               {primary ? (
-                <div className="text-[13px]">
+                <div>
                   <p>{primary.street}{primary.unit ? `, ${primary.unit}` : ''}</p>
-                  <p>{primary.city}, {primary.state} {primary.zip}</p>
-                  <span className="text-[11px] text-gray-400 capitalize">{primary.address_type.replace('_', ' ')}</span>
+                  <p>{primary.city}, {primary.state} {primary.zip} <span className="text-gray-400 dark:text-slate-500 capitalize">({primary.address_type.replace('_', ' ')})</span></p>
                 </div>
-              ) : <p className="text-gray-400 text-[12px]">No address on file</p>}
+              ) : <p className="text-gray-400 dark:text-slate-500">No address on file</p>}
             </section>
 
             {/* Emergency Contacts */}
             <section>
-              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 border-b border-gray-100 pb-1">Emergency Contacts</h4>
+              <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1 border-b border-gray-100 dark:border-slate-700/50 pb-0.5">Emergency Contacts</h4>
               {emergencyContacts.length === 0
-                ? <p className="text-gray-400 text-[12px]">None on file</p>
+                ? <p className="text-gray-400 dark:text-slate-500">None on file</p>
                 : emergencyContacts.map((c, i) => (
-                  <div key={c.id} className={`${i > 0 ? 'mt-2 pt-2 border-t border-gray-100' : ''}`}>
-                    <p className="font-semibold">{c.first_name} {c.last_name}
-                      {c.relationship && <span className="font-normal text-gray-500"> — {c.relationship}</span>}
+                  <div key={c.id} className={`${i > 0 ? 'mt-1.5 pt-1.5 border-t border-gray-100 dark:border-slate-700/50' : ''}`}>
+                    <p className="font-semibold leading-tight">{c.first_name} {c.last_name}
+                      {c.relationship && <span className="font-normal text-gray-500 dark:text-slate-400"> · {c.relationship}</span>}
+                      {c.is_legal_representative && <span className="ml-1 text-[10px] bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 px-1 py-0.5 rounded font-medium">Legal Rep</span>}
                     </p>
-                    {c.phone_primary && <p className="text-gray-700">{c.phone_primary}</p>}
-                    {c.phone_secondary && <p className="text-gray-500">{c.phone_secondary}</p>}
-                    {c.is_legal_representative && (
-                      <span className="inline-block text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium mt-0.5">Legal Representative</span>
-                    )}
+                    <p className="text-gray-600 dark:text-slate-400">
+                      {c.phone_primary}
+                      {c.phone_secondary && <span className="ml-2 text-gray-400 dark:text-slate-500">{c.phone_secondary}</span>}
+                    </p>
                   </div>
                 ))
               }
@@ -681,45 +705,36 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
 
             {/* Enrollment dates */}
             <section>
-              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 border-b border-gray-100 pb-1">Enrollment</h4>
-              <dl className="space-y-0.5">
-                <div className="flex justify-between">
-                  <dt className="text-gray-500">Enrolled:</dt>
-                  <dd className="font-medium">{participant.enrollment_date ? new Date(participant.enrollment_date + 'T12:00:00').toLocaleDateString('en-US') : '—'}</dd>
-                </div>
+              <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1 border-b border-gray-100 dark:border-slate-700/50 pb-0.5">Enrollment</h4>
+              <div className="flex flex-wrap gap-x-5 gap-y-0.5">
+                <span className="text-gray-500 dark:text-slate-400">Enrolled: <span className="font-medium text-gray-800 dark:text-slate-200">{participant.enrollment_date ? new Date(participant.enrollment_date + 'T12:00:00').toLocaleDateString('en-US') : '-'}</span></span>
                 {participant.nf_certification_date && (
-                  <div className="flex justify-between">
-                    <dt className="text-gray-500">NF Cert:</dt>
-                    <dd className="font-medium">{new Date(participant.nf_certification_date + 'T12:00:00').toLocaleDateString('en-US')}</dd>
-                  </div>
+                  <span className="text-gray-500 dark:text-slate-400">NF Cert: <span className="font-medium text-gray-800 dark:text-slate-200">{new Date(participant.nf_certification_date + 'T12:00:00').toLocaleDateString('en-US')}</span></span>
                 )}
                 {participant.disenrollment_date && (
-                  <div className="flex justify-between">
-                    <dt className="text-gray-500">Disenrolled:</dt>
-                    <dd className="font-medium">{new Date(participant.disenrollment_date + 'T12:00:00').toLocaleDateString('en-US')}</dd>
-                  </div>
+                  <span className="text-gray-500 dark:text-slate-400">Disenrolled: <span className="font-medium text-gray-800 dark:text-slate-200">{new Date(participant.disenrollment_date + 'T12:00:00').toLocaleDateString('en-US')}</span></span>
                 )}
-              </dl>
+              </div>
             </section>
           </div>
 
           {/* ── Col 2: Allergies + Active Diagnoses ─────────────────────────── */}
-          <div className="p-4 space-y-4">
+          <div className="p-3 space-y-3">
             {/* Allergies */}
             <section>
-              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 border-b border-gray-100 pb-1">Allergies / Dietary Restrictions</h4>
+              <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1 border-b border-gray-100 dark:border-slate-700/50 pb-0.5">Allergies / Dietary Restrictions</h4>
               {activeAllergies.length === 0 ? (
-                <span className="inline-block text-[12px] font-bold bg-green-50 text-green-700 border border-green-200 px-2 py-1 rounded">NKDA — No Known Drug Allergies</span>
+                <span className="inline-block text-[12px] font-bold bg-green-50 dark:bg-green-950/60 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800 px-2 py-1 rounded">NKDA: No Known Drug Allergies</span>
               ) : (
                 <div className="space-y-1">
                   {lifeThreateningA.length > 0 && (
-                    <div className="bg-red-50 border border-red-200 rounded p-1.5 mb-2">
-                      <p className="text-[10px] font-bold text-red-700 uppercase tracking-wide mb-1">⚠ Life-Threatening</p>
+                    <div className="bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 rounded p-1.5 mb-2">
+                      <p className="text-[10px] font-bold text-red-700 dark:text-red-300 uppercase tracking-wide mb-1 flex items-center gap-0.5"><ExclamationTriangleIcon className="w-3 h-3" /> Life-Threatening</p>
                       {lifeThreateningA.map(a => (
-                        <p key={a.id} className="text-[12px] font-semibold text-red-800">
+                        <p key={a.id} className="text-[12px] font-semibold text-red-800 dark:text-red-300">
                           {a.allergen_name}
-                          <span className="font-normal text-red-600 ml-1">({allergyTypeLabel[a.allergy_type] ?? a.allergy_type})</span>
-                          {a.reaction_description && <span className="font-normal text-red-600"> — {a.reaction_description}</span>}
+                          <span className="font-normal text-red-600 dark:text-red-400 ml-1">({allergyTypeLabel[a.allergy_type] ?? a.allergy_type})</span>
+                          {a.reaction_description && <span className="font-normal text-red-600 dark:text-red-400">: {a.reaction_description}</span>}
                         </p>
                       ))}
                     </div>
@@ -733,8 +748,8 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
                         </span>
                         <span className="text-[12px]">
                           <span className="font-medium">{a.allergen_name}</span>
-                          <span className="text-gray-500 ml-1">({allergyTypeLabel[a.allergy_type] ?? a.allergy_type})</span>
-                          {a.reaction_description && <span className="text-gray-500"> — {a.reaction_description}</span>}
+                          <span className="text-gray-500 dark:text-slate-400 ml-1">({allergyTypeLabel[a.allergy_type] ?? a.allergy_type})</span>
+                          {a.reaction_description && <span className="text-gray-500 dark:text-slate-400">: {a.reaction_description}</span>}
                         </span>
                       </div>
                     ))
@@ -745,18 +760,18 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
 
             {/* Active Diagnoses */}
             <section>
-              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 border-b border-gray-100 pb-1">Active Diagnoses</h4>
+              <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1 border-b border-gray-100 dark:border-slate-700/50 pb-0.5">Active Diagnoses</h4>
               {activeProblems.length === 0
-                ? <p className="text-gray-400 text-[12px]">None recorded</p>
+                ? <p className="text-gray-400 dark:text-slate-500 text-[12px]">None recorded</p>
                 : (
                   <div className="space-y-1">
                     {activeProblems.map(p => (
                       <div key={p.id} className="flex items-start gap-1.5">
-                        <span className="font-mono text-[11px] text-slate-600 bg-slate-100 px-1 py-0.5 rounded shrink-0">{p.icd10_code}</span>
+                        <span className="font-mono text-[11px] text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded shrink-0">{p.icd10_code}</span>
                         <span className="text-[12px]">
-                          {p.is_primary_diagnosis && <span className="text-blue-700 font-semibold">[Primary] </span>}
-                          {p.description}
-                          {p.status === 'chronic' && <span className="text-gray-400 ml-1 text-[11px]">(Chronic)</span>}
+                          {p.is_primary_diagnosis && <span className="text-blue-700 dark:text-blue-300 font-semibold">[Primary] </span>}
+                          {p.icd10_description}
+                          {p.status === 'chronic' && <span className="text-gray-400 dark:text-slate-500 ml-1 text-[11px]">(Chronic)</span>}
                         </span>
                       </div>
                     ))}
@@ -767,16 +782,16 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
           </div>
 
           {/* ── Col 3: Transport/Clinical Flags + Insurance + Latest Vitals ─── */}
-          <div className="p-4 space-y-4">
+          <div className="p-3 space-y-3">
             {/* Transport Needs */}
             <section>
-              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 border-b border-gray-100 pb-1">Transport / Equipment Needs</h4>
+              <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1 border-b border-gray-100 dark:border-slate-700/50 pb-0.5">Transport / Equipment Needs</h4>
               {transportF.length === 0
-                ? <p className="text-gray-400 text-[12px]">None</p>
+                ? <p className="text-gray-400 dark:text-slate-500 text-[12px]">None</p>
                 : (
                   <div className="flex flex-wrap gap-1">
                     {transportF.map(f => (
-                      <span key={f.id} className="text-[11px] bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-medium">
+                      <span key={f.id} className="text-[11px] bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-1.5 py-0.5 rounded font-medium">
                         {FLAG_LABELS[f.flag_type] ?? f.flag_type}
                       </span>
                     ))}
@@ -787,18 +802,18 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
 
             {/* Clinical / Safety Flags */}
             <section>
-              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 border-b border-gray-100 pb-1">Clinical / Safety Flags</h4>
+              <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1 border-b border-gray-100 dark:border-slate-700/50 pb-0.5">Clinical / Safety Flags</h4>
               {clinicalF.length === 0
-                ? <p className="text-gray-400 text-[12px]">None</p>
+                ? <p className="text-gray-400 dark:text-slate-500 text-[12px]">None</p>
                 : (
                   <div className="flex flex-wrap gap-1">
                     {clinicalF.map(f => (
                       <span key={f.id} className={`text-[11px] px-1.5 py-0.5 rounded font-medium border ${
-                        f.flag_type === 'dnr'     ? 'bg-red-100 text-red-800 border-red-200' :
-                        f.flag_type === 'hospice' ? 'bg-purple-100 text-purple-800 border-purple-200' :
-                        f.severity === 'critical' ? 'bg-red-100 text-red-700 border-red-200' :
-                        f.severity === 'high'     ? 'bg-orange-100 text-orange-800 border-orange-200' :
-                        'bg-slate-100 text-slate-700 border-slate-200'
+                        f.flag_type === 'dnr'     ? 'bg-red-100 dark:bg-red-900/60 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800' :
+                        f.flag_type === 'hospice' ? 'bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800' :
+                        f.severity === 'critical' ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800' :
+                        f.severity === 'high'     ? 'bg-orange-100 dark:bg-orange-950/60 text-orange-800 dark:text-orange-300 border-orange-200 dark:border-orange-800' :
+                        'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
                       }`}>
                         {FLAG_LABELS[f.flag_type] ?? f.flag_type}
                       </span>
@@ -811,19 +826,19 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
             {/* Advance Directive — 42 CFR 460.96 Participant Rights */}
             {participant.advance_directive_status && participant.advance_directive_status !== 'unknown' && (
               <section>
-                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 border-b border-gray-100 pb-1">Advance Directive</h4>
+                <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1 border-b border-gray-100 dark:border-slate-700/50 pb-0.5">Advance Directive</h4>
                 <div className="flex flex-wrap gap-1 items-center">
                   <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium border ${
                     participant.advance_directive_status === 'has_directive'
-                      ? 'bg-purple-100 text-purple-800 border-purple-200'
-                      : 'bg-gray-100 text-gray-600 border-gray-200'
+                      ? 'bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+                      : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400 border-gray-200 dark:border-slate-700'
                   }`}>
                     {participant.advance_directive_status === 'has_directive'    ? 'Has Directive' :
                      participant.advance_directive_status === 'declined_directive' ? 'Declined' :
-                     'Incapacitated — No Directive'}
+                     'Incapacitated: No Directive'}
                   </span>
                   {participant.advance_directive_type && (
-                    <span className="text-[11px] px-1.5 py-0.5 rounded font-medium border bg-slate-100 text-slate-700 border-slate-200">
+                    <span className="text-[11px] px-1.5 py-0.5 rounded font-medium border bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700">
                       {participant.advance_directive_type === 'dnr'              ? 'DNR' :
                        participant.advance_directive_type === 'polst'            ? 'POLST' :
                        participant.advance_directive_type === 'living_will'      ? 'Living Will' :
@@ -832,7 +847,7 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
                     </span>
                   )}
                   {participant.advance_directive_reviewed_at && (
-                    <span className="text-[10px] text-gray-400 ml-1">
+                    <span className="text-[10px] text-gray-400 dark:text-slate-500 ml-1">
                       Reviewed {new Date(participant.advance_directive_reviewed_at).toLocaleDateString()}
                     </span>
                   )}
@@ -842,47 +857,49 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
 
             {/* Insurance */}
             <section>
-              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 border-b border-gray-100 pb-1">Insurance Coverages</h4>
+              <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1 border-b border-gray-100 dark:border-slate-700/50 pb-0.5">Insurance Coverages</h4>
               {insurances.filter(i => i.is_active).length === 0
-                ? <p className="text-gray-400 text-[12px]">None on file</p>
-                : insurances.filter(i => i.is_active).map(ins => (
-                  <div key={ins.id} className="flex items-center justify-between">
-                    <span className="text-[12px] font-medium">{PAYER_LABELS[ins.payer_type] ?? ins.payer_type}</span>
-                    {ins.member_id && <span className="font-mono text-[11px] text-gray-500">{ins.member_id}</span>}
+                ? <p className="text-gray-400 dark:text-slate-500">None on file</p>
+                : <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                    {insurances.filter(i => i.is_active).map(ins => (
+                      <span key={ins.id} className="font-medium">
+                        {PAYER_LABELS[ins.payer_type] ?? ins.payer_type}
+                        {ins.member_id && <span className="font-mono text-[11px] text-gray-500 dark:text-slate-400 ml-1">{ins.member_id}</span>}
+                      </span>
+                    ))}
                   </div>
-                ))
               }
             </section>
 
             {/* Latest Vitals */}
             <section>
-              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 border-b border-gray-100 pb-1">
+              <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1 border-b border-gray-100 dark:border-slate-700/50 pb-0.5">
                 Latest Vitals
-                {latestVital && <span className="ml-2 font-normal text-gray-400 normal-case tracking-normal">{new Date(latestVital.recorded_at).toLocaleDateString('en-US')}</span>}
+                {latestVital && <span className="ml-2 font-normal text-gray-400 dark:text-slate-500 normal-case tracking-normal">{new Date(latestVital.recorded_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>}
               </h4>
               {!latestVital
-                ? <p className="text-gray-400 text-[12px]">No vitals recorded</p>
+                ? <p className="text-gray-400 dark:text-slate-500">No vitals recorded</p>
                 : (
-                  <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5">
                     {latestVital.bp_systolic != null && latestVital.bp_diastolic != null && (
-                      <><dt className="text-gray-500 text-[11px]">BP</dt><dd className="font-semibold text-[12px]">{latestVital.bp_systolic}/{latestVital.bp_diastolic} mmHg</dd></>
+                      <span className="text-gray-500 dark:text-slate-400">BP: <span className="font-semibold text-gray-800 dark:text-slate-200">{latestVital.bp_systolic}/{latestVital.bp_diastolic}</span></span>
                     )}
                     {latestVital.pulse != null && (
-                      <><dt className="text-gray-500 text-[11px]">Pulse</dt><dd className="font-semibold text-[12px]">{latestVital.pulse} bpm</dd></>
+                      <span className="text-gray-500 dark:text-slate-400">Pulse: <span className="font-semibold text-gray-800 dark:text-slate-200">{latestVital.pulse} bpm</span></span>
                     )}
                     {latestVital.o2_saturation != null && (
-                      <><dt className="text-gray-500 text-[11px]">O₂ Sat</dt><dd className="font-semibold text-[12px]">{latestVital.o2_saturation}%</dd></>
+                      <span className="text-gray-500 dark:text-slate-400">O₂: <span className="font-semibold text-gray-800 dark:text-slate-200">{latestVital.o2_saturation}%</span></span>
                     )}
                     {latestVital.temperature_f != null && (
-                      <><dt className="text-gray-500 text-[11px]">Temp</dt><dd className="font-semibold text-[12px]">{latestVital.temperature_f}°F</dd></>
+                      <span className="text-gray-500 dark:text-slate-400">Temp: <span className="font-semibold text-gray-800 dark:text-slate-200">{latestVital.temperature_f}°F</span></span>
                     )}
                     {latestVital.weight_lbs != null && (
-                      <><dt className="text-gray-500 text-[11px]">Weight</dt><dd className="font-semibold text-[12px]">{latestVital.weight_lbs} lbs</dd></>
+                      <span className="text-gray-500 dark:text-slate-400">Wt: <span className="font-semibold text-gray-800 dark:text-slate-200">{latestVital.weight_lbs} lbs</span></span>
                     )}
                     {latestVital.pain_score != null && (
-                      <><dt className="text-gray-500 text-[11px]">Pain</dt><dd className="font-semibold text-[12px]">{latestVital.pain_score}/10</dd></>
+                      <span className="text-gray-500 dark:text-slate-400">Pain: <span className="font-semibold text-gray-800 dark:text-slate-200">{latestVital.pain_score}/10</span></span>
                     )}
-                  </dl>
+                  </div>
                 )
               }
             </section>
@@ -890,9 +907,9 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
         </div>
 
         {/* ── Footer ───────────────────────────────────────────────────────── */}
-        <div className="border-t border-gray-200 bg-slate-50 px-5 py-2 rounded-b-lg flex items-center justify-between text-[10px] text-gray-400">
+        <div className="border-t border-gray-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-5 py-2 rounded-b-lg flex items-center justify-between text-[10px] text-gray-400 dark:text-slate-500">
           <p>This document contains Protected Health Information (PHI). Unauthorized disclosure is prohibited by HIPAA (45 CFR §164.502).</p>
-          <p className="shrink-0 ml-4">MRN: <span className="font-mono text-gray-600">{participant.mrn}</span> · {printDate}</p>
+          <p className="shrink-0 ml-4">MRN: <span className="font-mono text-gray-600 dark:text-slate-400">{participant.mrn}</span> · {printDate}</p>
         </div>
       </div>
     </div>
@@ -904,12 +921,14 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
 // ─── Note Card ────────────────────────────────────────────────────────────────
 // Expandable card for a single clinical note. Shown inside ChartTab.
 // Draft notes display a Sign button; signed notes are read-only.
-function NoteCard({ note, participantId, onSign, signingId, onAddendum }: {
-  note:          ClinicalNote
-  participantId: number
-  onSign:        (id: number) => void
-  signingId:     number | null
-  onAddendum:    (parentNoteId: number) => void
+function NoteCard({ note, participantId, onSign, signingId, onAddendum, showSiteBadge, currentUserId }: {
+  note:           ClinicalNote
+  participantId:  number
+  onSign:         (id: number) => void
+  signingId:      number | null
+  onAddendum:     (parentNoteId: number) => void
+  showSiteBadge?: boolean
+  currentUserId?: number
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -918,35 +937,38 @@ function NoteCard({ note, participantId, onSign, signingId, onAddendum }: {
     : ((note.content?.notes as string) ?? '').slice(0, 160)
 
   return (
-    <div data-testid={`note-${note.id}`} className="bg-white border border-gray-200 rounded-lg px-4 py-3">
+    <div data-testid={`note-${note.id}`} className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-4 py-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium text-gray-900">
+            <span className="text-sm font-medium text-gray-900 dark:text-slate-100">
               {NOTE_TYPE_LABELS[note.note_type] ?? note.note_type}
             </span>
             <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
-              note.status === 'signed'  ? 'bg-green-100 text-green-700' :
-              note.status === 'amended' ? 'bg-indigo-100 text-indigo-700' :
-                                          'bg-yellow-100 text-yellow-700'
+              note.status === 'signed'  ? 'bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300' :
+              note.status === 'amended' ? 'bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300' :
+                                          'bg-yellow-100 dark:bg-yellow-900/60 text-yellow-700 dark:text-yellow-300'
             }`}>
               {note.status}
             </span>
             {note.is_late_entry && (
-              <span className="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full">Late Entry</span>
+              <span className="text-xs bg-orange-100 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 px-1.5 py-0.5 rounded-full">Late Entry</span>
+            )}
+            {showSiteBadge && note.site && (
+              <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded-full">{note.site.name}</span>
             )}
           </div>
-          <div className="text-xs text-gray-500 mt-0.5">
+          <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
             {new Date(note.visit_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
             {note.author && ` · ${note.author.first_name} ${note.author.last_name}`}
           </div>
           {!expanded && preview && (
-            <p className="text-xs text-gray-500 mt-1.5 line-clamp-2">{preview}{preview.length === 160 ? '…' : ''}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1.5 line-clamp-2">{preview}{preview.length === 160 ? '…' : ''}</p>
           )}
         </div>
 
         <div className="flex items-center gap-1 flex-shrink-0">
-          {note.status === 'draft' && (
+          {note.status === 'draft' && currentUserId === note.authored_by_user_id && (
             <button
               onClick={() => onSign(note.id)}
               disabled={signingId === note.id}
@@ -958,7 +980,7 @@ function NoteCard({ note, participantId, onSign, signingId, onAddendum }: {
           )}
           <button
             onClick={() => setExpanded(v => !v)}
-            className="text-xs px-2.5 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            className="text-xs px-2.5 py-1 border border-gray-200 dark:border-slate-600 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
           >
             {expanded ? 'Collapse' : 'Expand'}
           </button>
@@ -967,7 +989,7 @@ function NoteCard({ note, participantId, onSign, signingId, onAddendum }: {
 
       {/* Expanded note content */}
       {expanded && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700/50">
           {note.note_type === 'soap' ? (
             <div className="grid grid-cols-2 gap-4">
               {([['Subjective (S)', note.subjective], ['Objective (O)', note.objective],
@@ -975,26 +997,26 @@ function NoteCard({ note, participantId, onSign, signingId, onAddendum }: {
                 .filter(([, val]) => val)
                 .map(([label, val]) => (
                   <div key={label}>
-                    <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</dt>
-                    <dd className="mt-1 text-xs text-gray-800 whitespace-pre-wrap">{val}</dd>
+                    <dt className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">{label}</dt>
+                    <dd className="mt-1 text-xs text-gray-800 dark:text-slate-200 whitespace-pre-wrap">{val}</dd>
                   </div>
                 ))
               }
             </div>
           ) : (
-            <p className="text-xs text-gray-700 whitespace-pre-wrap">
+            <p className="text-xs text-gray-700 dark:text-slate-300 whitespace-pre-wrap">
               {(note.content?.notes as string) ?? ''}
             </p>
           )}
           {note.signed_at && (
-            <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between">
-              <p className="text-xs text-gray-400">
+            <div className="mt-3 pt-2 border-t border-gray-100 dark:border-slate-700/50 flex items-center justify-between">
+              <p className="text-xs text-gray-400 dark:text-slate-500">
                 Signed {new Date(note.signed_at).toLocaleString('en-US')}
               </p>
               <button
                 onClick={() => onAddendum(note.id)}
                 data-testid={`addendum-note-${note.id}`}
-                className="text-xs px-2.5 py-1 border border-blue-300 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                className="text-xs px-2.5 py-1 border border-blue-300 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-50 transition-colors"
               >
                 + Addendum
               </button>
@@ -1010,9 +1032,10 @@ function NoteCard({ note, participantId, onSign, signingId, onAddendum }: {
 // Lazy-loaded from GET /participants/{id}/notes on first activation.
 // New Note form supports SOAP (4 structured fields) and all other template types (notes textarea).
 // Draft notes can be signed; signed notes are immutable.
-function ChartTab({ participantId, noteTemplates }: {
-  participantId: number
-  noteTemplates: Record<string, { label: string; departments: string[] }>
+function ChartTab({ participantId, noteTemplates, hasMultipleSites }: {
+  participantId:    number
+  noteTemplates:    Record<string, { label: string; departments: string[] }>
+  hasMultipleSites: boolean
 }) {
   const [notes, setNotes]         = useState<ClinicalNote[] | null>(null)
   const [loading, setLoading]     = useState(false)
@@ -1040,7 +1063,7 @@ function ChartTab({ participantId, noteTemplates }: {
       .finally(() => setLoading(false))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { auth } = usePage<{ auth: { user: { department: string } } }>().props
+  const { auth } = usePage<{ auth: { user: { id: number; department: string } } }>().props
   const handleCreateNote = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
@@ -1074,11 +1097,13 @@ function ChartTab({ participantId, noteTemplates }: {
 
   const handleSign = async (noteId: number) => {
     setSigningId(noteId)
+    setError(null)
     try {
       const { data } = await axios.post(`/participants/${participantId}/notes/${noteId}/sign`)
       setNotes(n => n!.map(note => note.id === noteId ? { ...note, ...data } : note))
-    } catch {
-      // sign button resets; user can retry
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setError(msg ?? 'Failed to sign note. Please try again.')
     } finally {
       setSigningId(null)
     }
@@ -1115,7 +1140,7 @@ function ChartTab({ participantId, noteTemplates }: {
       {/* Header: title + status filter chips + new note button */}
       <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
         <div className="flex items-center gap-3">
-          <h3 className="text-sm font-semibold text-gray-700">Clinical Notes ({notes.length})</h3>
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">Clinical Notes ({notes.length})</h3>
           <div className="flex gap-1">
             {(['all', 'draft', 'signed'] as const).map(s => (
               <button
@@ -1124,7 +1149,7 @@ function ChartTab({ participantId, noteTemplates }: {
                 className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
                   statusFilter === s
                     ? 'bg-blue-600 text-white border-blue-600'
-                    : 'text-gray-500 border-gray-200 hover:border-gray-300'
+                    : 'text-gray-500 dark:text-slate-400 border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
                 }`}
               >
                 {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
@@ -1146,15 +1171,15 @@ function ChartTab({ participantId, noteTemplates }: {
         <form
           onSubmit={handleCreateNote}
           data-testid="note-form"
-          className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 space-y-3"
+          className="bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4 space-y-3"
         >
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="text-xs font-medium text-gray-600">Note Type</label>
+              <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Note Type</label>
               <select
                 value={form.note_type}
                 onChange={e => setForm(f => ({ ...f, note_type: e.target.value }))}
-                className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white"
+                className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
               >
                 {Object.entries(noteTemplates).map(([key, tmpl]) => (
                   <option key={key} value={key}>{tmpl.label}</option>
@@ -1162,11 +1187,11 @@ function ChartTab({ participantId, noteTemplates }: {
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600">Visit Type</label>
+              <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Visit Type</label>
               <select
                 value={form.visit_type}
                 onChange={e => setForm(f => ({ ...f, visit_type: e.target.value }))}
-                className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white"
+                className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
               >
                 {['in_center','home_visit','telehealth','phone'].map(t => (
                   <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
@@ -1174,13 +1199,13 @@ function ChartTab({ participantId, noteTemplates }: {
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600">Visit Date</label>
+              <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Visit Date</label>
               <input
                 type="date"
                 value={form.visit_date}
                 max={today()}
                 onChange={e => setForm(f => ({ ...f, visit_date: e.target.value }))}
-                className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white"
+                className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
               />
             </div>
           </div>
@@ -1195,35 +1220,35 @@ function ChartTab({ participantId, noteTemplates }: {
                 ['plan',          'Plan (P)'],
               ] as [keyof typeof form, string][]).map(([field, label]) => (
                 <div key={field}>
-                  <label className="text-xs font-medium text-gray-600">{label}</label>
+                  <label className="text-xs font-medium text-gray-600 dark:text-slate-400">{label}</label>
                   <textarea
                     rows={3}
                     value={form[field] as string}
                     onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
                     placeholder={`Enter ${label}…`}
-                    className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white resize-none"
+                    className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 resize-none"
                   />
                 </div>
               ))}
             </div>
           ) : (
             <div>
-              <label className="text-xs font-medium text-gray-600">
-                Notes — {noteTemplates[form.note_type]?.label ?? form.note_type}
+              <label className="text-xs font-medium text-gray-600 dark:text-slate-400">
+                Notes: {noteTemplates[form.note_type]?.label ?? form.note_type}
               </label>
               <textarea
                 rows={5}
                 value={form.content_notes}
                 onChange={e => setForm(f => ({ ...f, content_notes: e.target.value }))}
                 placeholder="Enter clinical notes…"
-                className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white resize-none"
+                className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 resize-none"
               />
             </div>
           )}
 
           {/* Late entry toggle */}
           <div className="flex items-center gap-3 flex-wrap">
-            <label className="flex items-center gap-1.5 text-xs text-gray-600">
+            <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400">
               <input
                 type="checkbox"
                 checked={form.is_late_entry}
@@ -1237,7 +1262,7 @@ function ChartTab({ participantId, noteTemplates }: {
                 value={form.late_entry_reason}
                 onChange={e => setForm(f => ({ ...f, late_entry_reason: e.target.value }))}
                 placeholder="Reason for late entry"
-                className="flex-1 text-xs border border-gray-300 rounded px-2 py-1 bg-white"
+                className="flex-1 text-xs border border-gray-300 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-800"
               />
             )}
           </div>
@@ -1246,7 +1271,7 @@ function ChartTab({ participantId, noteTemplates }: {
             <button
               type="button"
               onClick={() => { setShowForm(false); setForm(blankNote) }}
-              className="text-xs px-3 py-1.5 border rounded-lg hover:bg-gray-50"
+              className="text-xs px-3 py-1.5 border border-gray-200 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 dark:text-slate-300"
             >
               Cancel
             </button>
@@ -1265,7 +1290,7 @@ function ChartTab({ participantId, noteTemplates }: {
       {/* Notes list */}
       <div className="space-y-2">
         {filtered.length === 0 && (
-          <p className="text-sm text-gray-400 py-8 text-center">
+          <p className="text-sm text-gray-400 dark:text-slate-500 py-8 text-center">
             {statusFilter === 'all' ? 'No notes on file.' : `No ${statusFilter} notes.`}
           </p>
         )}
@@ -1277,6 +1302,8 @@ function ChartTab({ participantId, noteTemplates }: {
             onSign={handleSign}
             signingId={signingId}
             onAddendum={handleAddendum}
+            showSiteBadge={hasMultipleSites}
+            currentUserId={auth.user.id}
           />
         ))}
       </div>
@@ -1287,9 +1314,10 @@ function ChartTab({ participantId, noteTemplates }: {
 // ─── Vitals Tab ───────────────────────────────────────────────────────────────
 // Pre-loaded vitals (last 100). Recharts line chart for BP trend (last 30 readings).
 // Out-of-range values highlighted: BP systolic > 180 → red, O2 < 92 → red.
-function VitalsTab({ participantId, initialVitals }: {
-  participantId: number
-  initialVitals: Vital[]
+function VitalsTab({ participantId, initialVitals, completedTransfers }: {
+  participantId:      number
+  initialVitals:      Vital[]
+  completedTransfers: { effective_date: string; from_site_name: string | null; to_site_name: string | null }[]
 }) {
   const [vitals, setVitals]    = useState<Vital[]>(initialVitals)
   const [showForm, setShowForm] = useState(false)
@@ -1372,7 +1400,7 @@ function VitalsTab({ participantId, initialVitals }: {
     <div className="space-y-6">
       {/* Header + record button */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">Vital Signs ({vitals.length} records)</h3>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">Vital Signs ({vitals.length} records)</h3>
         <button
           onClick={() => setShowForm(v => !v)}
           data-testid="add-vitals-btn"
@@ -1387,7 +1415,7 @@ function VitalsTab({ participantId, initialVitals }: {
         <form
           onSubmit={handleRecord}
           data-testid="vitals-form"
-          className="bg-blue-50 border border-blue-200 rounded-lg p-4 grid grid-cols-4 gap-3"
+          className="bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 rounded-lg p-4 grid grid-cols-4 gap-3"
         >
           {([
             ['bp_systolic',     'BP Systolic',  'mmHg', '1'],
@@ -1400,28 +1428,28 @@ function VitalsTab({ participantId, initialVitals }: {
             ['pain_score',      'Pain',         '0–10', '1'],
           ] as [string, string, string, string][]).map(([field, label, unit, step]) => (
             <div key={field}>
-              <label className="text-xs font-medium text-gray-600">{label} <span className="text-gray-400 font-normal">({unit})</span></label>
+              <label className="text-xs font-medium text-gray-600 dark:text-slate-400">{label} <span className="text-gray-400 dark:text-slate-500 font-normal">({unit})</span></label>
               <input
                 type="number"
                 step={step}
                 value={form[field as keyof typeof form]}
                 onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
-                className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white"
+                className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
               />
             </div>
           ))}
           <div className="col-span-4">
-            <label className="text-xs font-medium text-gray-600">Notes (optional)</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Notes (optional)</label>
             <input
               type="text"
               value={form.notes}
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white"
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
             />
           </div>
           <div className="col-span-4 flex justify-end gap-2">
             <button type="button" onClick={() => { setShowForm(false); setForm(blankForm) }}
-              className="text-xs px-3 py-1.5 border rounded-lg hover:bg-gray-50">Cancel</button>
+              className="text-xs px-3 py-1.5 border border-gray-200 dark:border-slate-600 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700">Cancel</button>
             <button type="submit" disabled={saving} data-testid="save-vitals-btn"
               className="text-xs px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
               {saving ? 'Saving…' : 'Record Vitals'}
@@ -1436,14 +1464,14 @@ function VitalsTab({ participantId, initialVitals }: {
         const primaryKey = cfg.lines[0].key
         const hasData = chartData.filter(d => d[primaryKey as keyof typeof d] !== null).length > 1
         if (!hasData) return (
-          <div className="bg-white border border-gray-200 rounded-lg p-4 text-center text-sm text-gray-400 py-10">
+          <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4 text-center text-sm text-gray-400 dark:text-slate-500 py-10">
             No {cfg.label} data recorded yet. Click a column header below to switch views.
           </div>
         )
         return (
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
-            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-              {cfg.label} Trend <span className="font-normal text-gray-400">(last 30 readings · click column headers to switch)</span>
+          <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4">
+            <h4 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-3">
+              {cfg.label} Trend <span className="font-normal text-gray-400 dark:text-slate-500">(last 30 readings · click column headers to switch)</span>
             </h4>
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
@@ -1464,6 +1492,19 @@ function VitalsTab({ participantId, initialVitals }: {
                 {cfg.lines.map(l => (
                   <Line key={l.key} type="monotone" dataKey={l.key} stroke={l.color} dot={false} strokeWidth={2} name={l.key} />
                 ))}
+                {/* W3-6: vertical dashed line at each completed transfer date */}
+                {completedTransfers.map((t, i) => {
+                  const label = new Date(t.effective_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                  return (
+                    <ReferenceLine
+                      key={i}
+                      x={label}
+                      stroke="#f59e0b"
+                      strokeDasharray="4 3"
+                      label={{ value: `Transfer: ${t.to_site_name ?? ''}`, position: 'top', fontSize: 9, fill: '#f59e0b' }}
+                    />
+                  )
+                })}
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -1471,9 +1512,9 @@ function VitalsTab({ participantId, initialVitals }: {
       })()}
 
       {/* Vitals table (most recent 20) */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 dark:bg-slate-700/50">
             <tr>
               {TABLE_HEADERS.map(h => (
                 <th key={h.label} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap">
@@ -1482,39 +1523,39 @@ function VitalsTab({ participantId, initialVitals }: {
                       onClick={() => setActiveChart(h.chartKey!)}
                       className={`transition-colors ${
                         activeChart === h.chartKey
-                          ? 'text-blue-600 border-b-2 border-blue-500 pb-0.5'
-                          : 'text-gray-400 hover:text-gray-700'
+                          ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-500 pb-0.5'
+                          : 'text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-300'
                       }`}
                     >
                       {h.label}
                     </button>
                   ) : (
-                    <span className="text-gray-500">{h.label}</span>
+                    <span className="text-gray-500 dark:text-slate-400">{h.label}</span>
                   )}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
             {vitals.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-6 text-center text-gray-400 text-sm">No vitals recorded.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-6 text-center text-gray-400 dark:text-slate-500 text-sm">No vitals recorded.</td></tr>
             )}
             {vitals.slice(0, 20).map(v => (
-              <tr key={v.id} className="bg-white hover:bg-gray-50">
-                <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+              <tr key={v.id} className="bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                <td className="px-3 py-2 text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">
                   {new Date(v.recorded_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                 </td>
-                <td className={`px-3 py-2 text-xs font-mono ${highSys(v.bp_systolic) ? 'text-red-600 font-semibold' : 'text-gray-700'}`}>
-                  {v.bp_systolic != null ? `${v.bp_systolic}/${v.bp_diastolic}` : '—'}
+                <td className={`px-3 py-2 text-xs font-mono ${highSys(v.bp_systolic) ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-700 dark:text-slate-300'}`}>
+                  {v.bp_systolic != null ? `${v.bp_systolic}/${v.bp_diastolic}` : '-'}
                 </td>
-                <td className="px-3 py-2 text-xs text-gray-700">{v.pulse ?? '—'}</td>
-                <td className="px-3 py-2 text-xs text-gray-700">{v.temperature_f != null ? `${v.temperature_f}°` : '—'}</td>
-                <td className="px-3 py-2 text-xs text-gray-700">{v.respiratory_rate ?? '—'}</td>
-                <td className={`px-3 py-2 text-xs font-mono ${lowO2(v.o2_saturation) ? 'text-red-600 font-semibold' : 'text-gray-700'}`}>
-                  {v.o2_saturation != null ? `${v.o2_saturation}%` : '—'}
+                <td className="px-3 py-2 text-xs text-gray-700 dark:text-slate-300">{v.pulse ?? '-'}</td>
+                <td className="px-3 py-2 text-xs text-gray-700 dark:text-slate-300">{v.temperature_f != null ? `${v.temperature_f}°` : '-'}</td>
+                <td className="px-3 py-2 text-xs text-gray-700 dark:text-slate-300">{v.respiratory_rate ?? '-'}</td>
+                <td className={`px-3 py-2 text-xs font-mono ${lowO2(v.o2_saturation) ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-700 dark:text-slate-300'}`}>
+                  {v.o2_saturation != null ? `${v.o2_saturation}%` : '-'}
                 </td>
-                <td className="px-3 py-2 text-xs text-gray-700">{v.weight_lbs != null ? `${v.weight_lbs} lbs` : '—'}</td>
-                <td className="px-3 py-2 text-xs text-gray-700">{v.pain_score ?? '—'}</td>
+                <td className="px-3 py-2 text-xs text-gray-700 dark:text-slate-300">{v.weight_lbs != null ? `${v.weight_lbs} lbs` : '-'}</td>
+                <td className="px-3 py-2 text-xs text-gray-700 dark:text-slate-300">{v.pain_score ?? '-'}</td>
               </tr>
             ))}
           </tbody>
@@ -1579,7 +1620,7 @@ function AssessmentsTab({ participantId }: { participantId: number }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-gray-700">Assessments ({assessments.length})</h3>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">Assessments ({assessments.length})</h3>
         <button
           onClick={() => setShowForm(v => !v)}
           data-testid="add-assessment-btn"
@@ -1594,14 +1635,14 @@ function AssessmentsTab({ participantId }: { participantId: number }) {
         <form
           onSubmit={handleCreate}
           data-testid="assessment-form"
-          className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 grid grid-cols-2 gap-3"
+          className="bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4 grid grid-cols-2 gap-3"
         >
           <div>
-            <label className="text-xs font-medium text-gray-600">Type</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Type</label>
             <select
               value={form.assessment_type}
               onChange={e => setForm(f => ({ ...f, assessment_type: e.target.value }))}
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white"
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
             >
               {Object.entries(ASSESSMENT_LABELS).map(([v, l]) => (
                 <option key={v} value={v}>{l}</option>
@@ -1609,41 +1650,41 @@ function AssessmentsTab({ participantId }: { participantId: number }) {
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600">Score (optional)</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Score (optional)</label>
             <input
               type="number"
               value={form.score}
               onChange={e => setForm(f => ({ ...f, score: e.target.value }))}
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white"
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600">Completed Date *</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Completed Date *</label>
             <input
               required type="date" value={form.completed_at} max={today()}
               onChange={e => setForm(f => ({ ...f, completed_at: e.target.value }))}
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white"
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600">Next Due Date</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Next Due Date</label>
             <input
               type="date" value={form.next_due_date} min={today()}
               onChange={e => setForm(f => ({ ...f, next_due_date: e.target.value }))}
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white"
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
             />
           </div>
           <div className="col-span-2">
-            <label className="text-xs font-medium text-gray-600">Notes / Findings</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Notes / Findings</label>
             <textarea
               rows={3} value={form.notes}
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white resize-none"
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 resize-none"
             />
           </div>
           <div className="col-span-2 flex justify-end gap-2">
             <button type="button" onClick={() => { setShowForm(false); setForm(blankForm) }}
-              className="text-xs px-3 py-1.5 border rounded-lg hover:bg-gray-50">Cancel</button>
+              className="text-xs px-3 py-1.5 border border-gray-200 dark:border-slate-600 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700">Cancel</button>
             <button type="submit" disabled={saving} data-testid="save-assessment-btn"
               className="text-xs px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
               {saving ? 'Saving…' : 'Save Assessment'}
@@ -1655,7 +1696,7 @@ function AssessmentsTab({ participantId }: { participantId: number }) {
       {/* Assessment list */}
       <div className="space-y-2">
         {assessments.length === 0 && (
-          <p className="text-sm text-gray-400 py-8 text-center">No assessments on file.</p>
+          <p className="text-sm text-gray-400 dark:text-slate-500 py-8 text-center">No assessments on file.</p>
         )}
         {assessments.map(a => {
           const dueDate  = a.next_due_date ? new Date(a.next_due_date) : null
@@ -1663,26 +1704,26 @@ function AssessmentsTab({ participantId }: { participantId: number }) {
           const dueSoon  = !overdue && dueDate && dueDate <= new Date(Date.now() + 14 * 86400000)
           return (
             <div key={a.id} data-testid={`assessment-${a.id}`}
-              className="bg-white border border-gray-200 rounded-lg px-4 py-3 flex items-start justify-between gap-3">
+              className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-4 py-3 flex items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-900">
+                  <span className="text-sm font-medium text-gray-900 dark:text-slate-100">
                     {ASSESSMENT_LABELS[a.assessment_type] ?? a.assessment_type}
                   </span>
                   {a.score != null && (
-                    <span className="text-xs bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded">Score: {a.score}</span>
+                    <span className="text-xs bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded">Score: {a.score}</span>
                   )}
                 </div>
-                <div className="text-xs text-gray-500 mt-0.5">
+                <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
                   Completed {new Date(a.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   {a.authored_by && ` · ${a.authored_by.first_name} ${a.authored_by.last_name}`}
                 </div>
               </div>
               {dueDate && (
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
-                  overdue  ? 'bg-red-100 text-red-700' :
-                  dueSoon  ? 'bg-yellow-100 text-yellow-700' :
-                             'bg-gray-100 text-gray-500'
+                  overdue  ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300' :
+                  dueSoon  ? 'bg-yellow-100 dark:bg-yellow-900/60 text-yellow-700 dark:text-yellow-300' :
+                             'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
                 }`}>
                   {overdue ? 'OVERDUE' : dueSoon ? 'Due Soon' : 'Due'}{' '}
                   {dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -1725,15 +1766,17 @@ function ProblemsTab({ participantId, initialProblems, icd10Codes }: {
 
   const blankForm = { status: 'active', onset_date: '', is_primary_diagnosis: false, notes: '' }
   const [form, setForm] = useState(blankForm)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedCode) return
     setSaving(true)
+    setSaveError(null)
     try {
       const { data } = await axios.post(`/participants/${participantId}/problems`, {
         icd10_code:           selectedCode.code,
-        description:          selectedCode.description,
+        icd10_description:    selectedCode.description,
         category:             selectedCode.category,
         status:               form.status,
         onset_date:           form.onset_date || null,
@@ -1745,19 +1788,20 @@ function ProblemsTab({ participantId, initialProblems, icd10Codes }: {
       setSelectedCode(null)
       setIcd10Query('')
       setForm(blankForm)
+      setSaveError(null)
       router.reload({ only: ['problems'] })
     } catch {
-      // form stays open
+      setSaveError('Failed to save problem. Please try again.')
     } finally {
       setSaving(false)
     }
   }
 
   const STATUS_COLORS: Record<string, string> = {
-    active:   'bg-red-100 text-red-700',
-    chronic:  'bg-orange-100 text-orange-700',
-    resolved: 'bg-green-100 text-green-700',
-    ruled_out:'bg-gray-100 text-gray-500',
+    active:   'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300',
+    chronic:  'bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300',
+    resolved: 'bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300',
+    ruled_out:'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400',
   }
 
   const STATUS_DOT: Record<string, string> = {
@@ -1771,13 +1815,13 @@ function ProblemsTab({ participantId, initialProblems, icd10Codes }: {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-gray-700">Problem List ({problems.length})</h3>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">Diagnoses ({problems.length})</h3>
         <button
-          onClick={() => setShowForm(v => !v)}
+          onClick={() => { setShowForm(v => !v); setSaveError(null) }}
           data-testid="add-problem-btn"
           className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
-          {showForm ? 'Cancel' : '+ Add Problem'}
+          {showForm ? 'Cancel' : '+ Add Diagnosis'}
         </button>
       </div>
 
@@ -1786,19 +1830,19 @@ function ProblemsTab({ participantId, initialProblems, icd10Codes }: {
         <form
           onSubmit={handleCreate}
           data-testid="problem-form"
-          className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 space-y-3"
+          className="bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4 space-y-3"
         >
           {/* ICD-10 typeahead */}
           <div className="relative">
-            <label className="text-xs font-medium text-gray-600">ICD-10 Code / Diagnosis *</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">ICD-10 Code / Diagnosis *</label>
             {selectedCode ? (
-              <div className="mt-1 flex items-center gap-2 bg-white border border-blue-300 rounded px-3 py-2">
-                <span className="font-mono text-sm text-blue-700">{selectedCode.code}</span>
-                <span className="text-sm text-gray-700 flex-1">{selectedCode.description}</span>
+              <div className="mt-1 flex items-center gap-2 bg-white dark:bg-slate-800 border border-blue-300 dark:border-blue-700 rounded px-3 py-2">
+                <span className="font-mono text-sm text-blue-700 dark:text-blue-300">{selectedCode.code}</span>
+                <span className="text-sm text-gray-700 dark:text-slate-300 flex-1">{selectedCode.description}</span>
                 <button
                   type="button"
                   onClick={() => { setSelectedCode(null); setIcd10Query('') }}
-                  className="text-xs text-gray-400 hover:text-gray-600"
+                  className="text-xs text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300"
                 >✕</button>
               </div>
             ) : (
@@ -1811,20 +1855,20 @@ function ProblemsTab({ participantId, initialProblems, icd10Codes }: {
                   onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                   placeholder="Search by code or description (e.g. I10 or hypertension)…"
                   data-testid="icd10-search"
-                  className="w-full mt-1 text-sm border border-gray-300 rounded px-3 py-1.5 bg-white"
+                  className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-3 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100"
                 />
                 {showSuggestions && suggestions.length > 0 && (
-                  <ul className="absolute z-10 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto w-full">
+                  <ul className="absolute z-10 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto w-full">
                     {suggestions.map(c => (
                       <li key={c.code}>
                         <button
                           type="button"
                           onMouseDown={() => { setSelectedCode(c); setIcd10Query(c.code); setShowSuggestions(false) }}
-                          className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm flex items-start gap-2"
+                          className="w-full text-left px-3 py-2 hover:bg-blue-50 dark:hover:bg-slate-700 text-sm flex items-start gap-2"
                         >
-                          <span className="font-mono text-blue-600 flex-shrink-0">{c.code}</span>
-                          <span className="text-gray-700 flex-1">{c.description}</span>
-                          {c.category && <span className="text-xs text-gray-400 flex-shrink-0">{c.category}</span>}
+                          <span className="font-mono text-blue-600 dark:text-blue-400 flex-shrink-0">{c.code}</span>
+                          <span className="text-gray-700 dark:text-slate-300 flex-1">{c.description}</span>
+                          {c.category && <span className="text-xs text-gray-400 dark:text-slate-500 flex-shrink-0">{c.category}</span>}
                         </button>
                       </li>
                     ))}
@@ -1836,25 +1880,25 @@ function ProblemsTab({ participantId, initialProblems, icd10Codes }: {
 
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="text-xs font-medium text-gray-600">Status</label>
+              <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Status</label>
               <select
                 value={form.status}
                 onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
-                className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white"
+                className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100"
               >
                 {statusOrder.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600">Onset Date</label>
+              <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Onset Date</label>
               <input
                 type="date" value={form.onset_date} max={today()}
                 onChange={e => setForm(f => ({ ...f, onset_date: e.target.value }))}
-                className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white"
+                className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100 dark:[color-scheme:dark]"
               />
             </div>
             <div className="flex items-end pb-1.5">
-              <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+              <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-slate-400 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={form.is_primary_diagnosis}
@@ -1865,13 +1909,16 @@ function ProblemsTab({ participantId, initialProblems, icd10Codes }: {
             </div>
           </div>
 
+          {saveError && (
+            <p className="text-xs text-red-600 dark:text-red-400">{saveError}</p>
+          )}
           <div className="flex justify-end gap-2">
             <button type="button"
-              onClick={() => { setShowForm(false); setSelectedCode(null); setIcd10Query(''); setForm(blankForm) }}
-              className="text-xs px-3 py-1.5 border rounded-lg hover:bg-gray-50">Cancel</button>
+              onClick={() => { setShowForm(false); setSelectedCode(null); setIcd10Query(''); setForm(blankForm); setSaveError(null) }}
+              className="text-xs px-3 py-1.5 border border-gray-200 dark:border-slate-600 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700">Cancel</button>
             <button type="submit" disabled={saving || !selectedCode} data-testid="save-problem-btn"
               className="text-xs px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-              {saving ? 'Saving…' : 'Add Problem'}
+              {saving ? 'Saving…' : 'Save Diagnosis'}
             </button>
           </div>
         </form>
@@ -1883,7 +1930,7 @@ function ProblemsTab({ participantId, initialProblems, icd10Codes }: {
         if (group.length === 0) return null
         return (
           <div key={status} className="mb-5">
-            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-2">
+            <h4 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2 flex items-center gap-2">
               <span className={`inline-block w-2 h-2 rounded-full ${STATUS_DOT[status]}`} />
               {status.replace('_', ' ')} ({group.length})
             </h4>
@@ -1892,12 +1939,12 @@ function ProblemsTab({ participantId, initialProblems, icd10Codes }: {
                 <div
                   key={p.id}
                   data-testid={`problem-${p.id}`}
-                  className="bg-white border border-gray-200 rounded-lg px-4 py-2.5 flex items-center gap-3"
+                  className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-4 py-2.5 flex items-center gap-3"
                 >
-                  <span className="font-mono text-sm text-blue-600 flex-shrink-0">{p.icd10_code}</span>
-                  <span className="text-sm text-gray-800 flex-1">{p.description}</span>
+                  <span className="font-mono text-sm text-blue-600 dark:text-blue-400 flex-shrink-0">{p.icd10_code}</span>
+                  <span className="text-sm text-gray-800 dark:text-slate-200 flex-1">{p.icd10_description}</span>
                   {p.is_primary_diagnosis && (
-                    <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded flex-shrink-0">Primary</span>
+                    <span className="text-xs bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 px-1.5 py-0.5 rounded flex-shrink-0">Primary</span>
                   )}
                   <span className={`text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0 ${STATUS_COLORS[p.status]}`}>
                     {p.status.replace('_', ' ')}
@@ -1910,7 +1957,7 @@ function ProblemsTab({ participantId, initialProblems, icd10Codes }: {
       })}
 
       {problems.length === 0 && (
-        <p className="text-sm text-gray-400 py-8 text-center">No problems on file.</p>
+        <p className="text-sm text-gray-400 dark:text-slate-500 py-8 text-center">No problems on file.</p>
       )}
     </div>
   )
@@ -1965,7 +2012,7 @@ function AllergiesTab({ participantId, initialAllergies }: {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-gray-700">Allergies & Restrictions ({allergies.length})</h3>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">Allergies & Restrictions ({allergies.length})</h3>
         <button
           onClick={() => setShowForm(v => !v)}
           data-testid="add-allergy-btn"
@@ -1977,14 +2024,14 @@ function AllergiesTab({ participantId, initialAllergies }: {
 
       {/* Life-threatening allergies highlighted block */}
       {lifeThreats.length > 0 && (
-        <div className="bg-red-50 border border-red-300 rounded-lg px-4 py-3 mb-4" data-testid="lt-allergy-list">
-          <h4 className="text-sm font-semibold text-red-700 mb-2">⚠ Life-Threatening Allergies</h4>
+        <div className="bg-red-50 dark:bg-red-950/60 border border-red-300 dark:border-red-800 rounded-lg px-4 py-3 mb-4" data-testid="lt-allergy-list">
+          <h4 className="text-sm font-semibold text-red-700 dark:text-red-300 mb-2 flex items-center gap-1"><ExclamationTriangleIcon className="w-4 h-4" /> Life-Threatening Allergies</h4>
           <div className="space-y-1">
             {lifeThreats.map(a => (
-              <div key={a.id} className="flex items-center gap-2 text-sm text-red-800">
+              <div key={a.id} className="flex items-center gap-2 text-sm text-red-800 dark:text-red-300">
                 <span className="font-semibold">{a.allergen_name}</span>
                 {a.reaction_description && (
-                  <span className="text-red-600">— {a.reaction_description}</span>
+                  <span className="text-red-600 dark:text-red-400">{a.reaction_description}</span>
                 )}
               </div>
             ))}
@@ -1997,33 +2044,33 @@ function AllergiesTab({ participantId, initialAllergies }: {
         <form
           onSubmit={handleCreate}
           data-testid="allergy-form"
-          className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 grid grid-cols-2 gap-3"
+          className="bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4 grid grid-cols-2 gap-3"
         >
           <div>
-            <label className="text-xs font-medium text-gray-600">Type</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Type</label>
             <select
               value={form.allergy_type}
               onChange={e => setForm(f => ({ ...f, allergy_type: e.target.value }))}
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white"
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
             >
               {Object.entries(ALLERGY_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600">Allergen / Item *</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Allergen / Item *</label>
             <input
               required value={form.allergen_name}
               onChange={e => setForm(f => ({ ...f, allergen_name: e.target.value }))}
               placeholder="e.g. Penicillin, Shellfish, Low sodium diet"
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white"
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600">Severity</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Severity</label>
             <select
               value={form.severity}
               onChange={e => setForm(f => ({ ...f, severity: e.target.value }))}
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white"
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
             >
               {Object.keys(ALLERGY_SEVERITY_COLORS).map(s => (
                 <option key={s} value={s}>{s.replace('_', ' ')}</option>
@@ -2031,17 +2078,17 @@ function AllergiesTab({ participantId, initialAllergies }: {
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600">Reaction</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Reaction</label>
             <input
               value={form.reaction_description}
               onChange={e => setForm(f => ({ ...f, reaction_description: e.target.value }))}
               placeholder="e.g. Anaphylaxis, Rash, GI upset"
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white"
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
             />
           </div>
           <div className="col-span-2 flex justify-end gap-2">
             <button type="button" onClick={() => { setShowForm(false); setForm(blankForm) }}
-              className="text-xs px-3 py-1.5 border rounded-lg hover:bg-gray-50">Cancel</button>
+              className="text-xs px-3 py-1.5 border border-gray-200 dark:border-slate-600 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700">Cancel</button>
             <button type="submit" disabled={saving} data-testid="save-allergy-btn"
               className="text-xs px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
               {saving ? 'Saving…' : 'Add Allergy'}
@@ -2053,7 +2100,7 @@ function AllergiesTab({ participantId, initialAllergies }: {
       {/* Allergies grouped by type */}
       {Object.entries(byType).map(([type, items]) => (
         <div key={type} className="mb-4">
-          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+          <h4 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">
             {ALLERGY_TYPE_LABELS[type] ?? type} ({items.length})
           </h4>
           <div className="space-y-1.5">
@@ -2071,7 +2118,7 @@ function AllergiesTab({ participantId, initialAllergies }: {
                   {a.severity.replace('_', ' ')}
                 </span>
                 {!a.is_active && (
-                  <span className="text-xs bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded flex-shrink-0">Inactive</span>
+                  <span className="text-xs bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500 px-1.5 py-0.5 rounded flex-shrink-0">Inactive</span>
                 )}
               </div>
             ))}
@@ -2080,7 +2127,7 @@ function AllergiesTab({ participantId, initialAllergies }: {
       ))}
 
       {allergies.length === 0 && (
-        <p className="text-sm text-gray-400 py-8 text-center">No allergies or dietary restrictions on file.</p>
+        <p className="text-sm text-gray-400 dark:text-slate-500 py-8 text-center">No allergies or dietary restrictions on file.</p>
       )}
     </div>
   )
@@ -2141,7 +2188,7 @@ function AdlTab({ participantId }: { participantId: number }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">ADL Tracking</h3>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">ADL Tracking</h3>
         <button
           onClick={() => setShowForm(v => !v)}
           data-testid="add-adl-btn"
@@ -2156,14 +2203,14 @@ function AdlTab({ participantId }: { participantId: number }) {
         <form
           onSubmit={handleRecord}
           data-testid="adl-form"
-          className="bg-blue-50 border border-blue-200 rounded-lg p-4 grid grid-cols-3 gap-3"
+          className="bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 rounded-lg p-4 grid grid-cols-3 gap-3"
         >
           <div>
-            <label className="text-xs font-medium text-gray-600">Category</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Category</label>
             <select
               value={form.adl_category}
               onChange={e => setForm(f => ({ ...f, adl_category: e.target.value }))}
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white"
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
             >
               {ADL_CATEGORIES.map(c => (
                 <option key={c} value={c}>{ADL_CATEGORY_LABELS[c]}</option>
@@ -2171,11 +2218,11 @@ function AdlTab({ participantId }: { participantId: number }) {
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600">Independence Level</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Independence Level</label>
             <select
               value={form.independence_level}
               onChange={e => setForm(f => ({ ...f, independence_level: e.target.value }))}
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white"
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
             >
               {Object.entries(ADL_LEVEL_LABELS).map(([v, l]) => (
                 <option key={v} value={v}>{l}</option>
@@ -2183,16 +2230,16 @@ function AdlTab({ participantId }: { participantId: number }) {
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600">Notes (optional)</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Notes (optional)</label>
             <input
               value={form.notes}
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white"
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
             />
           </div>
           <div className="col-span-3 flex justify-end gap-2">
             <button type="button" onClick={() => { setShowForm(false); setForm(blankForm) }}
-              className="text-xs px-3 py-1.5 border rounded-lg hover:bg-gray-50">Cancel</button>
+              className="text-xs px-3 py-1.5 border border-gray-200 dark:border-slate-600 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700">Cancel</button>
             <button type="submit" disabled={saving} data-testid="save-adl-btn"
               className="text-xs px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
               {saving ? 'Saving…' : 'Record ADL'}
@@ -2203,7 +2250,7 @@ function AdlTab({ participantId }: { participantId: number }) {
 
       {/* Current functional status grid — 2 columns, one card per ADL category */}
       <div>
-        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Current Functional Status</h4>
+        <h4 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-3">Current Functional Status</h4>
         <div className="grid grid-cols-2 gap-2">
           {ADL_CATEGORIES.map(cat => {
             const record    = latest?.[cat]
@@ -2213,12 +2260,12 @@ function AdlTab({ participantId }: { participantId: number }) {
               <div
                 key={cat}
                 data-testid={`adl-${cat}`}
-                className="bg-white border border-gray-200 rounded-lg px-4 py-3 flex items-center justify-between"
+                className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-4 py-3 flex items-center justify-between"
               >
                 <div>
-                  <div className="text-xs font-medium text-gray-700">{ADL_CATEGORY_LABELS[cat]}</div>
+                  <div className="text-xs font-medium text-gray-700 dark:text-slate-300">{ADL_CATEGORY_LABELS[cat]}</div>
                   {threshold && (
-                    <div className="text-xs text-gray-400 mt-0.5">
+                    <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
                       Alert ≥ {ADL_LEVEL_LABELS[threshold.alert_level] ?? threshold.alert_level}
                     </div>
                   )}
@@ -2229,10 +2276,10 @@ function AdlTab({ participantId }: { participantId: number }) {
                       {ADL_LEVEL_LABELS[level] ?? level}
                     </span>
                   ) : (
-                    <span className="text-xs text-gray-300">Not recorded</span>
+                    <span className="text-xs text-gray-300 dark:text-slate-600">Not recorded</span>
                   )}
                   {record?.recorded_at && (
-                    <div className="text-xs text-gray-400 mt-0.5">
+                    <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
                       {new Date(record.recorded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </div>
                   )}
@@ -2285,7 +2332,7 @@ function ContactsTab({ participantId, initialContacts }: { participantId: number
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-gray-700">Contacts ({contacts.length})</h3>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">Contacts ({contacts.length})</h3>
         <button
           onClick={() => setShowForm(v => !v)}
           data-testid="add-contact-btn"
@@ -2296,14 +2343,14 @@ function ContactsTab({ participantId, initialContacts }: { participantId: number
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} data-testid="contact-form" className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 grid grid-cols-2 gap-3">
+        <form onSubmit={handleSubmit} data-testid="contact-form" className="bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4 grid grid-cols-2 gap-3">
           <div className="col-span-2 grid grid-cols-3 gap-3">
             <div>
-              <label className="text-xs font-medium text-gray-600">Type</label>
+              <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Type</label>
               <select
                 value={form.contact_type}
                 onChange={e => setForm(f => ({ ...f, contact_type: e.target.value }))}
-                className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5"
+                className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100"
               >
                 {['emergency','next_of_kin','poa','caregiver','pcp','specialist','other'].map(t => (
                   <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
@@ -2311,51 +2358,51 @@ function ContactsTab({ participantId, initialContacts }: { participantId: number
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600">First Name *</label>
+              <label className="text-xs font-medium text-gray-600 dark:text-slate-400">First Name *</label>
               <input required value={form.first_name}
                 onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))}
-                className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5" />
+                className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600">Last Name *</label>
+              <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Last Name *</label>
               <input required value={form.last_name}
                 onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))}
-                className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5" />
+                className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-medium text-gray-600">Relationship</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Relationship</label>
             <input value={form.relationship}
               onChange={e => setForm(f => ({ ...f, relationship: e.target.value }))}
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5" />
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600">Primary Phone</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Primary Phone</label>
             <PhoneInput value={form.phone_primary}
               onChange={v => setForm(f => ({ ...f, phone_primary: v }))}
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5" />
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600">Secondary Phone</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Secondary Phone</label>
             <PhoneInput value={form.phone_secondary}
               onChange={v => setForm(f => ({ ...f, phone_secondary: v }))}
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5" />
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600">Email</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Email</label>
             <input type="email" value={form.email}
               onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5" />
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" />
           </div>
 
           <div className="flex items-center gap-4 col-span-2">
-            <label className="flex items-center gap-1.5 text-xs text-gray-700">
+            <label className="flex items-center gap-1.5 text-xs text-gray-700 dark:text-slate-300">
               <input type="checkbox" checked={form.is_emergency_contact}
                 onChange={e => setForm(f => ({ ...f, is_emergency_contact: e.target.checked }))} />
               Emergency contact
             </label>
-            <label className="flex items-center gap-1.5 text-xs text-gray-700">
+            <label className="flex items-center gap-1.5 text-xs text-gray-700 dark:text-slate-300">
               <input type="checkbox" checked={form.is_legal_representative}
                 onChange={e => setForm(f => ({ ...f, is_legal_representative: e.target.checked }))} />
               Legal representative (POA)
@@ -2364,7 +2411,7 @@ function ContactsTab({ participantId, initialContacts }: { participantId: number
 
           <div className="col-span-2 flex justify-end gap-2">
             <button type="button" onClick={() => { setShowForm(false); setForm(blankForm) }}
-              className="text-xs px-3 py-1.5 border rounded-lg hover:bg-gray-50">Cancel</button>
+              className="text-xs px-3 py-1.5 border border-gray-200 dark:border-slate-600 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700">Cancel</button>
             <button type="submit" disabled={saving} data-testid="save-contact-btn"
               className="text-xs px-4 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
               {saving ? 'Saving…' : 'Save Contact'}
@@ -2375,22 +2422,22 @@ function ContactsTab({ participantId, initialContacts }: { participantId: number
 
       <div className="space-y-2">
         {contacts.length === 0 && (
-          <p className="text-sm text-gray-400 py-4 text-center">No contacts on file.</p>
+          <p className="text-sm text-gray-400 dark:text-slate-500 py-4 text-center">No contacts on file.</p>
         )}
         {contacts.map(c => (
-          <div key={c.id} className="bg-white border border-gray-200 rounded-lg px-4 py-3 flex items-start justify-between gap-3">
+          <div key={c.id} className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-4 py-3 flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
-              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium mt-0.5 ${CONTACT_TYPE_COLORS[c.contact_type] ?? 'bg-gray-100 text-gray-600'}`}>
+              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium mt-0.5 ${CONTACT_TYPE_COLORS[c.contact_type] ?? 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400'}`}>
                 {c.contact_type.replace(/_/g, ' ')}
               </span>
               <div>
-                <div className="font-medium text-sm text-gray-900">
+                <div className="font-medium text-sm text-gray-900 dark:text-slate-100">
                   {c.first_name} {c.last_name}
-                  {c.is_legal_representative && <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">POA</span>}
-                  {c.is_emergency_contact    && <span className="ml-1 text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded">Emergency</span>}
+                  {c.is_legal_representative && <span className="ml-2 text-xs bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded">POA</span>}
+                  {c.is_emergency_contact    && <span className="ml-1 text-xs bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 px-1.5 py-0.5 rounded">Emergency</span>}
                 </div>
-                {c.relationship && <div className="text-xs text-gray-500">{c.relationship}</div>}
-                <div className="text-xs text-gray-500 mt-0.5">
+                {c.relationship && <div className="text-xs text-gray-500 dark:text-slate-400">{c.relationship}</div>}
+                <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
                   {[c.phone_primary, c.phone_secondary, c.email].filter(Boolean).join(' · ')}
                 </div>
               </div>
@@ -2450,7 +2497,7 @@ function FlagsTab({ participantId, initialFlags }: { participantId: number; init
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-gray-700">Active Flags ({active.length})</h3>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">Active Flags ({active.length})</h3>
         <button
           onClick={() => setShowForm(v => !v)}
           data-testid="add-flag-btn"
@@ -2461,33 +2508,33 @@ function FlagsTab({ participantId, initialFlags }: { participantId: number; init
       </div>
 
       {showForm && (
-        <form onSubmit={handleAdd} data-testid="flag-form" className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4 grid grid-cols-3 gap-3">
+        <form onSubmit={handleAdd} data-testid="flag-form" className="bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800 rounded-lg p-4 mb-4 grid grid-cols-3 gap-3">
           <div>
-            <label className="text-xs font-medium text-gray-600">Flag Type</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Flag Type</label>
             <select value={form.flag_type}
               onChange={e => setForm(f => ({ ...f, flag_type: e.target.value }))}
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5">
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100">
               {Object.entries(FLAG_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600">Severity</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Severity</label>
             <select value={form.severity}
               onChange={e => setForm(f => ({ ...f, severity: e.target.value }))}
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5">
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100">
               {['low','medium','high','critical'].map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600">Description</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Description</label>
             <input value={form.description}
               onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
               placeholder="Optional detail"
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5" />
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" />
           </div>
           <div className="col-span-3 flex justify-end gap-2">
             <button type="button" onClick={() => { setShowForm(false); setForm(blankForm) }}
-              className="text-xs px-3 py-1.5 border rounded-lg hover:bg-gray-50">Cancel</button>
+              className="text-xs px-3 py-1.5 border border-gray-200 dark:border-slate-600 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700">Cancel</button>
             <button type="submit" disabled={saving} data-testid="save-flag-btn"
               className="text-xs px-4 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50">
               {saving ? 'Saving…' : 'Add Flag'}
@@ -2497,7 +2544,7 @@ function FlagsTab({ participantId, initialFlags }: { participantId: number; init
       )}
 
       <div className="space-y-2 mb-6">
-        {active.length === 0 && <p className="text-sm text-gray-400 py-4 text-center">No active flags.</p>}
+        {active.length === 0 && <p className="text-sm text-gray-400 dark:text-slate-500 py-4 text-center">No active flags.</p>}
         {active.map(f => (
           <div key={f.id} data-testid={`flag-${f.id}`}
             className={`border rounded-lg px-4 py-3 flex items-start justify-between gap-3 ${FLAG_SEVERITY_COLORS[f.severity]}`}>
@@ -2514,7 +2561,7 @@ function FlagsTab({ participantId, initialFlags }: { participantId: number; init
             </div>
             <button onClick={() => handleResolve(f.id)} disabled={resolvingId === f.id}
               data-testid={`resolve-flag-${f.id}`}
-              className="flex-shrink-0 text-xs px-2.5 py-1 border border-current rounded-lg hover:bg-white/50 transition-colors disabled:opacity-50">
+              className="flex-shrink-0 text-xs px-2.5 py-1 border border-current rounded-lg hover:bg-white dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50">
               {resolvingId === f.id ? 'Resolving…' : 'Resolve'}
             </button>
           </div>
@@ -2523,12 +2570,12 @@ function FlagsTab({ participantId, initialFlags }: { participantId: number; init
 
       {resolved.length > 0 && (
         <>
-          <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Resolved ({resolved.length})</h4>
+          <h4 className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide mb-2">Resolved ({resolved.length})</h4>
           <div className="space-y-1">
             {resolved.map(f => (
-              <div key={f.id} className="bg-gray-50 border border-gray-200 rounded px-4 py-2 flex items-center justify-between opacity-60">
-                <span className="text-sm">{FLAG_LABELS[f.flag_type]} <span className="text-xs text-gray-400">({f.severity})</span></span>
-                {f.resolved_at && <span className="text-xs text-gray-400">{new Date(f.resolved_at).toLocaleDateString('en-US')}</span>}
+              <div key={f.id} className="bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 rounded px-4 py-2 flex items-center justify-between opacity-60">
+                <span className="text-sm dark:text-slate-300">{FLAG_LABELS[f.flag_type]} <span className="text-xs text-gray-400 dark:text-slate-500">({f.severity})</span></span>
+                {f.resolved_at && <span className="text-xs text-gray-400 dark:text-slate-500">{new Date(f.resolved_at).toLocaleDateString('en-US')}</span>}
               </div>
             ))}
           </div>
@@ -2543,16 +2590,16 @@ function FlagsTab({ participantId, initialFlags }: { participantId: number; init
 function InsuranceTab({ insurances }: { insurances: Insurance[] }) {
   return (
     <div>
-      <h3 className="text-sm font-semibold text-gray-700 mb-4">Insurance Coverage ({insurances.length})</h3>
+      <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-4">Insurance Coverage ({insurances.length})</h3>
       {insurances.length === 0 && (
-        <p className="text-sm text-gray-400 py-4 text-center">No insurance records on file.</p>
+        <p className="text-sm text-gray-400 dark:text-slate-500 py-4 text-center">No insurance records on file.</p>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {insurances.map(ins => (
-          <div key={ins.id} className="bg-white border border-gray-200 rounded-lg p-4">
+          <div key={ins.id} className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="font-semibold text-sm text-gray-900">{PAYER_LABELS[ins.payer_type] ?? ins.payer_type}</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ins.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+              <span className="font-semibold text-sm text-gray-900 dark:text-slate-100">{PAYER_LABELS[ins.payer_type] ?? ins.payer_type}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ins.is_active ? 'bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'}`}>
                 {ins.is_active ? 'Active' : 'Inactive'}
               </span>
             </div>
@@ -2604,11 +2651,11 @@ const CATEGORY_LABELS: Record<string, string> = {
   other:         'Other',
 }
 
-const FILE_ICONS: Record<string, string> = {
-  pdf:  '📄',
-  jpeg: '🖼️',
-  png:  '🖼️',
-  docx: '📝',
+const FILE_ICONS: Record<string, React.ReactNode> = {
+  pdf:  <DocumentIcon className="w-5 h-5 text-red-400" />,
+  jpeg: <PhotoIcon className="w-5 h-5 text-blue-400" />,
+  png:  <PhotoIcon className="w-5 h-5 text-blue-400" />,
+  docx: <DocumentTextIcon className="w-5 h-5 text-indigo-400" />,
 }
 
 function DocumentsTab({ participantId }: { participantId: number }) {
@@ -2686,8 +2733,8 @@ function DocumentsTab({ participantId }: { participantId: number }) {
     <div>
       {/* Header row */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-gray-700">
-          Documents {total > 0 && <span className="text-gray-400 font-normal">({total})</span>}
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+          Documents {total > 0 && <span className="text-gray-400 dark:text-slate-500 font-normal">({total})</span>}
         </h3>
         <button
           onClick={() => { setShowUpload(true); setUploadError(null) }}
@@ -2709,7 +2756,7 @@ function DocumentsTab({ participantId }: { participantId: number }) {
             className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
               activeCategory === key
                 ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+                : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-400 border-gray-200 dark:border-slate-700 hover:border-blue-300 hover:text-blue-600'
             }`}
           >
             {label}
@@ -2720,10 +2767,10 @@ function DocumentsTab({ participantId }: { participantId: number }) {
       {/* Upload modal */}
       {showUpload && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
-              <h4 className="text-base font-semibold text-gray-900">Upload Document</h4>
-              <button onClick={() => setShowUpload(false)} className="text-gray-400 hover:text-gray-600">
+              <h4 className="text-base font-semibold text-gray-900 dark:text-slate-100">Upload Document</h4>
+              <button onClick={() => setShowUpload(false)} className="text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -2733,24 +2780,24 @@ function DocumentsTab({ participantId }: { participantId: number }) {
             <form onSubmit={handleUpload} className="space-y-4">
               {/* File picker */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">File <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">File <span className="text-red-500">*</span></label>
                 <input
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png,.docx"
                   onChange={e => setSelectedFile(e.target.files?.[0] ?? null)}
-                  className="block w-full text-sm text-gray-700 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  className="block w-full text-sm text-gray-700 dark:text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                   required
                 />
-                <p className="text-[10px] text-gray-400 mt-1">PDF, JPEG, PNG, DOCX — max 20 MB</p>
+                <p className="text-[10px] text-gray-400 dark:text-slate-500 mt-1">PDF, JPEG, PNG, DOCX (max 20 MB)</p>
               </div>
 
               {/* Category */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Category <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Category <span className="text-red-500">*</span></label>
                 <select
                   value={uploadCategory}
                   onChange={e => setUploadCategory(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   {Object.entries(CATEGORY_LABELS).map(([k, l]) => (
                     <option key={k} value={k}>{l}</option>
@@ -2760,19 +2807,19 @@ function DocumentsTab({ participantId }: { participantId: number }) {
 
               {/* Description */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Description <span className="text-gray-400">(optional)</span></label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Description <span className="text-gray-400 dark:text-slate-500">(optional)</span></label>
                 <input
                   type="text"
                   maxLength={500}
                   value={uploadDescription}
                   onChange={e => setUploadDescription(e.target.value)}
                   placeholder="Brief description of the document…"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
 
               {uploadError && (
-                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
                   {uploadError}
                 </p>
               )}
@@ -2781,7 +2828,7 @@ function DocumentsTab({ participantId }: { participantId: number }) {
                 <button
                   type="button"
                   onClick={() => setShowUpload(false)}
-                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
                 >
                   Cancel
                 </button>
@@ -2801,43 +2848,43 @@ function DocumentsTab({ participantId }: { participantId: number }) {
       {/* Document list */}
       {loading ? (
         <div className="space-y-2 animate-pulse">
-          {[1,2,3].map(i => <div key={i} className="h-14 bg-gray-100 rounded-lg" />)}
+          {[1,2,3].map(i => <div key={i} className="h-14 bg-gray-100 dark:bg-slate-700 rounded-lg" />)}
         </div>
       ) : docs.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
-          <svg className="w-10 h-10 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+        <div className="text-center py-12 text-gray-400 dark:text-slate-500">
+          <svg className="w-10 h-10 mx-auto mb-3 text-gray-300 dark:text-slate-600" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
           </svg>
           <p className="text-sm font-medium">No documents{activeCategory !== 'all' ? ` in ${CATEGORY_LABELS[activeCategory]}` : ''}</p>
           <p className="text-xs mt-1">Use the Upload button to add documents.</p>
         </div>
       ) : (
-        <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <div className="divide-y divide-gray-100 dark:divide-slate-700 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
           {docs.map(doc => (
-            <div key={doc.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+            <div key={doc.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
               {/* File type icon */}
-              <span className="text-xl flex-shrink-0 w-8 text-center" title={doc.file_type.toUpperCase()}>
-                {FILE_ICONS[doc.file_type] ?? '📎'}
+              <span className="flex-shrink-0 w-8 flex justify-center" title={doc.file_type.toUpperCase()}>
+                {FILE_ICONS[doc.file_type] ?? <PaperClipIcon className="w-5 h-5 text-slate-400" />}
               </span>
 
               {/* File info */}
               <div className="min-w-0 flex-1">
                 <button
                   onClick={() => handleDownload(doc)}
-                  className="text-sm font-medium text-blue-600 hover:underline truncate block text-left max-w-full"
+                  className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline truncate block text-left max-w-full"
                   title={doc.file_name}
                 >
                   {doc.file_name}
                 </button>
                 <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                     {doc.category_label}
                   </span>
                   {doc.description && (
-                    <span className="text-[11px] text-gray-400 truncate max-w-xs">{doc.description}</span>
+                    <span className="text-[11px] text-gray-400 dark:text-slate-500 truncate max-w-xs">{doc.description}</span>
                   )}
                 </div>
-                <p className="text-[10px] text-gray-400 mt-0.5">
+                <p className="text-[10px] text-gray-400 dark:text-slate-500 mt-0.5">
                   {doc.file_size} · Uploaded by {doc.uploaded_by} · {doc.uploaded_at?.split('T')[0] ?? ''}
                 </p>
               </div>
@@ -2846,7 +2893,7 @@ function DocumentsTab({ participantId }: { participantId: number }) {
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button
                   onClick={() => handleDownload(doc)}
-                  className="p-1.5 text-gray-400 hover:text-blue-600 rounded hover:bg-blue-50 transition-colors"
+                  className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 rounded hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors"
                   title="Download"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -2855,7 +2902,7 @@ function DocumentsTab({ participantId }: { participantId: number }) {
                 </button>
                 <button
                   onClick={() => handleDelete(doc)}
-                  className="p-1.5 text-gray-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors"
+                  className="p-1.5 text-gray-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors"
                   title="Remove document"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -2876,27 +2923,27 @@ function DocumentsTab({ participantId }: { participantId: number }) {
 function AuditTab({ logs }: { logs: AuditEntry[] }) {
   return (
     <div>
-      <h3 className="text-sm font-semibold text-gray-700 mb-4">Audit Trail ({logs.length} entries)</h3>
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-4">Audit Trail ({logs.length} entries)</h3>
+      <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 dark:bg-slate-700/50">
             <tr>
               {['Timestamp', 'Action', 'Description'].map(h => (
-                <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">{h}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
             {logs.length === 0 && (
-              <tr><td colSpan={3} className="px-4 py-6 text-center text-gray-400">No audit entries.</td></tr>
+              <tr><td colSpan={3} className="px-4 py-6 text-center text-gray-400 dark:text-slate-500">No audit entries.</td></tr>
             )}
             {logs.map(e => (
-              <tr key={e.id} className="bg-white hover:bg-gray-50">
-                <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">
+              <tr key={e.id} className="bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                <td className="px-4 py-2 text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">
                   {new Date(e.created_at).toLocaleString('en-US')}
                 </td>
-                <td className="px-4 py-2 font-mono text-xs text-gray-700">{e.action}</td>
-                <td className="px-4 py-2 text-xs text-gray-600">{e.description}</td>
+                <td className="px-4 py-2 font-mono text-xs text-gray-700 dark:text-slate-300">{e.action}</td>
+                <td className="px-4 py-2 text-xs text-gray-600 dark:text-slate-400">{e.description}</td>
               </tr>
             ))}
           </tbody>
@@ -2944,10 +2991,10 @@ const TRANSFER_REASONS: Record<string, string> = {
 }
 
 const STATUS_PILL: Record<string, string> = {
-  pending:   'bg-yellow-50 text-yellow-700 border border-yellow-200',
-  approved:  'bg-blue-50 text-blue-700 border border-blue-200',
-  completed: 'bg-green-50 text-green-700 border border-green-200',
-  cancelled: 'bg-gray-50 text-gray-500 border border-gray-200',
+  pending:   'bg-yellow-50 dark:bg-yellow-950/60 text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800',
+  approved:  'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
+  completed: 'bg-green-50 dark:bg-green-950/60 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800',
+  cancelled: 'bg-gray-50 dark:bg-slate-800 text-gray-500 dark:text-slate-400 border border-gray-200 dark:border-slate-700',
 }
 
 function TransfersTab({ participantId, currentSiteId, canManageTransfers }: {
@@ -2962,6 +3009,12 @@ function TransfersTab({ participantId, currentSiteId, canManageTransfers }: {
   const [saving, setSaving]       = useState(false)
   const [actionId, setActionId]   = useState<number | null>(null)
 
+  // W3-6: data summary + integrity check
+  type SitePeriod = { site_name: string; start: string; end: string | null; note_count: number; vital_count: number; appointment_count: number }
+  const [periods, setPeriods]             = useState<SitePeriod[]>([])
+  const [verifyStatus, setVerifyStatus]   = useState<'idle' | 'running' | 'verified' | 'anomalies_found'>('idle')
+  const [verifyAnomalies, setVerifyAnomalies] = useState<string[]>([])
+
   const [form, setForm] = useState({
     to_site_id:            '',
     transfer_reason:       '',
@@ -2970,32 +3023,23 @@ function TransfersTab({ participantId, currentSiteId, canManageTransfers }: {
   })
   const [formErr, setFormErr] = useState<Record<string, string>>({})
 
-  // ── Lazy load ──────────────────────────────────────────────────────────────
+  // ── Lazy load transfers + destination sites + data summary ───────────────
   useEffect(() => {
-    Promise.all([
+    const requests: Promise<any>[] = [
       axios.get(`/participants/${participantId}/transfers`),
-      canManageTransfers ? axios.get('/locations').catch(() => ({ data: { data: [] } })) : Promise.resolve({ data: { data: [] } }),
-    ]).then(([txRes, locRes]) => {
+      axios.get(`/participants/${participantId}/transfers/summary`),
+    ]
+    if (canManageTransfers) {
+      requests.push(axios.get(`/participants/${participantId}/transfers/sites`))
+    }
+    Promise.all(requests).then(([txRes, summaryRes, sitesRes]) => {
       setTransfers(txRes.data.transfers ?? [])
-      // Sites come from shared_sites; for now we derive from existing transfer records + current
-      // Fall back: if no locations endpoint returns sites, just use site names from transfer records
-      const sitesFromTransfers: TransferSite[] = []
-      const seen = new Set<number>()
-      txRes.data.transfers?.forEach((t: SiteTransfer) => {
-        if (t.to_site && !seen.has(t.to_site.id))   { sitesFromTransfers.push(t.to_site);   seen.add(t.to_site.id) }
-        if (t.from_site && !seen.has(t.from_site.id)) { sitesFromTransfers.push(t.from_site); seen.add(t.from_site.id) }
-      })
-      setSites(sitesFromTransfers)
+      setPeriods(summaryRes.data.periods ?? [])
+      if (sitesRes) {
+        setSites(sitesRes.data.sites ?? [])
+      }
     }).finally(() => setLoading(false))
   }, [participantId])
-
-  // ── Fetch sites for modal on open ─────────────────────────────────────────
-  useEffect(() => {
-    if (!showModal || sites.length > 0) return
-    axios.get(`/participants/${participantId}/transfers`).then(r => {
-      setTransfers(r.data.transfers ?? [])
-    })
-  }, [showModal])
 
   const activePendingTransfer = transfers.find(t => t.status === 'pending' || t.status === 'approved')
 
@@ -3055,20 +3099,20 @@ function TransfersTab({ participantId, currentSiteId, canManageTransfers }: {
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
-  if (loading) return <p className="text-sm text-gray-400 py-6 text-center">Loading transfer history…</p>
+  if (loading) return <p className="text-sm text-gray-400 dark:text-slate-500 py-6 text-center">Loading transfer history…</p>
 
   return (
     <div className="space-y-4">
       {/* Amber pending banner */}
       {activePendingTransfer && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-start gap-3">
-          <span className="text-amber-500 text-lg">⏳</span>
+        <div className="bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-3 flex items-start gap-3">
+          <ClockIcon className="w-5 h-5 text-amber-500 shrink-0" />
           <div className="flex-1 text-sm">
-            <p className="font-semibold text-amber-800">
-              Transfer {activePendingTransfer.status === 'pending' ? 'Pending Approval' : 'Approved — Awaiting Effective Date'}
+            <p className="font-semibold text-amber-800 dark:text-amber-300">
+              Transfer {activePendingTransfer.status === 'pending' ? 'Pending Approval' : 'Approved: Awaiting Effective Date'}
             </p>
-            <p className="text-amber-700 mt-0.5">
-              To: <strong>{activePendingTransfer.to_site?.name ?? '—'}</strong> · Effective: {activePendingTransfer.effective_date ?? '—'} · Reason: {activePendingTransfer.transfer_reason_label}
+            <p className="text-amber-700 dark:text-amber-300 mt-0.5">
+              To: <strong>{activePendingTransfer.to_site?.name ?? '-'}</strong> · Effective: {activePendingTransfer.effective_date ?? '-'} · Reason: {activePendingTransfer.transfer_reason_label}
             </p>
           </div>
         </div>
@@ -3076,7 +3120,7 @@ function TransfersTab({ participantId, currentSiteId, canManageTransfers }: {
 
       {/* Header row */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">Transfer History ({transfers.length})</h3>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">Transfer History ({transfers.length})</h3>
         {canManageTransfers && !activePendingTransfer && (
           <button
             onClick={() => setShowModal(true)}
@@ -3088,38 +3132,38 @@ function TransfersTab({ participantId, currentSiteId, canManageTransfers }: {
       </div>
 
       {/* History table */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 dark:bg-slate-700/50">
             <tr>
               {['Status', 'From', 'To', 'Reason', 'Effective Date', 'Requested By', 'Actions'].map(h => (
-                <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">{h}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
             {transfers.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No transfer history.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400 dark:text-slate-500">No transfer history.</td></tr>
             )}
             {transfers.map(t => (
-              <tr key={t.id} className="bg-white hover:bg-gray-50">
+              <tr key={t.id} className="bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700/50">
                 <td className="px-4 py-2">
                   <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${STATUS_PILL[t.status] ?? ''}`}>
                     {t.status.charAt(0).toUpperCase() + t.status.slice(1)}
                   </span>
                 </td>
-                <td className="px-4 py-2 text-xs text-gray-700">{t.from_site?.name ?? '—'}</td>
-                <td className="px-4 py-2 text-xs text-gray-700">{t.to_site?.name ?? '—'}</td>
-                <td className="px-4 py-2 text-xs text-gray-600">{t.transfer_reason_label}</td>
-                <td className="px-4 py-2 text-xs text-gray-700">{t.effective_date ?? '—'}</td>
-                <td className="px-4 py-2 text-xs text-gray-500">{t.requested_by?.name ?? '—'}</td>
+                <td className="px-4 py-2 text-xs text-gray-700 dark:text-slate-300">{t.from_site?.name ?? '-'}</td>
+                <td className="px-4 py-2 text-xs text-gray-700 dark:text-slate-300">{t.to_site?.name ?? '-'}</td>
+                <td className="px-4 py-2 text-xs text-gray-600 dark:text-slate-400">{t.transfer_reason_label}</td>
+                <td className="px-4 py-2 text-xs text-gray-700 dark:text-slate-300">{t.effective_date ?? '-'}</td>
+                <td className="px-4 py-2 text-xs text-gray-500 dark:text-slate-400">{t.requested_by?.name ?? '-'}</td>
                 <td className="px-4 py-2 text-xs space-x-2 whitespace-nowrap">
                   {canManageTransfers && t.status === 'pending' && (
                     <>
                       <button
                         disabled={actionId === t.id}
                         onClick={() => handleApprove(t)}
-                        className="text-blue-600 hover:underline disabled:opacity-50"
+                        className="text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
                       >Approve</button>
                       <button
                         disabled={actionId === t.id}
@@ -3142,37 +3186,98 @@ function TransfersTab({ participantId, currentSiteId, canManageTransfers }: {
         </table>
       </div>
 
+      {/* Data summary per site period */}
+      {periods.length > 0 && (
+        <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-slate-700/50">
+            <h4 className="text-xs font-semibold text-gray-600 dark:text-slate-300 uppercase tracking-wide">Care Period Summary</h4>
+            <button
+              onClick={async () => {
+                setVerifyStatus('running')
+                try {
+                  const res = await axios.post(`/participants/${participantId}/transfers/verify`)
+                  setVerifyStatus(res.data.status)
+                  setVerifyAnomalies(res.data.anomalies ?? [])
+                } catch { setVerifyStatus('idle') }
+              }}
+              disabled={verifyStatus === 'running'}
+              className="text-xs px-2.5 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 rounded disabled:opacity-50 border border-slate-200 dark:border-slate-600"
+            >
+              {verifyStatus === 'running' ? 'Checking…' : 'Verify Data Integrity'}
+            </button>
+          </div>
+
+          {verifyStatus === 'verified' && (
+            <div className="px-4 py-2 text-xs text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-950/60 border-b border-gray-200 dark:border-slate-700">
+              Data integrity verified — all clinical records are properly site-attributed.
+            </div>
+          )}
+          {verifyStatus === 'anomalies_found' && (
+            <div className="px-4 py-2 text-xs text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/60 border-b border-gray-200 dark:border-slate-700 space-y-1">
+              <p className="font-semibold">Anomalies found:</p>
+              {verifyAnomalies.map((a, i) => <p key={i}>{a}</p>)}
+            </div>
+          )}
+
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 dark:bg-slate-700/50">
+              <tr>
+                {['Site', 'Period', 'Notes', 'Vitals', 'Appointments'].map(h => (
+                  <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+              {periods.map((p, i) => (
+                <tr key={i} className="bg-white dark:bg-slate-800">
+                  <td className="px-4 py-2 text-sm font-medium text-gray-800 dark:text-slate-200">{p.site_name}</td>
+                  <td className="px-4 py-2 text-xs text-gray-500 dark:text-slate-400">
+                    {p.start} - {p.end ?? 'Present'}
+                  </td>
+                  <td className="px-4 py-2 text-sm text-gray-700 dark:text-slate-300">{p.note_count}</td>
+                  <td className="px-4 py-2 text-sm text-gray-700 dark:text-slate-300">{p.vital_count}</td>
+                  <td className="px-4 py-2 text-sm text-gray-700 dark:text-slate-300">{p.appointment_count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Request Transfer Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={e => { if (e.target === e.currentTarget) setShowModal(false) }}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 space-y-4">
-            <h3 className="text-base font-semibold text-gray-900">Request Site Transfer</h3>
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg p-6 space-y-4">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">Request Site Transfer</h3>
 
             {formErr._global && (
-              <div className="bg-red-50 text-red-700 text-sm px-3 py-2 rounded border border-red-200">{formErr._global}</div>
+              <div className="bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 text-sm px-3 py-2 rounded border border-red-200 dark:border-red-800">{formErr._global}</div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* To Site — free-text ID input (sites from server) */}
+              {/* Destination Site — named dropdown from shared_sites (excludes current site) */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Destination Site ID</label>
-                <input
-                  type="number"
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Destination Site</label>
+                <select
                   value={form.to_site_id}
                   onChange={e => setForm(f => ({ ...f, to_site_id: e.target.value }))}
-                  placeholder="Enter site ID"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                  className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select destination site…</option>
+                  {sites.map(s => (
+                    <option key={s.id} value={String(s.id)}>{s.name}</option>
+                  ))}
+                </select>
                 {formErr.to_site_id && <p className="text-xs text-red-500 mt-1">{formErr.to_site_id}</p>}
               </div>
 
               {/* Reason */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Transfer Reason</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Transfer Reason</label>
                 <select
                   value={form.transfer_reason}
                   onChange={e => setForm(f => ({ ...f, transfer_reason: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-700 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select reason…</option>
                   {Object.entries(TRANSFER_REASONS).map(([v, l]) => (
@@ -3184,30 +3289,30 @@ function TransfersTab({ participantId, currentSiteId, canManageTransfers }: {
 
               {/* Notes */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Notes (optional)</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Notes (optional)</label>
                 <textarea
                   value={form.transfer_reason_notes}
                   onChange={e => setForm(f => ({ ...f, transfer_reason_notes: e.target.value }))}
                   rows={2}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-700 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
               {/* Effective Date */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Effective Date</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Effective Date</label>
                 <input
                   type="date"
                   value={form.effective_date}
                   onChange={e => setForm(f => ({ ...f, effective_date: e.target.value }))}
                   min={new Date().toISOString().split('T')[0]}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-700 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 {formErr.effective_date && <p className="text-xs text-red-500 mt-1">{formErr.effective_date}</p>}
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowModal(false)} className="text-sm px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                <button type="button" onClick={() => setShowModal(false)} className="text-sm px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-md text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700">
                   Cancel
                 </button>
                 <button type="submit" disabled={saving} className="text-sm px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 font-medium">
@@ -3225,17 +3330,27 @@ function TransfersTab({ participantId, currentSiteId, canManageTransfers }: {
 // ─── CarePlanTab ───────────────────────────────────────────────────────────────
 // Displays the active care plan for the participant with domain goals.
 // Lazy-loads on first activation via GET /participants/{id}/careplan.
-// Each domain goal shows description, outcomes, interventions, status badge,
-// and an inline edit form (for users with edit permission).
+//
+// All 12 PACE domains are always shown. Domains with an existing goal show the
+// goal card; domains without one show an "Add Goal" placeholder (edit form).
+//
+// Approval requires isAdmin() && department in [idt, primary_care] — derived
+// from auth.user in usePage() props (not passed as a prop to avoid stale data).
 // IDT Admin + Primary Care Admin get Approve and New Version buttons.
-function CarePlanTab({ participantId, canApprove }: { participantId: number; canApprove: boolean }) {
+function CarePlanTab({ participantId }: { participantId: number }) {
+  const { auth } = usePage<any>().props
+  // Mirror of CarePlan::canBeApprovedBy() — IDT Admin or Primary Care Admin
+  const canApprove = auth.user.role === 'admin'
+    && ['idt', 'primary_care'].includes(auth.user.department)
   const [plan, setPlan]       = React.useState<any>(null)
   const [loaded, setLoaded]   = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [editDomain, setEditDomain] = React.useState<string | null>(null)
   const [editForm, setEditForm]     = React.useState<any>({})
-  const [saving, setSaving]   = React.useState(false)
-  const [approving, setApproving] = React.useState(false)
+  const [saving, setSaving]         = React.useState(false)
+  const [saveError, setSaveError]   = React.useState<string | null>(null)
+  const [approving, setApproving]   = React.useState(false)
+  const [versioning, setVersioning] = React.useState(false)
 
   React.useEffect(() => {
     if (loaded) return
@@ -3247,18 +3362,35 @@ function CarePlanTab({ participantId, canApprove }: { participantId: number; can
   }, [participantId, loaded])
 
   const STATUS_BADGE: Record<string, string> = {
-    active:       'bg-blue-50 text-blue-700 ring-blue-600/20',
-    met:          'bg-green-50 text-green-700 ring-green-600/20',
-    modified:     'bg-amber-50 text-amber-700 ring-amber-600/20',
+    active:       'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 ring-blue-600/20',
+    met:          'bg-green-50 dark:bg-green-950/60 text-green-700 dark:text-green-300 ring-green-600/20',
+    modified:     'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 ring-amber-600/20',
     discontinued: 'bg-gray-50 text-gray-700 ring-gray-600/20',
   }
 
   const PLAN_STATUS_BADGE: Record<string, string> = {
-    draft:        'bg-slate-100 text-slate-600',
-    active:       'bg-green-100 text-green-700',
-    under_review: 'bg-amber-100 text-amber-700',
+    draft:        'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400',
+    active:       'bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300',
+    under_review: 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
     archived:     'bg-gray-100 text-gray-500',
   }
+
+  // All 12 PACE IDT domains — matches CarePlanGoal::DOMAINS on backend.
+  // Used to show every domain slot even if no goal has been recorded yet.
+  const ALL_CARE_DOMAINS = [
+    { id: 'medical',        label: 'Medical' },
+    { id: 'nursing',        label: 'Nursing' },
+    { id: 'social',         label: 'Social Work' },
+    { id: 'behavioral',     label: 'Behavioral Health' },
+    { id: 'therapy_pt',     label: 'Physical Therapy' },
+    { id: 'therapy_ot',     label: 'Occupational Therapy' },
+    { id: 'therapy_st',     label: 'Speech Therapy' },
+    { id: 'dietary',        label: 'Dietary / Nutrition' },
+    { id: 'activities',     label: 'Activities' },
+    { id: 'home_care',      label: 'Home Care' },
+    { id: 'transportation', label: 'Transportation' },
+    { id: 'pharmacy',       label: 'Pharmacy' },
+  ]
 
   const openEdit = (goal: any) => {
     setEditDomain(goal.domain)
@@ -3271,34 +3403,66 @@ function CarePlanTab({ participantId, canApprove }: { participantId: number; can
     })
   }
 
+  // Opens an empty edit form for a domain that has no goal recorded yet.
+  const openNewGoal = (domainId: string) => {
+    setEditDomain(domainId)
+    setEditForm({ goal_description: '', measurable_outcomes: '', interventions: '', target_date: '', status: 'active' })
+    setSaveError(null)
+  }
+
   const saveGoal = async (carePlanId: number) => {
     setSaving(true)
+    setSaveError(null)
     try {
       const { data } = await axios.put(
         `/participants/${participantId}/careplan/${carePlanId}/goals/${editDomain}`,
         editForm
       )
-      setPlan((prev: any) => ({
-        ...prev,
-        goals: prev.goals.map((g: any) => g.domain === editDomain ? data : g)
-      }))
+      setPlan((prev: any) => {
+        const exists = prev.goals.some((g: any) => g.domain === editDomain)
+        return {
+          ...prev,
+          goals: exists
+            ? prev.goals.map((g: any) => g.domain === editDomain ? data : g)
+            : [...prev.goals, data],
+        }
+      })
       setEditDomain(null)
-    } catch { /* ignore */ } finally { setSaving(false) }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? err?.response?.data?.error ?? 'Save failed. Check that the care plan is in draft or under-review status.'
+      setSaveError(msg)
+    } finally { setSaving(false) }
   }
 
   const approvePlan = async () => {
     if (!plan || !window.confirm('Approve and activate this care plan? It will replace the current active plan.')) return
     setApproving(true)
+    setSaveError(null)
     try {
       const { data } = await axios.post(`/participants/${participantId}/careplan/${plan.id}/approve`)
       setPlan(data)
-    } catch { /* ignore */ } finally { setApproving(false) }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? err?.response?.data?.error
+        ?? 'Approval failed. Only IDT Admin or Primary Care Admin can approve care plans.'
+      setSaveError(msg)
+    } finally { setApproving(false) }
   }
 
-  if (loading) return <div className="py-12 text-center text-sm text-gray-500">Loading care plan…</div>
+  // Creates a new draft version from the active plan so goals can be edited.
+  // The active plan moves to 'under_review'; the new draft becomes current.
+  const startNewVersion = async () => {
+    if (!plan || !window.confirm('Start a new revision? The current active plan will move to Under Review and a new draft will be created for editing.')) return
+    setVersioning(true)
+    try {
+      const { data } = await axios.post(`/participants/${participantId}/careplan/${plan.id}/new-version`)
+      setPlan(data)
+    } catch { /* ignore */ } finally { setVersioning(false) }
+  }
+
+  if (loading) return <div className="py-12 text-center text-sm text-gray-500 dark:text-slate-400">Loading care plan…</div>
   if (!plan)   return (
     <div className="py-12 text-center">
-      <p className="text-gray-500 text-sm mb-3">No care plan found for this participant.</p>
+      <p className="text-gray-500 dark:text-slate-400 text-sm mb-3">No care plan found for this participant.</p>
       <button
         onClick={async () => {
           const { data } = await axios.post(`/participants/${participantId}/careplan`)
@@ -3320,19 +3484,19 @@ function CarePlanTab({ participantId, canApprove }: { participantId: number; can
   return (
     <div className="space-y-6" data-testid="care-plan-tab">
       {/* Plan meta header */}
-      <div className="flex items-start justify-between gap-4 p-4 bg-white rounded-xl border border-slate-200">
+      <div className="flex items-start justify-between gap-4 p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-slate-800">Care Plan v{plan.version}</h3>
+            <h3 className="font-semibold text-slate-800 dark:text-slate-200">Care Plan v{plan.version}</h3>
             <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${PLAN_STATUS_BADGE[plan.status] ?? ''}`}>
               {plan.status?.replace('_', ' ').toUpperCase()}
             </span>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            {plan.effective_date ? `Effective: ${plan.effective_date}` : 'Draft — not yet effective'}
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            {plan.effective_date ? `Effective: ${plan.effective_date}` : 'Draft: not yet effective'}
             {plan.review_due_date && ` · Review due: ${plan.review_due_date}`}
             {daysUntilReview !== null && daysUntilReview <= 30 && (
-              <span className="ml-1.5 text-amber-600 font-medium">({daysUntilReview}d)</span>
+              <span className="ml-1.5 text-amber-600 dark:text-amber-400 font-medium">({daysUntilReview}d)</span>
             )}
           </p>
           {plan.approved_by && (
@@ -3341,8 +3505,19 @@ function CarePlanTab({ participantId, canApprove }: { participantId: number; can
             </p>
           )}
         </div>
-        {canApprove && plan.status !== 'active' && (
-          <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Active plans are immutable — start a new revision to edit goals */}
+          {plan.status === 'active' && (
+            <button
+              onClick={startNewVersion}
+              disabled={versioning}
+              data-testid="new-version-btn"
+              className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {versioning ? 'Creating…' : 'Start New Version'}
+            </button>
+          )}
+          {canApprove && (plan.status === 'draft' || plan.status === 'under_review') && (
             <button
               onClick={approvePlan}
               disabled={approving}
@@ -3351,76 +3526,89 @@ function CarePlanTab({ participantId, canApprove }: { participantId: number; can
             >
               {approving ? 'Approving…' : 'Approve Plan'}
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Overall goals text */}
       {plan.overall_goals_text && (
-        <div className="px-4 py-3 bg-blue-50 border border-blue-100 rounded-xl">
-          <p className="text-xs font-semibold text-blue-800 mb-1">Overall Care Goals</p>
-          <p className="text-sm text-blue-900">{plan.overall_goals_text}</p>
+        <div className="px-4 py-3 bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-800 rounded-xl">
+          <p className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">Overall Care Goals</p>
+          <p className="text-sm text-blue-900 dark:text-blue-200">{plan.overall_goals_text}</p>
         </div>
       )}
 
-      {/* Domain goals grid */}
+      {/* Domain goals grid — all 12 PACE disciplines always shown */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        {goals.length === 0 && (
-          <p className="text-sm text-slate-500 col-span-2 text-center py-6">No domain goals recorded yet.</p>
-        )}
-        {goals.map((goal: any) => (
+        {ALL_CARE_DOMAINS.map(({ id: domainId, label: domainLabel }) => {
+          const goal = goals.find((g: any) => g.domain === domainId)
+          return (
           <div
-            key={goal.domain}
-            data-testid={`goal-card-${goal.domain}`}
-            className="rounded-xl border border-slate-200 bg-white p-4 space-y-2"
+            key={domainId}
+            data-testid={`goal-card-${domainId}`}
+            className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 space-y-2"
           >
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-slate-800 capitalize">
-                {goal.domain.replace(/_/g, ' ')}
+              <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                {domainLabel}
               </h4>
               <div className="flex items-center gap-1.5">
-                <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${STATUS_BADGE[goal.status] ?? ''}`}>
-                  {goal.status?.toUpperCase()}
-                </span>
-                {editDomain !== goal.domain && (
+                {goal && (
+                  <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${STATUS_BADGE[goal.status] ?? ''}`}>
+                    {goal.status?.toUpperCase()}
+                  </span>
+                )}
+                {!goal && editDomain !== domainId && (plan.status === 'draft' || plan.status === 'under_review') && (
+                  <button
+                    onClick={() => openNewGoal(domainId)}
+                    data-testid={`add-goal-${domainId}`}
+                    className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    + Add Goal
+                  </button>
+                )}
+                {goal && editDomain !== domainId && (plan.status === 'draft' || plan.status === 'under_review') && (
                   <button
                     onClick={() => openEdit(goal)}
-                    data-testid={`edit-goal-${goal.domain}`}
-                    className="text-[11px] text-blue-600 hover:underline"
+                    data-testid={`edit-goal-${domainId}`}
+                    className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
                   >
                     Edit
                   </button>
                 )}
+                {goal && plan.status === 'active' && editDomain !== domainId && (
+                  <span className="text-[11px] text-gray-400 dark:text-slate-600">Approved — read only</span>
+                )}
               </div>
             </div>
 
-            {editDomain === goal.domain ? (
+            {editDomain === domainId ? (
               <div className="space-y-2 pt-1">
                 <div>
-                  <label className="block text-[10px] font-medium text-slate-600 mb-0.5">Goal</label>
+                  <label className="block text-[10px] font-medium text-slate-600 dark:text-slate-400 mb-0.5">Goal</label>
                   <textarea
                     rows={2}
                     value={editForm.goal_description}
                     onChange={e => setEditForm((f: any) => ({ ...f, goal_description: e.target.value }))}
-                    className="w-full text-xs border border-slate-300 rounded px-2 py-1 resize-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full text-xs border border-slate-300 dark:border-slate-600 rounded px-2 py-1 resize-none bg-white dark:bg-slate-700 dark:text-slate-100 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-medium text-slate-600 mb-0.5">Outcomes</label>
+                  <label className="block text-[10px] font-medium text-slate-600 dark:text-slate-400 mb-0.5">Outcomes</label>
                   <textarea
                     rows={2}
                     value={editForm.measurable_outcomes}
                     onChange={e => setEditForm((f: any) => ({ ...f, measurable_outcomes: e.target.value }))}
-                    className="w-full text-xs border border-slate-300 rounded px-2 py-1 resize-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full text-xs border border-slate-300 dark:border-slate-600 rounded px-2 py-1 resize-none bg-white dark:bg-slate-700 dark:text-slate-100 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[10px] font-medium text-slate-600 mb-0.5">Status</label>
+                    <label className="block text-[10px] font-medium text-slate-600 dark:text-slate-400 mb-0.5">Status</label>
                     <select
                       value={editForm.status}
                       onChange={e => setEditForm((f: any) => ({ ...f, status: e.target.value }))}
-                      className="w-full text-xs border border-slate-300 rounded px-2 py-1 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full text-xs border border-slate-300 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-700 dark:text-slate-100 focus:ring-blue-500 focus:border-blue-500"
                     >
                       {['active','met','modified','discontinued'].map(s => (
                         <option key={s} value={s}>{s}</option>
@@ -3428,12 +3616,12 @@ function CarePlanTab({ participantId, canApprove }: { participantId: number; can
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-medium text-slate-600 mb-0.5">Target Date</label>
+                    <label className="block text-[10px] font-medium text-slate-600 dark:text-slate-400 mb-0.5">Target Date</label>
                     <input
                       type="date"
                       value={editForm.target_date}
                       onChange={e => setEditForm((f: any) => ({ ...f, target_date: e.target.value }))}
-                      className="w-full text-xs border border-slate-300 rounded px-2 py-1 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full text-xs border border-slate-300 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-700 dark:text-slate-100 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
                 </div>
@@ -3441,35 +3629,46 @@ function CarePlanTab({ participantId, canApprove }: { participantId: number; can
                   <button
                     onClick={() => saveGoal(plan.id)}
                     disabled={saving}
-                    data-testid={`save-goal-${goal.domain}`}
+                    data-testid={`save-goal-${domainId}`}
                     className="px-3 py-1 text-[11px] font-medium bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                   >
                     {saving ? 'Saving…' : 'Save'}
                   </button>
                   <button
-                    onClick={() => setEditDomain(null)}
-                    className="px-3 py-1 text-[11px] text-slate-600 border border-slate-300 rounded hover:bg-slate-50"
+                    onClick={() => { setEditDomain(null); setSaveError(null) }}
+                    className="px-3 py-1 text-[11px] text-slate-600 dark:text-slate-400 border border-slate-300 rounded hover:bg-slate-50 dark:hover:bg-slate-700"
                   >
                     Cancel
                   </button>
                 </div>
+                {saveError && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">{saveError}</p>
+                )}
               </div>
-            ) : (
+            ) : goal ? (
               <div className="space-y-1.5">
-                <p className="text-xs text-slate-700">{goal.goal_description}</p>
+                <p className="text-xs text-slate-700 dark:text-slate-300">{goal.goal_description}</p>
                 {goal.measurable_outcomes && (
                   <div>
-                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Outcomes</p>
-                    <p className="text-[11px] text-slate-600">{goal.measurable_outcomes}</p>
+                    <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Outcomes</p>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400">{goal.measurable_outcomes}</p>
                   </div>
                 )}
                 {goal.target_date && (
                   <p className="text-[10px] text-slate-400">Target: {goal.target_date?.split('T')[0]}</p>
                 )}
               </div>
+            ) : (
+              // No goal recorded for this domain yet
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 italic">
+                {(plan.status === 'draft' || plan.status === 'under_review')
+                  ? 'No goal recorded — click + Add Goal to create one.'
+                  : 'No goal recorded for this domain.'}
+              </p>
             )}
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
@@ -3519,10 +3718,10 @@ type MedRefResult = {
 }
 
 const SEVERITY_COLORS: Record<string, string> = {
-  contraindicated: 'bg-red-100 text-red-800 border-red-300',
+  contraindicated: 'bg-red-100 dark:bg-red-900/60 text-red-800 dark:text-red-300 border-red-300',
   major:           'bg-orange-100 text-orange-800 border-orange-300',
-  moderate:        'bg-amber-100 text-amber-800 border-amber-300',
-  minor:           'bg-yellow-100 text-yellow-800 border-yellow-300',
+  moderate:        'bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 border-amber-300',
+  minor:           'bg-yellow-100 dark:bg-yellow-900/60 text-yellow-800 dark:text-yellow-300 border-yellow-300',
 }
 
 function MedicationsTab({ participantId }: { participantId: number }) {
@@ -3644,7 +3843,7 @@ function MedicationsTab({ participantId }: { participantId: number }) {
               </div>
               <button
                 onClick={() => handleAcknowledgeAlert(alert)}
-                className="text-xs px-2 py-1 bg-white border border-current rounded hover:opacity-80 whitespace-nowrap shrink-0"
+                className="text-xs px-2 py-1 bg-white dark:bg-slate-800 border border-current rounded hover:opacity-80 whitespace-nowrap shrink-0"
               >
                 Acknowledge
               </button>
@@ -3655,10 +3854,10 @@ function MedicationsTab({ participantId }: { participantId: number }) {
 
       {/* Header row */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">
           Active Medications
           {activeMeds.length > 0 && (
-            <span className="ml-2 text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">{activeMeds.length}</span>
+            <span className="ml-2 text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 rounded-full">{activeMeds.length}</span>
           )}
         </h3>
         <button
@@ -3672,30 +3871,30 @@ function MedicationsTab({ participantId }: { participantId: number }) {
 
       {/* Add medication form */}
       {showAddForm && (
-        <form onSubmit={handleAdd} data-testid="add-medication-form" className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4">
+        <form onSubmit={handleAdd} data-testid="add-medication-form" className="bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 rounded-lg p-4 space-y-4">
           {/* Drug name with typeahead */}
           <div className="relative">
-            <label className="text-xs font-medium text-gray-600">Drug Name *</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Drug Name *</label>
             <input
               type="text"
               value={searchQuery || form.drug_name}
               onChange={e => { setSearchQuery(e.target.value); setForm(f => ({ ...f, drug_name: e.target.value })) }}
               placeholder="Search medications..."
-              className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5"
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100"
               required
             />
             {searchResults.length > 0 && (
-              <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                 {searchResults.map(r => (
                   <button
                     key={r.drug_name}
                     type="button"
                     onClick={() => applyRefResult(r)}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-gray-100 last:border-0"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 dark:hover:bg-slate-700 border-b border-gray-100 dark:border-slate-700 last:border-0"
                   >
-                    <span className="font-medium">{r.drug_name}</span>
-                    {r.drug_class && <span className="ml-2 text-xs text-gray-400">{r.drug_class}</span>}
-                    {r.common_dose && <span className="ml-2 text-xs text-gray-500">{r.common_dose} {r.dose_unit}</span>}
+                    <span className="font-medium dark:text-slate-200">{r.drug_name}</span>
+                    {r.drug_class && <span className="ml-2 text-xs text-gray-400 dark:text-slate-500">{r.drug_class}</span>}
+                    {r.common_dose && <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">{r.common_dose} {r.dose_unit}</span>}
                   </button>
                 ))}
               </div>
@@ -3705,29 +3904,29 @@ function MedicationsTab({ participantId }: { participantId: number }) {
           {/* Dosing row */}
           <div className="grid grid-cols-4 gap-3">
             <div>
-              <label className="text-xs font-medium text-gray-600">Dose</label>
+              <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Dose</label>
               <input type="number" step="0.001" value={form.dose}
                 onChange={e => setForm(f => ({ ...f, dose: e.target.value }))}
-                className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5" />
+                className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600">Unit</label>
+              <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Unit</label>
               <select value={form.dose_unit} onChange={e => setForm(f => ({ ...f, dose_unit: e.target.value }))}
-                className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white">
+                className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800">
                 {['mg','mcg','ml','units','tab','cap','patch','drop'].map(u => <option key={u}>{u}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600">Route</label>
+              <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Route</label>
               <select value={form.route} onChange={e => setForm(f => ({ ...f, route: e.target.value }))}
-                className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white">
+                className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800">
                 {['oral','IV','IM','subcut','topical','inhaled','sublingual','rectal','nasal','optic','otic'].map(r => <option key={r}>{r}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600">Frequency</label>
+              <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Frequency</label>
               <select value={form.frequency} onChange={e => setForm(f => ({ ...f, frequency: e.target.value }))}
-                className="w-full mt-1 text-sm border border-gray-300 rounded px-2 py-1.5 bg-white">
+                className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800">
                 {['daily','BID','TID','QID','Q4H','Q6H','Q8H','Q12H','PRN','weekly','monthly','once'].map(f => <option key={f}>{f}</option>)}
               </select>
             </div>
@@ -3741,9 +3940,9 @@ function MedicationsTab({ participantId }: { participantId: number }) {
 
           {/* Start date */}
           <div>
-            <label className="text-xs font-medium text-gray-600">Start Date *</label>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Start Date *</label>
             <input type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
-              className="mt-1 text-sm border border-gray-300 rounded px-2 py-1.5" required />
+              className="mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" required />
           </div>
 
           <div className="flex justify-end gap-2">
@@ -3757,11 +3956,11 @@ function MedicationsTab({ participantId }: { participantId: number }) {
 
       {/* Active medications table */}
       {activeMeds.length === 0 ? (
-        <div className="py-8 text-center text-gray-400 text-sm">No active medications on file.</div>
+        <div className="py-8 text-center text-gray-400 dark:text-slate-500 text-sm">No active medications on file.</div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-700">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+            <thead className="bg-gray-50 dark:bg-slate-700/50 text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wide">
               <tr>
                 <th className="px-4 py-2 text-left">Medication</th>
                 <th className="px-4 py-2 text-left">Dose / Route</th>
@@ -3771,34 +3970,34 @@ function MedicationsTab({ participantId }: { participantId: number }) {
                 <th className="px-4 py-2"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
               {activeMeds.map(med => (
-                <tr key={med.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2.5 font-medium text-gray-900">
+                <tr key={med.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                  <td className="px-4 py-2.5 font-medium text-gray-900 dark:text-slate-100">
                     {med.drug_name}
                     {med.is_controlled && (
-                      <span className="ml-2 text-xs px-1.5 py-0.5 bg-red-100 text-red-700 rounded">
+                      <span className="ml-2 text-xs px-1.5 py-0.5 bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 rounded">
                         C-{med.controlled_schedule}
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 text-gray-600">
-                    {med.dose ? `${med.dose} ${med.dose_unit}` : '—'} {med.route && `(${med.route})`}
+                  <td className="px-4 py-2.5 text-gray-600 dark:text-slate-400">
+                    {med.dose ? `${med.dose} ${med.dose_unit}` : '-'} {med.route && `(${med.route})`}
                   </td>
-                  <td className="px-4 py-2.5 text-gray-600">{med.frequency ?? '—'}</td>
+                  <td className="px-4 py-2.5 text-gray-600 dark:text-slate-400">{med.frequency ?? '-'}</td>
                   <td className="px-4 py-2.5">
                     <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${
-                      med.status === 'active' ? 'bg-green-100 text-green-700' :
-                      med.status === 'prn'    ? 'bg-blue-100 text-blue-700' :
-                      med.status === 'on_hold'? 'bg-amber-100 text-amber-700' :
+                      med.status === 'active' ? 'bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300' :
+                      med.status === 'prn'    ? 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300' :
+                      med.status === 'on_hold'? 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300' :
                       'bg-gray-100 text-gray-500'
                     }`}>{med.status}</span>
                   </td>
-                  <td className="px-4 py-2.5 text-gray-500 text-xs">{med.start_date}</td>
+                  <td className="px-4 py-2.5 text-gray-500 dark:text-slate-400 text-xs">{med.start_date}</td>
                   <td className="px-4 py-2.5 text-right">
                     <button
                       onClick={() => handleDiscontinue(med)}
-                      className="text-xs text-red-600 hover:text-red-800 hover:underline"
+                      className="text-xs text-red-600 dark:text-red-400 hover:text-red-800 hover:underline"
                     >
                       Discontinue
                     </button>
@@ -3813,19 +4012,19 @@ function MedicationsTab({ participantId }: { participantId: number }) {
       {/* Discontinued medications (collapsed section) */}
       {inactiveMeds.length > 0 && (
         <details className="mt-4">
-          <summary className="text-xs font-medium text-gray-500 cursor-pointer hover:text-gray-700">
+          <summary className="text-xs font-medium text-gray-500 dark:text-slate-400 cursor-pointer hover:text-gray-700 dark:hover:text-slate-300">
             Discontinued / On-Hold ({inactiveMeds.length})
           </summary>
-          <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200 opacity-70">
+          <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-700 opacity-70">
             <table className="min-w-full text-sm">
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
                 {inactiveMeds.map(med => (
-                  <tr key={med.id} className="bg-gray-50">
-                    <td className="px-4 py-2 text-gray-400 line-through">{med.drug_name}</td>
-                    <td className="px-4 py-2 text-xs text-gray-400">{med.dose ? `${med.dose} ${med.dose_unit}` : '—'}</td>
-                    <td className="px-4 py-2 text-xs text-gray-400">{med.frequency ?? '—'}</td>
-                    <td className="px-4 py-2"><span className="text-xs text-gray-400">{med.status}</span></td>
-                    <td className="px-4 py-2 text-xs text-gray-400">{med.end_date ?? '—'}</td>
+                  <tr key={med.id} className="bg-gray-50 dark:bg-slate-800/50">
+                    <td className="px-4 py-2 text-gray-400 dark:text-slate-500 line-through">{med.drug_name}</td>
+                    <td className="px-4 py-2 text-xs text-gray-400 dark:text-slate-500">{med.dose ? `${med.dose} ${med.dose_unit}` : '-'}</td>
+                    <td className="px-4 py-2 text-xs text-gray-400 dark:text-slate-500">{med.frequency ?? '-'}</td>
+                    <td className="px-4 py-2"><span className="text-xs text-gray-400 dark:text-slate-500">{med.status}</span></td>
+                    <td className="px-4 py-2 text-xs text-gray-400 dark:text-slate-500">{med.end_date ?? '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -3868,12 +4067,12 @@ type EmarRow = {
 
 const EMAR_STATUS_COLORS: Record<string, string> = {
   scheduled:     'bg-gray-100 text-gray-600',
-  given:         'bg-green-100 text-green-700',
-  refused:       'bg-red-100 text-red-700',
-  held:          'bg-amber-100 text-amber-700',
+  given:         'bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300',
+  refused:       'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300',
+  held:          'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
   not_available: 'bg-orange-100 text-orange-700',
-  late:          'bg-red-200 text-red-800',
-  missed:        'bg-red-100 text-red-600',
+  late:          'bg-red-200 text-red-800 dark:text-red-300',
+  missed:        'bg-red-100 dark:bg-red-900/60 text-red-600 dark:text-red-400',
 }
 
 function EmarTab({ participantId }: { participantId: number }) {
@@ -3924,31 +4123,31 @@ function EmarTab({ participantId }: { participantId: number }) {
     <div className="space-y-4">
       {/* Date selector */}
       <div className="flex items-center gap-3">
-        <h3 className="text-sm font-semibold text-gray-700">eMAR</h3>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">eMAR</h3>
         <input
           type="date"
           value={date}
           max={today}
           onChange={e => handleDateChange(e.target.value)}
           data-testid="emar-date-picker"
-          className="text-sm border border-gray-300 rounded px-2 py-1"
+          className="text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-800 dark:text-slate-100"
         />
-        <button onClick={() => handleDateChange(today)} className="text-xs text-blue-600 hover:underline">Today</button>
+        <button onClick={() => handleDateChange(today)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Today</button>
       </div>
 
       {loading && <LoadingSpinner />}
 
       {!loading && records.length === 0 && (
-        <div className="py-8 text-center text-gray-400 text-sm">
+        <div className="py-8 text-center text-gray-400 dark:text-slate-500 text-sm">
           No eMAR records for {date}.
           <p className="text-xs mt-1">Records are generated nightly for scheduled medications.</p>
         </div>
       )}
 
       {!loading && records.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-700">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+            <thead className="bg-gray-50 dark:bg-slate-700/50 text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wide">
               <tr>
                 <th className="px-4 py-2 text-left">Time</th>
                 <th className="px-4 py-2 text-left">Medication</th>
@@ -3958,23 +4157,23 @@ function EmarTab({ participantId }: { participantId: number }) {
                 <th className="px-4 py-2"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
               {records.map(record => (
                 <React.Fragment key={record.id}>
-                  <tr className="hover:bg-gray-50">
-                    <td className="px-4 py-2.5 text-gray-700 font-mono text-xs whitespace-nowrap">
+                  <tr className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                    <td className="px-4 py-2.5 text-gray-700 dark:text-slate-300 font-mono text-xs whitespace-nowrap">
                       {formatTime(record.scheduled_time)}
                     </td>
                     <td className="px-4 py-2.5">
-                      <span className="font-medium text-gray-900">{record.medication?.drug_name ?? '—'}</span>
+                      <span className="font-medium text-gray-900 dark:text-slate-100">{record.medication?.drug_name ?? '-'}</span>
                       {record.medication?.is_controlled && (
-                        <span className="ml-2 text-xs px-1.5 py-0.5 bg-red-100 text-red-700 rounded">
+                        <span className="ml-2 text-xs px-1.5 py-0.5 bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 rounded">
                           C-{record.medication.controlled_schedule} · Witness req.
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-gray-600 text-xs">
-                      {record.medication?.dose ? `${record.medication.dose} ${record.medication.dose_unit}` : '—'}
+                    <td className="px-4 py-2.5 text-gray-600 dark:text-slate-400 text-xs">
+                      {record.medication?.dose ? `${record.medication.dose} ${record.medication.dose_unit}` : '-'}
                       {record.medication?.route && ` (${record.medication.route})`}
                     </td>
                     <td className="px-4 py-2.5">
@@ -3982,12 +4181,12 @@ function EmarTab({ participantId }: { participantId: number }) {
                         {record.status}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-gray-500 text-xs">
+                    <td className="px-4 py-2.5 text-gray-500 dark:text-slate-400 text-xs">
                       {record.administered_by
                         ? `${record.administered_by.first_name} ${record.administered_by.last_name}`
-                        : record.status === 'scheduled' || record.status === 'late' ? '—' : '—'}
+                        : record.status === 'scheduled' || record.status === 'late' ? '-' : '-'}
                       {record.witness && (
-                        <span className="block text-gray-400">Witness: {record.witness.first_name} {record.witness.last_name}</span>
+                        <span className="block text-gray-400 dark:text-slate-500">Witness: {record.witness.first_name} {record.witness.last_name}</span>
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-right">
@@ -4006,14 +4205,14 @@ function EmarTab({ participantId }: { participantId: number }) {
                   {/* Inline charting row */}
                   {chartingId === record.id && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-3 bg-blue-50 border-t border-blue-200">
+                      <td colSpan={6} className="px-4 py-3 bg-blue-50 dark:bg-blue-950/60 border-t border-blue-200 dark:border-blue-800">
                         <form onSubmit={submitCharting} className="flex flex-wrap items-end gap-3">
                           <div>
-                            <label className="text-xs font-medium text-gray-600">Status</label>
+                            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Status</label>
                             <select
                               value={chartForm.status}
                               onChange={e => setChartForm(f => ({ ...f, status: e.target.value }))}
-                              className="block mt-1 text-sm border border-gray-300 rounded px-2 py-1 bg-white"
+                              className="block mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-800 dark:text-slate-100"
                             >
                               {['given','refused','held','not_available','missed'].map(s => (
                                 <option key={s} value={s}>{s}</option>
@@ -4022,24 +4221,24 @@ function EmarTab({ participantId }: { participantId: number }) {
                           </div>
                           {chartForm.status === 'given' && (
                             <div>
-                              <label className="text-xs font-medium text-gray-600">Given At</label>
+                              <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Given At</label>
                               <input type="datetime-local" value={chartForm.administered_at ?? ''}
                                 onChange={e => setChartForm(f => ({ ...f, administered_at: e.target.value }))}
-                                className="block mt-1 text-sm border border-gray-300 rounded px-2 py-1" />
+                                className="block mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-800 dark:text-slate-100" />
                             </div>
                           )}
                           {['refused','held','not_available','missed'].includes(chartForm.status) && (
                             <div>
-                              <label className="text-xs font-medium text-gray-600">Reason *</label>
+                              <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Reason *</label>
                               <input type="text" value={chartForm.reason_not_given ?? ''}
                                 onChange={e => setChartForm(f => ({ ...f, reason_not_given: e.target.value }))}
-                                required className="block mt-1 text-sm border border-gray-300 rounded px-2 py-1 w-48"
+                                required className="block mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1 w-48 bg-white dark:bg-slate-800 dark:text-slate-100"
                                 placeholder="Reason..." />
                             </div>
                           )}
                           <div className="flex gap-2">
                             <button type="button" onClick={() => setChartingId(null)}
-                              className="text-xs px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-50">Cancel</button>
+                              className="text-xs px-3 py-1.5 border border-gray-300 dark:border-slate-600 dark:text-slate-300 rounded hover:bg-gray-50 dark:hover:bg-slate-700">Cancel</button>
                             <button type="submit"
                               className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
                           </div>
@@ -4237,12 +4436,12 @@ function MedReconTab({ participantId }: { participantId: number }) {
       .finally(() => setSaving(false))
   }
 
-  if (loading) return <div className="py-10 text-center text-gray-400 text-sm">Loading...</div>
+  if (loading) return <div className="py-10 text-center text-gray-400 dark:text-slate-500 text-sm">Loading...</div>
 
   return (
     <div>
       {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded">
+        <div className="mb-4 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm px-4 py-3 rounded">
           {error}
         </div>
       )}
@@ -4252,41 +4451,41 @@ function MedReconTab({ participantId }: { participantId: number }) {
         {[1,2,3,4,5].map(s => (
           <React.Fragment key={s}>
             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
-              ${step === s ? 'bg-blue-600 text-white' : step > s ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
+              ${step === s ? 'bg-blue-600 text-white' : step > s ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-slate-400'}`}>
               {s}
             </div>
-            {s < 5 && <div className={`h-0.5 flex-1 ${step > s ? 'bg-green-500' : 'bg-gray-200'}`} />}
+            {s < 5 && <div className={`h-0.5 flex-1 ${step > s ? 'bg-green-500' : 'bg-gray-200 dark:bg-slate-700'}`} />}
           </React.Fragment>
         ))}
       </div>
-      <div className="flex gap-6 text-xs text-gray-500 mb-6 -mt-4">
+      <div className="flex gap-6 text-xs text-gray-500 dark:text-slate-400 mb-6 -mt-4">
         {['Start', 'Prior Meds', 'Compare', 'Decisions', 'Approve'].map((label, i) => (
-          <span key={i} className={`flex-1 ${step === i+1 ? 'text-blue-600 font-semibold' : ''}`}>{label}</span>
+          <span key={i} className={`flex-1 ${step === i+1 ? 'text-blue-600 dark:text-blue-400 font-semibold' : ''}`}>{label}</span>
         ))}
       </div>
 
       {/* ── Step 1: Start ── */}
       {step === 1 && (
         <div className="max-w-lg">
-          <h3 className="text-base font-semibold text-gray-900 mb-1">Start Medication Reconciliation</h3>
-          <p className="text-sm text-gray-500 mb-4">Select the source of the prior medication list and the reconciliation type.</p>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100 mb-1">Start Medication Reconciliation</h3>
+          <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">Select the source of the prior medication list and the reconciliation type.</p>
           <form onSubmit={handleStart} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Prior Medication Source</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Prior Medication Source</label>
               <select value={startForm.prior_source}
                 onChange={e => setStartForm(f => ({ ...f, prior_source: e.target.value }))}
                 required
-                className="block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                className="block w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500">
                 <option value="">Select source…</option>
                 {PRIOR_SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Reconciliation Type</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Reconciliation Type</label>
               <select value={startForm.type}
                 onChange={e => setStartForm(f => ({ ...f, type: e.target.value }))}
                 required
-                className="block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                className="block w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500">
                 <option value="">Select type…</option>
                 {RECON_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
@@ -4300,20 +4499,20 @@ function MedReconTab({ participantId }: { participantId: number }) {
           {/* Past reconciliations */}
           {history.length > 0 && (
             <div className="mt-8">
-              <h4 className="text-sm font-semibold text-gray-700 mb-2">Reconciliation History</h4>
+              <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Reconciliation History</h4>
               <div className="space-y-2">
                 {history.map(h => (
-                  <div key={h.id} className="flex items-center justify-between border border-gray-200 rounded px-3 py-2 text-sm">
+                  <div key={h.id} className="flex items-center justify-between border border-gray-200 dark:border-slate-700 rounded px-3 py-2 text-sm">
                     <div>
-                      <span className="font-medium">{RECON_TYPES.find(t => t.value === h.reconciliation_type)?.label ?? h.reconciliation_type}</span>
-                      <span className="text-gray-400 ml-2">·</span>
-                      <span className="text-gray-500 ml-2">{PRIOR_SOURCES.find(s => s.value === h.prior_source)?.label ?? h.prior_source}</span>
+                      <span className="font-medium dark:text-slate-200">{RECON_TYPES.find(t => t.value === h.reconciliation_type)?.label ?? h.reconciliation_type}</span>
+                      <span className="text-gray-400 dark:text-slate-500 ml-2">·</span>
+                      <span className="text-gray-500 dark:text-slate-400 ml-2">{PRIOR_SOURCES.find(s => s.value === h.prior_source)?.label ?? h.prior_source}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {h.has_discrepancies && <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Discrepancies</span>}
+                      {h.has_discrepancies && <span className="text-xs bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded">Discrepancies</span>}
                       <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                        h.status === 'approved' ? 'bg-green-100 text-green-700' :
-                        h.status === 'decisions_made' ? 'bg-blue-100 text-blue-700' :
+                        h.status === 'approved' ? 'bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300' :
+                        h.status === 'decisions_made' ? 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300' :
                         'bg-gray-100 text-gray-600'}`}>
                         {h.status === 'approved' ? 'Approved' : h.status === 'decisions_made' ? 'Pending Approval' : 'In Progress'}
                       </span>
@@ -4329,49 +4528,49 @@ function MedReconTab({ participantId }: { participantId: number }) {
       {/* ── Step 2: Enter prior medications ── */}
       {step === 2 && rec && (
         <div>
-          <h3 className="text-base font-semibold text-gray-900 mb-1">Enter Prior Medications</h3>
-          <p className="text-sm text-gray-500 mb-4">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100 mb-1">Enter Prior Medications</h3>
+          <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
             Enter medications from the <strong>{PRIOR_SOURCES.find(s => s.value === rec.prior_source)?.label}</strong>.
             Add all medications listed on the source document.
           </p>
           <form onSubmit={handleSavePriorMeds}>
             <div className="overflow-x-auto">
-              <table className="min-w-full text-sm border border-gray-200 rounded">
-                <thead className="bg-gray-50">
+              <table className="min-w-full text-sm border border-gray-200 dark:border-slate-700 rounded">
+                <thead className="bg-gray-50 dark:bg-slate-700/50">
                   <tr>
                     {['Drug Name *', 'Dose', 'Unit', 'Frequency', 'Route', 'Prescriber', 'Notes', ''].map(h => (
-                      <th key={h} className="px-2 py-1.5 text-left text-xs font-medium text-gray-500">{h}</th>
+                      <th key={h} className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-slate-400">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {priorMeds.map((m, i) => (
-                    <tr key={i} className="border-t border-gray-100">
+                    <tr key={i} className="border-t border-gray-100 dark:border-slate-700/50">
                       <td className="px-1 py-1"><input required value={m.drug_name} onChange={e => setPriorMeds(ms => ms.map((x,j) => j===i ? {...x, drug_name: e.target.value} : x))}
-                        className="border border-gray-300 rounded px-2 py-1 text-sm w-32" placeholder="Drug name" /></td>
+                        className="border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm w-32 bg-white dark:bg-slate-700 dark:text-slate-100" placeholder="Drug name" /></td>
                       <td className="px-1 py-1"><input value={m.dose ?? ''} onChange={e => setPriorMeds(ms => ms.map((x,j) => j===i ? {...x, dose: e.target.value} : x))}
-                        className="border border-gray-300 rounded px-2 py-1 text-sm w-16" placeholder="Dose" /></td>
+                        className="border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm w-16 bg-white dark:bg-slate-700 dark:text-slate-100" placeholder="Dose" /></td>
                       <td className="px-1 py-1"><input value={m.dose_unit ?? ''} onChange={e => setPriorMeds(ms => ms.map((x,j) => j===i ? {...x, dose_unit: e.target.value} : x))}
-                        className="border border-gray-300 rounded px-2 py-1 text-sm w-14" placeholder="mg" /></td>
+                        className="border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm w-14 bg-white dark:bg-slate-700 dark:text-slate-100" placeholder="mg" /></td>
                       <td className="px-1 py-1">
                         <select value={m.frequency ?? ''} onChange={e => setPriorMeds(ms => ms.map((x,j) => j===i ? {...x, frequency: e.target.value} : x))}
-                          className="border border-gray-300 rounded px-2 py-1 text-sm">
-                          <option value="">—</option>
+                          className="border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm bg-white dark:bg-slate-700 dark:text-slate-100">
+                          <option value=""></option>
                           {['daily','twice_daily','three_times_daily','four_times_daily','weekly','monthly','as_needed','nightly','every_other_day'].map(f =>
                             <option key={f} value={f}>{f.replace(/_/g,' ')}</option>)}
                         </select>
                       </td>
                       <td className="px-1 py-1">
                         <select value={m.route ?? 'oral'} onChange={e => setPriorMeds(ms => ms.map((x,j) => j===i ? {...x, route: e.target.value} : x))}
-                          className="border border-gray-300 rounded px-2 py-1 text-sm">
+                          className="border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm bg-white dark:bg-slate-700 dark:text-slate-100">
                           {['oral','sublingual','topical','inhaled','intravenous','intramuscular','subcutaneous','transdermal','ophthalmic','otic','nasal','rectal'].map(r =>
                             <option key={r} value={r}>{r}</option>)}
                         </select>
                       </td>
                       <td className="px-1 py-1"><input value={m.prescriber ?? ''} onChange={e => setPriorMeds(ms => ms.map((x,j) => j===i ? {...x, prescriber: e.target.value} : x))}
-                        className="border border-gray-300 rounded px-2 py-1 text-sm w-28" placeholder="Prescriber" /></td>
+                        className="border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm w-28 bg-white dark:bg-slate-700 dark:text-slate-100" placeholder="Prescriber" /></td>
                       <td className="px-1 py-1"><input value={m.notes ?? ''} onChange={e => setPriorMeds(ms => ms.map((x,j) => j===i ? {...x, notes: e.target.value} : x))}
-                        className="border border-gray-300 rounded px-2 py-1 text-sm w-28" placeholder="Notes" /></td>
+                        className="border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm w-28 bg-white dark:bg-slate-700 dark:text-slate-100" placeholder="Notes" /></td>
                       <td className="px-1 py-1">
                         {priorMeds.length > 1 && (
                           <button type="button" onClick={() => setPriorMeds(ms => ms.filter((_,j) => j !== i))}
@@ -4384,9 +4583,9 @@ function MedReconTab({ participantId }: { participantId: number }) {
               </table>
             </div>
             <button type="button" onClick={() => setPriorMeds(ms => [...ms, { ...blankPriorMed }])}
-              className="mt-2 text-sm text-blue-600 hover:text-blue-700">+ Add medication</button>
+              className="mt-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700">+ Add medication</button>
             <div className="flex gap-3 mt-4">
-              <button type="button" onClick={() => setStep(1)} className="text-sm px-4 py-2 border border-gray-300 rounded hover:bg-gray-50">← Back</button>
+              <button type="button" onClick={() => setStep(1)} className="text-sm px-4 py-2 border border-gray-300 dark:border-slate-600 dark:text-slate-300 rounded hover:bg-gray-50 dark:hover:bg-slate-700">← Back</button>
               <button type="submit" disabled={saving}
                 className="bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50">
                 {saving ? 'Saving…' : 'Generate Comparison →'}
@@ -4399,21 +4598,21 @@ function MedReconTab({ participantId }: { participantId: number }) {
       {/* ── Step 3: View comparison ── */}
       {step === 3 && comparison && (
         <div>
-          <h3 className="text-base font-semibold text-gray-900 mb-1">Medication Comparison</h3>
-          <p className="text-sm text-gray-500 mb-4">Review prior medications vs current active medications. Proceed to Step 4 to apply decisions.</p>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100 mb-1">Medication Comparison</h3>
+          <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">Review prior medications vs current active medications. Proceed to Step 4 to apply decisions.</p>
 
           {/* Matched */}
           {comparison.matched.length > 0 && (
             <div className="mb-4">
-              <h4 className="text-xs font-semibold text-green-700 uppercase mb-1">Matched ({comparison.matched.length})</h4>
+              <h4 className="text-xs font-semibold text-green-700 dark:text-green-300 uppercase mb-1">Matched ({comparison.matched.length})</h4>
               <div className="space-y-1">
                 {comparison.matched.map((m, i) => (
-                  <div key={i} className="flex items-center gap-2 bg-green-50 border border-green-200 rounded px-3 py-2 text-sm">
+                  <div key={i} className="flex items-center gap-2 bg-green-50 dark:bg-green-950/60 border border-green-200 dark:border-green-800 rounded px-3 py-2 text-sm">
                     <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
                     <span className="font-medium w-40">{m.prior.drug_name}</span>
-                    <span className="text-gray-400 text-xs">Prior: {m.prior.dose} {m.prior.dose_unit} {m.prior.frequency}</span>
-                    <span className="text-gray-400 text-xs ml-auto">Current: {(m.current as any).dose} {(m.current as any).dose_unit} {(m.current as any).frequency}</span>
-                    <span className="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Keep</span>
+                    <span className="text-gray-400 dark:text-slate-500 text-xs">Prior: {m.prior.dose} {m.prior.dose_unit} {m.prior.frequency}</span>
+                    <span className="text-gray-400 dark:text-slate-500 text-xs ml-auto">Current: {(m.current as any).dose} {(m.current as any).dose_unit} {(m.current as any).frequency}</span>
+                    <span className="ml-2 text-xs bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300 px-1.5 py-0.5 rounded">Keep</span>
                   </div>
                 ))}
               </div>
@@ -4423,14 +4622,14 @@ function MedReconTab({ participantId }: { participantId: number }) {
           {/* Prior only */}
           {comparison.priorOnly.length > 0 && (
             <div className="mb-4">
-              <h4 className="text-xs font-semibold text-amber-700 uppercase mb-1">Prior List Only — Not in Current ({comparison.priorOnly.length})</h4>
+              <h4 className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase mb-1">Prior List Only: Not in Current ({comparison.priorOnly.length})</h4>
               <div className="space-y-1">
                 {comparison.priorOnly.map((m, i) => (
-                  <div key={i} className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded px-3 py-2 text-sm">
+                  <div key={i} className="flex items-center gap-2 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 rounded px-3 py-2 text-sm">
                     <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
                     <span className="font-medium w-40">{m.prior.drug_name}</span>
-                    <span className="text-gray-400 text-xs">{m.prior.dose} {m.prior.dose_unit} {m.prior.frequency}</span>
-                    <span className="ml-auto text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Add or Ignore</span>
+                    <span className="text-gray-400 dark:text-slate-500 text-xs">{m.prior.dose} {m.prior.dose_unit} {m.prior.frequency}</span>
+                    <span className="ml-auto text-xs bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded">Add or Ignore</span>
                   </div>
                 ))}
               </div>
@@ -4440,14 +4639,14 @@ function MedReconTab({ participantId }: { participantId: number }) {
           {/* Current only */}
           {comparison.currentOnly.length > 0 && (
             <div className="mb-4">
-              <h4 className="text-xs font-semibold text-blue-700 uppercase mb-1">Current Only — Not on Prior List ({comparison.currentOnly.length})</h4>
+              <h4 className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase mb-1">Current Only: Not on Prior List ({comparison.currentOnly.length})</h4>
               <div className="space-y-1">
                 {comparison.currentOnly.map((m, i) => (
-                  <div key={i} className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded px-3 py-2 text-sm">
+                  <div key={i} className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 rounded px-3 py-2 text-sm">
                     <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
                     <span className="font-medium w-40">{(m.current as any).drug_name}</span>
-                    <span className="text-gray-400 text-xs">{(m.current as any).dose} {(m.current as any).dose_unit} {(m.current as any).frequency}</span>
-                    <span className="ml-auto text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">Keep or Discontinue</span>
+                    <span className="text-gray-400 dark:text-slate-500 text-xs">{(m.current as any).dose} {(m.current as any).dose_unit} {(m.current as any).frequency}</span>
+                    <span className="ml-auto text-xs bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">Keep or Discontinue</span>
                   </div>
                 ))}
               </div>
@@ -4455,7 +4654,7 @@ function MedReconTab({ participantId }: { participantId: number }) {
           )}
 
           <div className="flex gap-3 mt-4">
-            <button onClick={() => setStep(2)} className="text-sm px-4 py-2 border border-gray-300 rounded hover:bg-gray-50">← Back</button>
+            <button onClick={() => setStep(2)} className="text-sm px-4 py-2 border border-gray-300 dark:border-slate-600 dark:text-slate-300 rounded hover:bg-gray-50 dark:hover:bg-slate-700">← Back</button>
             <button onClick={() => setStep(4)} className="bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700">Apply Decisions →</button>
           </div>
         </div>
@@ -4464,16 +4663,16 @@ function MedReconTab({ participantId }: { participantId: number }) {
       {/* ── Step 4: Apply decisions ── */}
       {step === 4 && (
         <div>
-          <h3 className="text-base font-semibold text-gray-900 mb-1">Apply Decisions</h3>
-          <p className="text-sm text-gray-500 mb-4">For each medication, choose an action. Decisions will be applied to the active medication list.</p>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100 mb-1">Apply Decisions</h3>
+          <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">For each medication, choose an action. Decisions will be applied to the active medication list.</p>
           <form onSubmit={handleApplyDecisions}>
             <div className="space-y-2">
               {decisions.map((d, i) => (
-                <div key={i} className="border border-gray-200 rounded px-3 py-3 flex flex-wrap gap-3 items-start">
-                  <div className="font-medium text-sm w-36">{d.drug_name}</div>
+                <div key={i} className="border border-gray-200 dark:border-slate-700 rounded px-3 py-3 flex flex-wrap gap-3 items-start">
+                  <div className="font-medium text-sm w-36 dark:text-slate-200">{d.drug_name}</div>
                   <div>
                     <select value={d.action} onChange={e => setDecisions(ds => ds.map((x,j) => j===i ? {...x, action: e.target.value} : x))}
-                      className="border border-gray-300 rounded px-2 py-1 text-sm">
+                      className="border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm bg-white dark:bg-slate-700 dark:text-slate-100">
                       <option value="keep">Keep</option>
                       <option value="discontinue">Discontinue</option>
                       <option value="add">Add</option>
@@ -4483,20 +4682,20 @@ function MedReconTab({ participantId }: { participantId: number }) {
                   {d.action === 'modify' && (
                     <>
                       <input value={d.new_dose ?? ''} onChange={e => setDecisions(ds => ds.map((x,j) => j===i ? {...x, new_dose: e.target.value} : x))}
-                        placeholder="New dose" className="border border-gray-300 rounded px-2 py-1 text-sm w-20" />
+                        placeholder="New dose" className="border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm w-20 bg-white dark:bg-slate-700 dark:text-slate-100" />
                       <input value={d.new_frequency ?? ''} onChange={e => setDecisions(ds => ds.map((x,j) => j===i ? {...x, new_frequency: e.target.value} : x))}
-                        placeholder="New frequency" className="border border-gray-300 rounded px-2 py-1 text-sm w-28" />
+                        placeholder="New frequency" className="border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm w-28 bg-white dark:bg-slate-700 dark:text-slate-100" />
                       <input value={d.new_route ?? ''} onChange={e => setDecisions(ds => ds.map((x,j) => j===i ? {...x, new_route: e.target.value} : x))}
-                        placeholder="New route (opt)" className="border border-gray-300 rounded px-2 py-1 text-sm w-24" />
+                        placeholder="New route (opt)" className="border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm w-24 bg-white dark:bg-slate-700 dark:text-slate-100" />
                     </>
                   )}
                   <input value={d.notes} onChange={e => setDecisions(ds => ds.map((x,j) => j===i ? {...x, notes: e.target.value} : x))}
-                    placeholder="Notes (optional)" className="border border-gray-300 rounded px-2 py-1 text-sm flex-1 min-w-32" />
+                    placeholder="Notes (optional)" className="border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm flex-1 min-w-32 bg-white dark:bg-slate-700 dark:text-slate-100" />
                 </div>
               ))}
             </div>
             <div className="flex gap-3 mt-4">
-              <button type="button" onClick={() => setStep(3)} className="text-sm px-4 py-2 border border-gray-300 rounded hover:bg-gray-50">← Back</button>
+              <button type="button" onClick={() => setStep(3)} className="text-sm px-4 py-2 border border-gray-300 dark:border-slate-600 dark:text-slate-300 rounded hover:bg-gray-50 dark:hover:bg-slate-700">← Back</button>
               <button type="submit" disabled={saving}
                 className="bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50">
                 {saving ? 'Saving…' : 'Submit Decisions →'}
@@ -4509,22 +4708,22 @@ function MedReconTab({ participantId }: { participantId: number }) {
       {/* ── Step 5: Provider approval ── */}
       {step === 5 && rec && (
         <div className="max-w-lg">
-          <h3 className="text-base font-semibold text-gray-900 mb-1">Provider Approval</h3>
-          <p className="text-sm text-gray-500 mb-4">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100 mb-1">Provider Approval</h3>
+          <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
             Review the reconciliation summary and approve to lock the record. Once approved, no further changes can be made.
           </p>
-          <div className="border border-gray-200 rounded p-4 bg-gray-50 mb-4 text-sm space-y-1">
-            <div><span className="text-gray-500">Type:</span> <span className="font-medium">{RECON_TYPES.find(t => t.value === rec.reconciliation_type)?.label}</span></div>
-            <div><span className="text-gray-500">Source:</span> <span className="font-medium">{PRIOR_SOURCES.find(s => s.value === rec.prior_source)?.label}</span></div>
-            <div><span className="text-gray-500">Reconciled by:</span> <span className="font-medium">{rec.reconciled_by ? `${rec.reconciled_by.first_name} ${rec.reconciled_by.last_name}` : '—'}</span></div>
+          <div className="border border-gray-200 dark:border-slate-700 rounded p-4 bg-gray-50 dark:bg-slate-800 mb-4 text-sm space-y-1">
+            <div><span className="text-gray-500 dark:text-slate-400">Type:</span> <span className="font-medium dark:text-slate-200">{RECON_TYPES.find(t => t.value === rec.reconciliation_type)?.label}</span></div>
+            <div><span className="text-gray-500 dark:text-slate-400">Source:</span> <span className="font-medium dark:text-slate-200">{PRIOR_SOURCES.find(s => s.value === rec.prior_source)?.label}</span></div>
+            <div><span className="text-gray-500 dark:text-slate-400">Reconciled by:</span> <span className="font-medium dark:text-slate-200">{rec.reconciled_by ? `${rec.reconciled_by.first_name} ${rec.reconciled_by.last_name}` : '-'}</span></div>
             {rec.has_discrepancies && (
-              <div className="mt-2 bg-amber-50 border border-amber-200 text-amber-700 text-xs px-3 py-2 rounded">
-                ⚠ This reconciliation has documented discrepancies requiring clinical follow-up.
+              <div className="mt-2 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs px-3 py-2 rounded">
+                <ExclamationTriangleIcon className="w-3.5 h-3.5 inline mr-1" />This reconciliation has documented discrepancies requiring clinical follow-up.
               </div>
             )}
           </div>
           <div className="flex gap-3">
-            <button onClick={() => setStep(4)} className="text-sm px-4 py-2 border border-gray-300 rounded hover:bg-gray-50">← Back</button>
+            <button onClick={() => setStep(4)} className="text-sm px-4 py-2 border border-gray-300 dark:border-slate-600 dark:text-slate-300 rounded hover:bg-gray-50 dark:hover:bg-slate-700">← Back</button>
             <button onClick={handleApprove} disabled={saving}
               className="bg-green-600 text-white text-sm px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50">
               {saving ? 'Approving…' : '✓ Approve & Lock Record'}
@@ -4601,12 +4800,12 @@ function ImmunizationsTab({ participantId }: { participantId: number }) {
       .finally(() => setSaving(false))
   }
 
-  if (loading) return <div className="p-6 text-gray-400 text-sm">Loading immunizations…</div>
+  if (loading) return <div className="p-6 text-gray-400 dark:text-slate-500 text-sm">Loading immunizations…</div>
 
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold text-gray-900">Immunization Record</h3>
+        <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">Immunization Record</h3>
         <button onClick={() => setShowForm(v => !v)}
           className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700">
           + Record Immunization
@@ -4614,54 +4813,54 @@ function ImmunizationsTab({ participantId }: { participantId: number }) {
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-gray-50 rounded-lg border p-4 space-y-3">
+        <form onSubmit={handleSubmit} className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-medium text-gray-700">Vaccine Type</label>
+              <label className="text-xs font-medium text-gray-700 dark:text-slate-300">Vaccine Type</label>
               <select value={form.vaccine_type} onChange={e => setForm(f => ({ ...f, vaccine_type: e.target.value, vaccine_name: VACCINE_TYPE_LABELS[e.target.value] ?? '' }))}
-                className="mt-1 block w-full border rounded text-sm px-2 py-1.5">
+                className="mt-1 block w-full border border-gray-300 dark:border-slate-600 rounded text-sm px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100">
                 {Object.entries(VACCINE_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700">Vaccine Name / Brand</label>
+              <label className="text-xs font-medium text-gray-700 dark:text-slate-300">Vaccine Name / Brand</label>
               <input value={form.vaccine_name} onChange={e => setForm(f => ({ ...f, vaccine_name: e.target.value }))}
-                className="mt-1 block w-full border rounded text-sm px-2 py-1.5" required />
+                className="mt-1 block w-full border border-gray-300 dark:border-slate-600 rounded text-sm px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" required />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700">Date Administered</label>
+              <label className="text-xs font-medium text-gray-700 dark:text-slate-300">Date Administered</label>
               <input type="date" value={form.administered_date} onChange={e => setForm(f => ({ ...f, administered_date: e.target.value }))}
-                className="mt-1 block w-full border rounded text-sm px-2 py-1.5" required />
+                className="mt-1 block w-full border border-gray-300 dark:border-slate-600 rounded text-sm px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" required />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700">Lot Number</label>
+              <label className="text-xs font-medium text-gray-700 dark:text-slate-300">Lot Number</label>
               <input value={form.lot_number} onChange={e => setForm(f => ({ ...f, lot_number: e.target.value }))}
-                className="mt-1 block w-full border rounded text-sm px-2 py-1.5" />
+                className="mt-1 block w-full border border-gray-300 dark:border-slate-600 rounded text-sm px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700">Manufacturer</label>
+              <label className="text-xs font-medium text-gray-700 dark:text-slate-300">Manufacturer</label>
               <input value={form.manufacturer} onChange={e => setForm(f => ({ ...f, manufacturer: e.target.value }))}
-                className="mt-1 block w-full border rounded text-sm px-2 py-1.5" />
+                className="mt-1 block w-full border border-gray-300 dark:border-slate-600 rounded text-sm px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700">Location</label>
+              <label className="text-xs font-medium text-gray-700 dark:text-slate-300">Location</label>
               <input value={form.administered_at_location} onChange={e => setForm(f => ({ ...f, administered_at_location: e.target.value }))}
-                className="mt-1 block w-full border rounded text-sm px-2 py-1.5" />
+                className="mt-1 block w-full border border-gray-300 dark:border-slate-600 rounded text-sm px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" />
             </div>
           </div>
-          <label className="flex items-center gap-2 text-sm text-gray-700">
+          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
             <input type="checkbox" checked={form.refused} onChange={e => setForm(f => ({ ...f, refused: e.target.checked }))} />
             Patient Refused
           </label>
           {form.refused && (
             <div>
-              <label className="text-xs font-medium text-gray-700">Refusal Reason</label>
+              <label className="text-xs font-medium text-gray-700 dark:text-slate-300">Refusal Reason</label>
               <input value={form.refusal_reason} onChange={e => setForm(f => ({ ...f, refusal_reason: e.target.value }))}
-                className="mt-1 block w-full border rounded text-sm px-2 py-1.5" />
+                className="mt-1 block w-full border border-gray-300 dark:border-slate-600 rounded text-sm px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" />
             </div>
           )}
           <div className="flex gap-2 justify-end">
-            <button type="button" onClick={() => setShowForm(false)} className="text-sm px-3 py-1.5 border rounded text-gray-600 hover:bg-gray-100">Cancel</button>
+            <button type="button" onClick={() => setShowForm(false)} className="text-sm px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700">Cancel</button>
             <button type="submit" disabled={saving} className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 disabled:opacity-50">
               {saving ? 'Saving…' : 'Save'}
             </button>
@@ -4670,11 +4869,11 @@ function ImmunizationsTab({ participantId }: { participantId: number }) {
       )}
 
       {immunizations.length === 0
-        ? <p className="text-gray-400 text-sm py-4">No immunizations on file.</p>
+        ? <p className="text-gray-400 dark:text-slate-500 text-sm py-4">No immunizations on file.</p>
         : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b text-xs text-gray-500 uppercase">
+              <tr className="border-b border-gray-200 dark:border-slate-700 text-xs text-gray-500 dark:text-slate-400 uppercase">
                 <th className="text-left py-2 font-medium">Vaccine</th>
                 <th className="text-left py-2 font-medium">Date</th>
                 <th className="text-left py-2 font-medium">Lot / Mfr</th>
@@ -4684,17 +4883,17 @@ function ImmunizationsTab({ participantId }: { participantId: number }) {
             </thead>
             <tbody>
               {immunizations.map(imm => (
-                <tr key={imm.id} className="border-b last:border-0 hover:bg-gray-50">
-                  <td className="py-2 font-medium text-gray-900">{VACCINE_TYPE_LABELS[imm.vaccine_type] ?? imm.vaccine_type}</td>
-                  <td className="py-2 text-gray-600">{new Date(imm.administered_date).toLocaleDateString()}</td>
-                  <td className="py-2 text-gray-500 text-xs">{[imm.lot_number, imm.manufacturer].filter(Boolean).join(' / ') || '—'}</td>
+                <tr key={imm.id} className="border-b border-gray-100 dark:border-slate-700 last:border-0 hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                  <td className="py-2 font-medium text-gray-900 dark:text-slate-100">{VACCINE_TYPE_LABELS[imm.vaccine_type] ?? imm.vaccine_type}</td>
+                  <td className="py-2 text-gray-600 dark:text-slate-400">{new Date(imm.administered_date).toLocaleDateString()}</td>
+                  <td className="py-2 text-gray-500 dark:text-slate-400 text-xs">{[imm.lot_number, imm.manufacturer].filter(Boolean).join(' / ') || '-'}</td>
                   <td className="py-2">
                     {imm.refused
-                      ? <span className="px-1.5 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800">Refused</span>
-                      : <span className="px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-800">Administered</span>
+                      ? <span className="px-1.5 py-0.5 rounded text-xs bg-yellow-100 dark:bg-yellow-900/60 text-yellow-800 dark:text-yellow-300">Refused</span>
+                      : <span className="px-1.5 py-0.5 rounded text-xs bg-green-100 dark:bg-green-900/60 text-green-800 dark:text-green-300">Administered</span>
                     }
                   </td>
-                  <td className="py-2 text-gray-500 text-xs">{imm.next_dose_due ? new Date(imm.next_dose_due).toLocaleDateString() : '—'}</td>
+                  <td className="py-2 text-gray-500 dark:text-slate-400 text-xs">{imm.next_dose_due ? new Date(imm.next_dose_due).toLocaleDateString() : '-'}</td>
                 </tr>
               ))}
             </tbody>
@@ -4751,12 +4950,12 @@ function ProceduresTab({ participantId }: { participantId: number }) {
       .finally(() => setSaving(false))
   }
 
-  if (loading) return <div className="p-6 text-gray-400 text-sm">Loading procedures…</div>
+  if (loading) return <div className="p-6 text-gray-400 dark:text-slate-500 text-sm">Loading procedures…</div>
 
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold text-gray-900">Procedure History</h3>
+        <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">Procedure History</h3>
         <button onClick={() => setShowForm(v => !v)}
           className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700">
           + Add Procedure
@@ -4764,40 +4963,40 @@ function ProceduresTab({ participantId }: { participantId: number }) {
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-gray-50 rounded-lg border p-4 space-y-3">
+        <form onSubmit={handleSubmit} className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
-              <label className="text-xs font-medium text-gray-700">Procedure Name *</label>
+              <label className="text-xs font-medium text-gray-700 dark:text-slate-300">Procedure Name *</label>
               <input value={form.procedure_name} onChange={e => setForm(f => ({ ...f, procedure_name: e.target.value }))}
-                className="mt-1 block w-full border rounded text-sm px-2 py-1.5" required />
+                className="mt-1 block w-full border border-gray-300 dark:border-slate-600 rounded text-sm px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" required />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700">CPT Code</label>
+              <label className="text-xs font-medium text-gray-700 dark:text-slate-300">CPT Code</label>
               <input value={form.cpt_code} onChange={e => setForm(f => ({ ...f, cpt_code: e.target.value }))}
-                className="mt-1 block w-full border rounded text-sm px-2 py-1.5" placeholder="e.g. 99213" />
+                className="mt-1 block w-full border border-gray-300 dark:border-slate-600 rounded text-sm px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" placeholder="e.g. 99213" />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700">Performed Date *</label>
+              <label className="text-xs font-medium text-gray-700 dark:text-slate-300">Performed Date *</label>
               <input type="date" value={form.performed_date} onChange={e => setForm(f => ({ ...f, performed_date: e.target.value }))}
-                className="mt-1 block w-full border rounded text-sm px-2 py-1.5" required />
+                className="mt-1 block w-full border border-gray-300 dark:border-slate-600 rounded text-sm px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" required />
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700">Source</label>
+              <label className="text-xs font-medium text-gray-700 dark:text-slate-300">Source</label>
               <select value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))}
-                className="mt-1 block w-full border rounded text-sm px-2 py-1.5">
+                className="mt-1 block w-full border border-gray-300 dark:border-slate-600 rounded text-sm px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100">
                 <option value="internal">Internal (PACE)</option>
                 <option value="external_report">External Report</option>
                 <option value="patient_reported">Patient Reported</option>
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-700">Facility</label>
+              <label className="text-xs font-medium text-gray-700 dark:text-slate-300">Facility</label>
               <input value={form.facility} onChange={e => setForm(f => ({ ...f, facility: e.target.value }))}
-                className="mt-1 block w-full border rounded text-sm px-2 py-1.5" />
+                className="mt-1 block w-full border border-gray-300 dark:border-slate-600 rounded text-sm px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" />
             </div>
           </div>
           <div className="flex gap-2 justify-end">
-            <button type="button" onClick={() => setShowForm(false)} className="text-sm px-3 py-1.5 border rounded text-gray-600 hover:bg-gray-100">Cancel</button>
+            <button type="button" onClick={() => setShowForm(false)} className="text-sm px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700">Cancel</button>
             <button type="submit" disabled={saving} className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 disabled:opacity-50">
               {saving ? 'Saving…' : 'Save'}
             </button>
@@ -4806,11 +5005,11 @@ function ProceduresTab({ participantId }: { participantId: number }) {
       )}
 
       {procedures.length === 0
-        ? <p className="text-gray-400 text-sm py-4">No procedures on file.</p>
+        ? <p className="text-gray-400 dark:text-slate-500 text-sm py-4">No procedures on file.</p>
         : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b text-xs text-gray-500 uppercase">
+              <tr className="border-b border-gray-200 dark:border-slate-700 text-xs text-gray-500 dark:text-slate-400 uppercase">
                 <th className="text-left py-2 font-medium">Procedure</th>
                 <th className="text-left py-2 font-medium">Date</th>
                 <th className="text-left py-2 font-medium">CPT</th>
@@ -4820,16 +5019,16 @@ function ProceduresTab({ participantId }: { participantId: number }) {
             </thead>
             <tbody>
               {procedures.map(proc => (
-                <tr key={proc.id} className="border-b last:border-0 hover:bg-gray-50">
-                  <td className="py-2 font-medium text-gray-900">{proc.procedure_name}</td>
-                  <td className="py-2 text-gray-600">{new Date(proc.performed_date).toLocaleDateString()}</td>
-                  <td className="py-2 font-mono text-xs text-gray-500">{proc.cpt_code ?? '—'}</td>
-                  <td className="py-2 text-gray-500 text-xs">{proc.facility ?? '—'}</td>
+                <tr key={proc.id} className="border-b border-gray-100 dark:border-slate-700 last:border-0 hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                  <td className="py-2 font-medium text-gray-900 dark:text-slate-100">{proc.procedure_name}</td>
+                  <td className="py-2 text-gray-600 dark:text-slate-400">{new Date(proc.performed_date).toLocaleDateString()}</td>
+                  <td className="py-2 font-mono text-xs text-gray-500 dark:text-slate-400">{proc.cpt_code ?? '-'}</td>
+                  <td className="py-2 text-gray-500 dark:text-slate-400 text-xs">{proc.facility ?? '-'}</td>
                   <td className="py-2">
                     <span className={`px-1.5 py-0.5 rounded text-xs ${
-                      proc.source === 'internal'        ? 'bg-blue-100 text-blue-700' :
-                      proc.source === 'external_report' ? 'bg-orange-100 text-orange-700' :
-                      'bg-gray-100 text-gray-600'
+                      proc.source === 'internal'        ? 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300' :
+                      proc.source === 'external_report' ? 'bg-orange-100 dark:bg-orange-900/60 text-orange-700 dark:text-orange-300' :
+                      'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300'
                     }`}>
                       {proc.source === 'internal' ? 'PACE' : proc.source === 'external_report' ? 'External' : 'Pt. Reported'}
                     </span>
@@ -4864,20 +5063,20 @@ interface SdohRecord {
 }
 
 const SDOH_RISK_COLOR: Record<string, string> = {
-  stable:          'text-green-700',
-  at_risk:         'text-yellow-700',
-  high_risk:       'text-red-700',
-  adequate:        'text-green-700',
-  inadequate:      'text-red-700',
-  limited:         'text-red-700',
-  available:       'text-green-700',
-  isolated:        'text-red-700',
-  low:             'text-green-700',
-  moderate:        'text-yellow-700',
-  high:            'text-red-700',
-  none:            'text-green-700',
-  minor:           'text-yellow-700',
-  severe:          'text-red-700',
+  stable:          'text-green-700 dark:text-green-300',
+  at_risk:         'text-yellow-700 dark:text-yellow-300',
+  high_risk:       'text-red-700 dark:text-red-300',
+  adequate:        'text-green-700 dark:text-green-300',
+  inadequate:      'text-red-700 dark:text-red-300',
+  limited:         'text-red-700 dark:text-red-300',
+  available:       'text-green-700 dark:text-green-300',
+  isolated:        'text-red-700 dark:text-red-300',
+  low:             'text-green-700 dark:text-green-300',
+  moderate:        'text-yellow-700 dark:text-yellow-300',
+  high:            'text-red-700 dark:text-red-300',
+  none:            'text-green-700 dark:text-green-300',
+  minor:           'text-yellow-700 dark:text-yellow-300',
+  severe:          'text-red-700 dark:text-red-300',
 }
 
 function SdohTab({ participantId }: { participantId: number }) {
@@ -4917,14 +5116,14 @@ function SdohTab({ participantId }: { participantId: number }) {
     { key: 'financial_strain',      label: 'Financial Strain',      options: ['none','moderate','severe'] },
   ] as const
 
-  if (loading) return <div className="p-6 text-gray-400 text-sm">Loading SDOH screenings…</div>
+  if (loading) return <div className="p-6 text-gray-400 dark:text-slate-500 text-sm">Loading SDOH screenings…</div>
 
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-base font-semibold text-gray-900">Social Determinants of Health</h3>
-          <p className="text-xs text-gray-400 mt-0.5">USCDI v3 · PRAPARE-aligned screening</p>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">Social Determinants of Health</h3>
+          <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">USCDI v3 · PRAPARE-aligned screening</p>
         </div>
         <button onClick={() => setShowForm(v => !v)}
           className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700">
@@ -4933,31 +5132,31 @@ function SdohTab({ participantId }: { participantId: number }) {
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-gray-50 rounded-lg border p-4 space-y-3">
+        <form onSubmit={handleSubmit} className="bg-gray-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 space-y-3">
           <div className="grid grid-cols-2 gap-3">
             {DOMAINS.map(d => (
               <div key={d.key}>
-                <label className="text-xs font-medium text-gray-700">{d.label}</label>
+                <label className="text-xs font-medium text-gray-700 dark:text-slate-300">{d.label}</label>
                 <select value={(form as any)[d.key]} onChange={e => setForm(f => ({ ...f, [d.key]: e.target.value }))}
-                  className="mt-1 block w-full border rounded text-sm px-2 py-1.5">
-                  <option value="">— Not assessed</option>
+                  className="mt-1 block w-full border border-gray-300 dark:border-slate-600 rounded text-sm px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100">
+                  <option value="">Not assessed</option>
                   {d.options.map(o => <option key={o} value={o}>{o.replace(/_/g, ' ')}</option>)}
                 </select>
               </div>
             ))}
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-700">Safety Concerns</label>
+            <label className="text-xs font-medium text-gray-700 dark:text-slate-300">Safety Concerns</label>
             <input value={form.safety_concerns} onChange={e => setForm(f => ({ ...f, safety_concerns: e.target.value }))}
-              className="mt-1 block w-full border rounded text-sm px-2 py-1.5" placeholder="e.g. domestic violence, unsafe living conditions" />
+              className="mt-1 block w-full border border-gray-300 dark:border-slate-600 rounded text-sm px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" placeholder="e.g. domestic violence, unsafe living conditions" />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-700">Notes</label>
+            <label className="text-xs font-medium text-gray-700 dark:text-slate-300">Notes</label>
             <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-              rows={2} className="mt-1 block w-full border rounded text-sm px-2 py-1.5" />
+              rows={2} className="mt-1 block w-full border border-gray-300 dark:border-slate-600 rounded text-sm px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" />
           </div>
           <div className="flex gap-2 justify-end">
-            <button type="button" onClick={() => setShowForm(false)} className="text-sm px-3 py-1.5 border rounded text-gray-600 hover:bg-gray-100">Cancel</button>
+            <button type="button" onClick={() => setShowForm(false)} className="text-sm px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700">Cancel</button>
             <button type="submit" disabled={saving} className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 disabled:opacity-50">
               {saving ? 'Saving…' : 'Save Screening'}
             </button>
@@ -4966,15 +5165,15 @@ function SdohTab({ participantId }: { participantId: number }) {
       )}
 
       {records.length === 0
-        ? <p className="text-gray-400 text-sm py-4">No SDOH screenings on file.</p>
+        ? <p className="text-gray-400 dark:text-slate-500 text-sm py-4">No SDOH screenings on file.</p>
         : records.map(rec => (
-          <div key={rec.id} className="border rounded-lg p-4 space-y-2">
+          <div key={rec.id} className="border border-gray-200 dark:border-slate-700 rounded-lg p-4 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-gray-900">
+              <span className="text-sm font-semibold text-gray-900 dark:text-slate-100">
                 {new Date(rec.assessed_at).toLocaleDateString()}
               </span>
               {rec.assessed_by && (
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-gray-400 dark:text-slate-500">
                   Assessed by {rec.assessed_by.first_name} {rec.assessed_by.last_name}
                 </span>
               )}
@@ -4982,17 +5181,17 @@ function SdohTab({ participantId }: { participantId: number }) {
             <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-sm">
               {DOMAINS.map(d => rec[d.key as keyof SdohRecord] && (
                 <div key={d.key} className="flex items-baseline gap-1">
-                  <span className="text-xs text-gray-500">{d.label}:</span>
-                  <span className={`text-xs font-medium capitalize ${SDOH_RISK_COLOR[(rec[d.key as keyof SdohRecord] as string)] ?? 'text-gray-700'}`}>
+                  <span className="text-xs text-gray-500 dark:text-slate-400">{d.label}:</span>
+                  <span className={`text-xs font-medium capitalize ${SDOH_RISK_COLOR[(rec[d.key as keyof SdohRecord] as string)] ?? 'text-gray-700 dark:text-slate-300'}`}>
                     {(rec[d.key as keyof SdohRecord] as string).replace(/_/g, ' ')}
                   </span>
                 </div>
               ))}
             </div>
             {rec.safety_concerns && (
-              <p className="text-xs text-red-700 bg-red-50 px-2 py-1 rounded">⚠ Safety: {rec.safety_concerns}</p>
+              <p className="text-xs text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/60 px-2 py-1 rounded flex items-center gap-1"><ExclamationTriangleIcon className="w-3 h-3 shrink-0" /> Safety: {rec.safety_concerns}</p>
             )}
-            {rec.notes && <p className="text-xs text-gray-500">{rec.notes}</p>}
+            {rec.notes && <p className="text-xs text-gray-500 dark:text-slate-400">{rec.notes}</p>}
           </div>
         ))
       }
@@ -5011,6 +5210,7 @@ export default function ParticipantShow({
   participant, addresses, contacts, flags, insurances, auditLogs,
   canEdit, canDelete, canViewAudit,
   problems, allergies, lifeThreateningAllergyCount, vitals, icd10Codes, noteTemplates,
+  hasMultipleSites, completedTransfers,
 }: Props) {
   const { auth } = usePage<{ auth: { user: { department: string; is_super_admin: boolean } } }>().props
 
@@ -5023,42 +5223,53 @@ export default function ParticipantShow({
     const raw = params.get('tab') as Tab | null
     const valid: Tab[] = ['overview', 'chart', 'vitals', 'assessments', 'problems',
       'allergies', 'adl', 'careplan', 'medications', 'emar', 'med-recon',
+      'immunizations', 'procedures', 'sdoh',
       'contacts', 'flags', 'insurance', 'documents', 'audit', 'transfers']
     return raw && valid.includes(raw) ? raw : 'overview'
   })
 
+  // switchTab: updates React state AND syncs the URL query string so the browser
+  // back/forward buttons work and the user can share/bookmark a specific tab.
+  const switchTab = (tab: Tab) => {
+    setActiveTab(tab)
+    const url = new URL(window.location.href)
+    url.searchParams.set('tab', tab)
+    window.history.replaceState(null, '', url.pathname + url.search)
+  }
+
   const activeFlags = flags.filter(f => f.is_active)
 
-  // ── CLINICAL section tabs (blue active underline) ──────────────────────────
+  // ── Row 1: CLINICAL tabs (blue active underline) — primary clinical workflow ─
   const clinicalTabs: { id: Tab; label: string; count?: number }[] = [
-    { id: 'chart',       label: 'Chart' },
-    { id: 'vitals',      label: 'Vitals',      count: vitals.length },
-    { id: 'assessments', label: 'Assessments' },
-    { id: 'problems',    label: 'Problems',    count: problems.length },
-    { id: 'allergies',   label: 'Allergies',   count: allergies.length },
-    { id: 'adl',         label: 'ADL' },
-    { id: 'careplan',    label: 'Care Plan' },
+    { id: 'chart',         label: 'Chart' },
+    { id: 'vitals',        label: 'Vitals',       count: vitals.length },
+    { id: 'assessments',   label: 'Assessments' },
     { id: 'medications',   label: 'Medications' },
     { id: 'emar',          label: 'eMAR' },
     { id: 'med-recon',     label: 'Med Recon' },
+    { id: 'problems',      label: 'Diagnoses',    count: problems.length },
+    { id: 'allergies',     label: 'Allergies',    count: allergies.length },
+    { id: 'adl',           label: 'ADL' },
+    { id: 'careplan',      label: 'Care Plan' },
     { id: 'immunizations', label: 'Immunizations' },
     { id: 'procedures',    label: 'Procedures' },
-    { id: 'sdoh',          label: 'SDOH' },
   ]
 
-  // ── ADMIN section tabs (slate active underline) ────────────────────────────
+  // ── Row 2: ADMIN tabs (slate active underline) — overview + care coordination ─
   const adminTabs: { id: Tab; label: string; count?: number; hidden?: boolean }[] = [
+    { id: 'overview',  label: 'Facesheet' },
     { id: 'contacts',  label: 'Contacts',    count: contacts.length },
     { id: 'flags',     label: 'Flags',       count: activeFlags.length },
     { id: 'insurance', label: 'Insurance',   count: insurances.length },
     { id: 'documents', label: 'Documents' },
+    { id: 'sdoh',      label: 'SDOH' },
     { id: 'transfers', label: 'Transfers',   hidden: !canManageTransfers },
     { id: 'audit',     label: 'Audit Trail', hidden: !canViewAudit },
   ]
 
   return (
     <AppShell>
-      <Head title={`${participant.first_name} ${participant.last_name} — ${participant.mrn}`} />
+      <Head title={`${participant.first_name} ${participant.last_name} | ${participant.mrn}`} />
 
       {/* Breadcrumb */}
       <div className="px-6 pt-4 pb-0 text-sm text-gray-500">
@@ -5068,108 +5279,92 @@ export default function ParticipantShow({
       </div>
 
       {/* Sticky participant header (avatar, name, MRN, flag chips) */}
-      <ParticipantHeader participant={participant} activeFlags={activeFlags} canDelete={canDelete} />
+      <ParticipantHeader participant={participant} activeFlags={activeFlags} canDelete={canDelete} onTabChange={switchTab} />
 
       {/* Life-threatening allergy banner — persists across all tabs */}
       {lifeThreateningAllergyCount > 0 && (
         <LifeThreateningBanner
           count={lifeThreateningAllergyCount}
-          onViewAllergies={() => setActiveTab('allergies')}
+          onViewAllergies={() => switchTab('allergies')}
         />
       )}
 
-      {/* ── Two-section tab navigation ─────────────────────────────────────── */}
+      {/* ── Two-row tab navigation ──────────────────────────────────────────── */}
       {/*                                                                       */}
-      {/* Layout: [Overview]  CLINICAL [Chart][Vitals][Assessments]…  ADMIN [Contacts]… */}
-      {/*                                                                       */}
-      {/* Section labels are non-interactive pill badges between tab groups.    */}
-      {/* CLINICAL tabs: border-blue-600.  ADMIN tabs: border-slate-600.        */}
-      <div className="border-b border-gray-200 px-6 bg-white overflow-x-auto">
-        <nav className="flex items-center gap-0 -mb-px min-w-max" role="tablist" aria-label="Participant profile sections">
+      {/* Row 1 (CLINICAL, blue): primary clinical workflow tabs.               */}
+      {/* Row 2 (ADMIN, slate): facesheet + care coordination + admin tabs.     */}
+      {/* Both rows always visible. Each row scrolls horizontally if needed.    */}
 
-          {/* Overview — standalone first tab */}
-          <button
-            role="tab"
-            aria-selected={activeTab === 'overview'}
-            data-testid="tab-overview"
-            onClick={() => setActiveTab('overview')}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === 'overview'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Overview
-          </button>
+      {/* ── Row 1: Clinical tabs ────────────────────────────────────────────── */}
+      <div className="border-b border-gray-200 dark:border-slate-700 px-6 bg-white dark:bg-slate-800 overflow-x-auto">
+        <nav className="flex items-center gap-0 -mb-px min-w-max" role="tablist" aria-label="Clinical tabs">
+          <span className="mr-3 px-2 py-0.5 text-xs font-semibold text-blue-500 bg-blue-50 dark:bg-blue-950/60 rounded border border-blue-200 dark:border-blue-800 whitespace-nowrap select-none">
+            CLINICAL
+          </span>
+          {clinicalTabs.map(tab => (
+            <button
+              key={tab.id}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              data-testid={`tab-${tab.id}`}
+              onClick={() => switchTab(tab.id)}
+              className={`px-3 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === tab.id
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 hover:border-gray-300 dark:hover:border-slate-600'
+              }`}
+            >
+              {tab.label}
+              {tab.count != null && tab.count > 0 && (
+                <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                  activeTab === tab.id ? 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
+                }`}>{tab.count}</span>
+              )}
+            </button>
+          ))}
+        </nav>
+      </div>
 
-          {/* CLINICAL section label + tabs */}
-          <div className="flex items-center">
-            <span className="mx-3 px-2 py-0.5 text-xs font-semibold text-blue-500 bg-blue-50 rounded border border-blue-200 whitespace-nowrap select-none">
-              CLINICAL
-            </span>
-            {clinicalTabs.map(tab => (
-              <button
-                key={tab.id}
-                role="tab"
-                aria-selected={activeTab === tab.id}
-                data-testid={`tab-${tab.id}`}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                {tab.label}
-                {tab.count != null && tab.count > 0 && (
-                  <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                    activeTab === tab.id ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
-                  }`}>{tab.count}</span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* ADMIN section label + tabs */}
-          <div className="flex items-center">
-            <span className="mx-3 px-2 py-0.5 text-xs font-semibold text-slate-500 bg-slate-50 rounded border border-slate-200 whitespace-nowrap select-none">
-              ADMIN
-            </span>
-            {adminTabs.filter(t => !t.hidden).map(tab => (
-              <button
-                key={tab.id}
-                role="tab"
-                aria-selected={activeTab === tab.id}
-                data-testid={`tab-${tab.id}`}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'border-slate-600 text-slate-700'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                {tab.label}
-                {tab.count != null && tab.count > 0 && (
-                  <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                    activeTab === tab.id ? 'bg-slate-100 text-slate-700' : 'bg-gray-100 text-gray-500'
-                  }`}>{tab.count}</span>
-                )}
-              </button>
-            ))}
-          </div>
+      {/* ── Row 2: Admin tabs ───────────────────────────────────────────────── */}
+      <div className="border-b border-gray-200 dark:border-slate-700 px-6 bg-gray-50 dark:bg-slate-900 overflow-x-auto">
+        <nav className="flex items-center gap-0 -mb-px min-w-max" role="tablist" aria-label="Admin tabs">
+          <span className="mr-3 px-2 py-0.5 text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 whitespace-nowrap select-none">
+            ADMIN
+          </span>
+          {adminTabs.filter(t => !t.hidden).map(tab => (
+            <button
+              key={tab.id}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              data-testid={`tab-${tab.id}`}
+              onClick={() => switchTab(tab.id)}
+              className={`px-3 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === tab.id
+                  ? 'border-slate-600 text-slate-700 dark:text-slate-200'
+                  : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 hover:border-gray-300 dark:hover:border-slate-600'
+              }`}
+            >
+              {tab.label}
+              {tab.count != null && tab.count > 0 && (
+                <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                  activeTab === tab.id ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
+                }`}>{tab.count}</span>
+              )}
+            </button>
+          ))}
         </nav>
       </div>
 
       {/* ── Tab content panels ─────────────────────────────────────────────── */}
       <div className="px-6 py-6">
         {activeTab === 'overview'    && <OverviewTab     participant={participant} addresses={addresses} contacts={contacts} flags={flags} problems={problems} allergies={allergies} vitals={vitals} insurances={insurances} />}
-        {activeTab === 'chart'       && <ChartTab        participantId={participant.id} noteTemplates={noteTemplates} />}
-        {activeTab === 'vitals'      && <VitalsTab       participantId={participant.id} initialVitals={vitals} />}
+        {activeTab === 'chart'       && <ChartTab        participantId={participant.id} noteTemplates={noteTemplates} hasMultipleSites={hasMultipleSites} />}
+        {activeTab === 'vitals'      && <VitalsTab       participantId={participant.id} initialVitals={vitals} completedTransfers={completedTransfers} />}
         {activeTab === 'assessments' && <AssessmentsTab  participantId={participant.id} />}
         {activeTab === 'problems'    && <ProblemsTab     participantId={participant.id} initialProblems={problems} icd10Codes={icd10Codes} />}
         {activeTab === 'allergies'   && <AllergiesTab    participantId={participant.id} initialAllergies={allergies} />}
         {activeTab === 'adl'         && <AdlTab          participantId={participant.id} />}
-        {activeTab === 'careplan'    && <CarePlanTab     participantId={participant.id} canApprove={canEdit} />}
+        {activeTab === 'careplan'    && <CarePlanTab     participantId={participant.id} />}
         {activeTab === 'medications'   && <MedicationsTab    participantId={participant.id} />}
         {activeTab === 'emar'          && <EmarTab           participantId={participant.id} />}
         {activeTab === 'med-recon'     && <MedReconTab       participantId={participant.id} />}

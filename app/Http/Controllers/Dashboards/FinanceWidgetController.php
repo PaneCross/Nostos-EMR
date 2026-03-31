@@ -106,6 +106,7 @@ class FinanceWidgetController extends Controller
                 'service_label'    => Authorization::SERVICE_TYPES[$a->service_type] ?? $a->service_type,
                 'authorized_end'   => $a->authorized_end?->toDateString(),
                 'days_until_expiry'=> $a->daysUntilExpiry(),
+                'href'             => '/finance/encounters',
             ]);
 
         return response()->json([

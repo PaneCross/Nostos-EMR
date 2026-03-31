@@ -221,6 +221,22 @@ class Participant extends Model
             ->where('is_acknowledged', false);
     }
 
+    // ─── Phase 10A / W3-6: Site transfer relationships ────────────────────────
+
+    public function siteTransfers(): HasMany
+    {
+        return $this->hasMany(ParticipantSiteTransfer::class, 'participant_id');
+    }
+
+    /**
+     * Returns true if this participant has ever completed a site transfer.
+     * Used to decide whether site-source labels should appear on clinical data.
+     */
+    public function hasMultipleSites(): bool
+    {
+        return $this->siteTransfers()->where('status', 'completed')->exists();
+    }
+
     // ─── Computed helpers ──────────────────────────────────────────────────────
 
     public function fullName(): string

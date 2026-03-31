@@ -88,8 +88,8 @@ export default function RiskAdjustment({ gapSummary: initialGapSummary, riskScor
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-900">HCC Risk Adjustment — {year}</h1>
-                        <p className="text-sm text-slate-500 mt-1">
+                        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">HCC Risk Adjustment — {year}</h1>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                             CMS-HCC gap analysis and RAF score tracking. Each gap represents lost capitation revenue.
                         </p>
                     </div>
@@ -104,21 +104,21 @@ export default function RiskAdjustment({ gapSummary: initialGapSummary, riskScor
 
                 {/* KPI Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white rounded-xl border border-slate-200 p-4">
-                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Participants Scored</p>
-                        <p className="text-2xl font-bold text-slate-900 mt-1">{gapSummary.total_participants}</p>
+                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wide">Participants Scored</p>
+                        <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">{gapSummary.total_participants}</p>
                     </div>
-                    <div className="bg-white rounded-xl border border-slate-200 p-4">
-                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">With HCC Gaps</p>
-                        <p className="text-2xl font-bold text-amber-600 mt-1">{gapSummary.participants_with_gaps}</p>
+                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wide">With HCC Gaps</p>
+                        <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{gapSummary.participants_with_gaps}</p>
                     </div>
-                    <div className="bg-white rounded-xl border border-slate-200 p-4">
-                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Total Gap Count</p>
-                        <p className="text-2xl font-bold text-red-600 mt-1">{gapSummary.total_gap_count}</p>
+                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wide">Total Gap Count</p>
+                        <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">{gapSummary.total_gap_count}</p>
                     </div>
-                    <div className="bg-white rounded-xl border border-slate-200 p-4">
-                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Est. Monthly $ at Risk</p>
-                        <p className="text-2xl font-bold text-red-700 mt-1">
+                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wide">Est. Monthly $ at Risk</p>
+                        <p className="text-2xl font-bold text-red-700 dark:text-red-300 mt-1">
                             ${fmt(gapSummary.estimated_monthly_revenue_at_risk)}
                         </p>
                     </div>
@@ -126,11 +126,11 @@ export default function RiskAdjustment({ gapSummary: initialGapSummary, riskScor
 
                 {/* Top Gap Categories */}
                 {Object.keys(gapSummary.top_gaps).length > 0 && (
-                    <div className="bg-white rounded-xl border border-slate-200 p-5">
-                        <h2 className="text-sm font-semibold text-slate-700 mb-3">Top HCC Gap Categories</h2>
+                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+                        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Top HCC Gap Categories</h2>
                         <div className="flex flex-wrap gap-2">
                             {Object.entries(gapSummary.top_gaps).map(([cat, count]) => (
-                                <span key={cat} className="px-3 py-1 bg-red-50 text-red-700 border border-red-200 rounded-full text-xs font-medium">
+                                <span key={cat} className="px-3 py-1 bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-full text-xs font-medium">
                                     {cat} — {count} participant{count !== 1 ? 's' : ''}
                                 </span>
                             ))}
@@ -139,13 +139,13 @@ export default function RiskAdjustment({ gapSummary: initialGapSummary, riskScor
                 )}
 
                 {/* Risk Score Table */}
-                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <div className="px-5 py-4 border-b border-slate-100">
-                        <h2 className="text-sm font-semibold text-slate-700">Participant RAF Scores</h2>
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-700">
+                        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Participant RAF Scores</h2>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="min-w-full text-sm">
-                            <thead className="bg-slate-50 text-xs text-slate-500 uppercase tracking-wide">
+                            <thead className="bg-slate-50 dark:bg-slate-900 text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                                 <tr>
                                     <th className="px-4 py-3 text-left">Participant</th>
                                     <th className="px-4 py-3 text-left">MRN</th>
@@ -157,7 +157,7 @@ export default function RiskAdjustment({ gapSummary: initialGapSummary, riskScor
                                     <th className="px-4 py-3 text-center">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100">
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                                 {riskScores.length === 0 && (
                                     <tr>
                                         <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
@@ -166,34 +166,34 @@ export default function RiskAdjustment({ gapSummary: initialGapSummary, riskScor
                                     </tr>
                                 )}
                                 {riskScores.map(score => (
-                                    <tr key={score.id} className="hover:bg-slate-50">
-                                        <td className="px-4 py-3 font-medium text-slate-900">
+                                    <tr key={score.id} className="hover:bg-slate-50 dark:hover:bg-slate-700">
+                                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">
                                             {score.participant
                                                 ? `${score.participant.first_name} ${score.participant.last_name}`
                                                 : '—'}
                                         </td>
-                                        <td className="px-4 py-3 text-slate-500 font-mono text-xs">
+                                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400 font-mono text-xs">
                                             {score.participant?.mrn ?? '—'}
                                         </td>
-                                        <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                                        <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-slate-100">
                                             {score.risk_score ? parseFloat(score.risk_score).toFixed(4) : '—'}
                                         </td>
-                                        <td className="px-4 py-3 text-right text-slate-600">
+                                        <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-400">
                                             {score.frailty_score ? parseFloat(score.frailty_score).toFixed(4) : '—'}
                                         </td>
-                                        <td className="px-4 py-3 text-center text-slate-600">
+                                        <td className="px-4 py-3 text-center text-slate-600 dark:text-slate-400">
                                             {score.hcc_categories.length}
                                         </td>
-                                        <td className="px-4 py-3 text-center text-slate-600">
+                                        <td className="px-4 py-3 text-center text-slate-600 dark:text-slate-400">
                                             {score.diagnoses_submitted}
                                         </td>
                                         <td className="px-4 py-3 text-center">
                                             <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
                                                 score.score_source === 'cms_import'
-                                                    ? 'bg-green-50 text-green-700'
+                                                    ? 'bg-green-50 dark:bg-green-950/60 text-green-700 dark:text-green-300'
                                                     : score.score_source === 'manual'
-                                                    ? 'bg-purple-50 text-purple-700'
-                                                    : 'bg-blue-50 text-blue-700'
+                                                    ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300'
+                                                    : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
                                             }`}>
                                                 {score.score_source === 'cms_import' ? 'CMS' :
                                                  score.score_source === 'manual' ? 'Manual' : 'Calculated'}
@@ -203,7 +203,7 @@ export default function RiskAdjustment({ gapSummary: initialGapSummary, riskScor
                                             <button
                                                 onClick={() => recalculate(score.participant_id)}
                                                 disabled={recalculating === score.participant_id}
-                                                className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-40"
+                                                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 disabled:opacity-40"
                                             >
                                                 {recalculating === score.participant_id ? 'Recalculating…' : 'Recalculate'}
                                             </button>
