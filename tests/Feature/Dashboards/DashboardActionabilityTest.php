@@ -333,7 +333,10 @@ class DashboardActionabilityTest extends TestCase
             'tenant_id'       => $this->tenant->id,
             'status'          => 'new',
             'referral_source' => 'physician',
-            'created_at'      => now()->subDays(2),
+            // Use startOfWeek() so the referral always falls within the current calendar
+            // week regardless of which day the test runs (newReferrals() queries >= Monday).
+            // subDays(2) on Tuesday = Sunday, which is BEFORE Monday startOfWeek → empty result.
+            'created_at'      => now()->startOfWeek()->addHours(1),
         ]);
 
         $response = $this->actingAs($user)

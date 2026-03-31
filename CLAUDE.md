@@ -70,7 +70,7 @@ Seed: `php artisan db:seed --class=DemoEnvironmentSeeder`
 ## WAVE STATUS
 Wave 1 (Phases 1A-1C, 2A-2C, 3A-3D, 4A-4D, 5A-5D, 6A-6D, 7A-7D + Audits A-D + SA Enhancements): COMPLETE
 Wave 2 (Phases 8A-12B): COMPLETE
-Wave 3 (Phases W3-0 through W3-8): IN PROGRESS
+Wave 3 (Phases W3-0 through W3-8): COMPLETE
   W3-0 Context Bake:               [x] COMPLETE — 2026-03-24
   W3-1 Dark Mode:                  [x] COMPLETE — 2026-03-26
   W3-2 Nav Menu Fixes:             [x] COMPLETE — 2026-03-26
@@ -79,11 +79,24 @@ Wave 3 (Phases W3-0 through W3-8): IN PROGRESS
   W3-5 Chat Fixes:                 [x] COMPLETE — 2026-03-27
   W3-6 Site Transfer Integrity:    [x] COMPLETE — 2026-03-30
   W3-7 Billing Seed & Math:        [x] COMPLETE — 2026-03-31
-  W3-8 Catch-All Fixes:            [ ] NOT STARTED
+  W3-8 Catch-All Fixes:            [x] COMPLETE — 2026-03-31
+
+Wave 4 (Phases W4-0 through W4-9): IN PROGRESS
+  W4-0  CLAUDE.md Wave 4 Update:          [x] COMPLETE — 2026-03-31
+  W4-1  Grievance & Consent Module:        [ ] NOT STARTED
+  W4-2  Encryption at Rest + BAA/SRA:      [ ] NOT STARTED
+  W4-3  Demographics + Participant Fields:  [ ] NOT STARTED
+  W4-4  Quick Wins — Vitals & Assessments: [ ] NOT STARTED
+  W4-5  Care Plan + IDT Compliance:        [ ] NOT STARTED
+  W4-6  Incident + Regulatory Tracking:    [ ] NOT STARTED
+  W4-7  CPOE — Lightweight Order Entry:    [ ] NOT STARTED
+  W4-8  New Note Types + Assessments:      [ ] NOT STARTED
+  W4-9  FHIR Gaps + HPMS Verification:     [ ] NOT STARTED
 
 ---
 
-## FUTURE SCOPE — DO NOT BUILD IN WAVE 3
+## FUTURE SCOPE — DO NOT BUILD IN WAVE 4
+
 1. **Full Transportation suite and live connections to Nostos transport.**
    Status: ComingSoonBanner in place. Brian (transport team) to implement.
    When ready: update TransportBridgeService to HTTP API calls, remove banners.
@@ -94,6 +107,127 @@ Wave 3 (Phases W3-0 through W3-8): IN PROGRESS
    Possible future: native app for home care specifically.
    Note: home care workflows on tablet is highest priority within this scope.
    Do not start until explicitly requested.
+
+3. **Live EDI clearinghouse submission (BLOCKER-05).**
+   837P builder exists (Edi837PBuilderService). No live submission pipeline.
+   Requires clearinghouse vendor selection (Availity, Change Healthcare, etc.),
+   credential config, 277CA tracking, and 835 remittance reconciliation.
+
+4. **eRx integration (NCPDP SCRIPT).**
+   Electronic prescribing to pharmacy. Requires Brian / transport team coordination
+   for the PACE pharmacy integration model.
+
+5. **C-CDA generation for transitions of care.**
+   Requires HL7 FHIR/CDA library and Direct Secure Messaging (HISP) setup.
+   Deferred pending clearinghouse and EHR integration decisions.
+
+6. **HEDIS measure extraction.**
+   Post-launch data quality work. Depends on clean encounter and diagnosis data.
+
+7. **HCC chasing workflow UI.**
+   Revenue integrity enhancement — surfaces HCC gap analysis for clinical staff.
+   Depends on Phase 9C risk adjustment foundation (done) + clinical adoption.
+
+8. **Beers Criteria / polypharmacy alerts.**
+   Pharmacy enhancement for high-risk medications in elderly populations.
+   Requires drug reference expansion and clinical validation.
+
+9. **Patient/family portal.**
+   Separate application, FHIR patient-facing API (SMART on FHIR).
+   Out of scope for NostosEMR v1 — future standalone product.
+
+10. **CMS-2728 form module.**
+    ESRD (End-Stage Renal Disease) participants only. Low PACE volume.
+
+11. **FHIR bulk export ($export operation).**
+    Required for population-level analytics and payer integrations.
+    Depends on USCDI v3 full compliance (DEBT-024).
+
+12. **Telehealth integration.**
+    Video visit scheduling + documentation linkage.
+
+13. **Wound care documentation module.**
+    Specialty clinical documentation with wound staging, measurements, photo.
+
+14. **Remote Patient Monitoring (RPM) infrastructure.**
+    Device data ingestion, threshold alerting, home care integration.
+
+15. **GDS (Geriatric Depression Scale) assessment tool.**
+    Validated 15-item depression screen. Common PACE quality measure.
+
+16. **LACE+ Index readmission risk assessment.**
+    Partially addressed in W4-8 (readmission risk narrative). Full scoring deferred.
+
+17. **Dental note type.**
+    PACE provides dental services; dedicated note template needed post-W4-8.
+
+18. **Vision/Hearing screening assessment.**
+    Standard PACE intake and annual screening tools.
+
+---
+
+## AUDIT FINDINGS (2026-03-31 system audit)
+Full context for Wave 4 build. Status tags indicate which W4 phase addresses each item.
+
+### BLOCKERS (must resolve before real patient data)
+- BLOCKER-01 [W4-2]: Encryption at rest — no DB SSL configured, no field-level PHI
+  encryption, SESSION_ENCRYPT not configured. Violates HIPAA Security Rule
+  45 CFR §164.312(a)(2)(iv) and §164.312(e)(2)(ii).
+- BLOCKER-02 [W4-1]: Grievance & consent module absent — no grievance workflow,
+  no NPP (Notice of Privacy Practices) acknowledgment tracking, no formal
+  HIPAA Authorization form workflow. Required by 42 CFR §460.122 and §460.124.
+- BLOCKER-03 [W4-2]: No SRA (Security Risk Analysis) module, no BAA (Business
+  Associate Agreement) tracking in system. Required by 45 CFR §164.308(a)(1)
+  and §164.308(b)(1).
+- BLOCKER-04 [W4-7]: Clinical > Orders page shows care plan goals worklist, NOT a
+  clinical order entry system. CPOE (Computerized Physician Order Entry) is
+  expected for 42 CFR §460.100 (medical care plan) and survey compliance.
+- BLOCKER-05 [FUTURE]: Live EDI clearinghouse — 837P builder (Edi837PBuilderService)
+  exists but no live submission, no 277CA tracking, no 835 remittance
+  reconciliation. Required before billing go-live.
+
+### HIGH GAPS
+- GAP-05 [W4-5]: No 6-month IDT review frequency tracking or overdue alert.
+  42 CFR §460.104(c) requires reassessment at least every 6 months.
+  Common CMS survey deficiency finding.
+- GAP-06 [W4-5]: No participant acknowledgment fields on care plans.
+  42 CFR §460.104(d) requires participant/representative signature on plan.
+- GAP-07 [W4-3]: No race/ethnicity fields on participant demographics.
+  Affects HEDIS equity reporting and CMS submission requirements (OMB standards).
+- GAP-08 [W4-6]: No CMS/SMA (State Medicaid Agency) notification tracking on
+  incidents. 42 CFR §460.136 requires notifying CMS and SMA of significant
+  adverse events within specified timeframes.
+- GAP-09 [W4-5]: No disenrollment transition plan documentation workflow.
+  42 CFR §460.116 requires a transition plan when a participant disenrolls.
+- GAP-10 [W4-6]: No significant change event tracking (30-day IDT reassessment rule).
+  42 CFR §460.104(b) requires IDT reassessment within 30 days of significant
+  change in health status (hospitalization, functional decline, etc.).
+
+### MEDIUM GAPS
+- GAP-11 [W4-7]: CPOE — clinical order entry system needed beyond care plan goals.
+  Need medication orders, lab orders, therapy orders, referral orders.
+- GAP-12 [FUTURE]: C-CDA generation for transitions of care.
+  ONC 21st Century Cures Act requires electronic care summaries on transitions.
+- GAP-13 [W4-9]: Missing FHIR R4 resources: Encounter, DiagnosticReport,
+  DocumentReference, Practitioner/PractitionerRole, Organization.
+  Required for ONC USCDI v3 certification and EHR integrations.
+- GAP-14 [W4-9]: HPMS monthly enrollment file format needs verification against
+  current CMS specification. HpmsFileService exists but format not validated
+  against live CMS HPMS portal requirements.
+
+### QUICK WINS (addressed across W4-3 through W4-6)
+- QW-01 [W4-4]: BMI auto-calculation in vitals (height + weight → BMI formula)
+- QW-02 [W4-4]: Blood glucose field on vitals (already in schema per audit; surface in UI)
+- QW-03 [W4-3]: Race/ethnicity on participant form (merged into W4-3 demographics)
+- QW-04 [W3-3]: Unsigned notes queue/dashboard widget (completed in Wave 3 W3-3)
+- QW-05 [W4-4]: Assessment due date alert banner on participant profile
+- QW-06 [W4-5]: IDT review overdue indicator on participant header/profile
+- QW-07 [W4-4]: Participant photo display in clinical sticky header
+- QW-08 [W4-3]: Marital status + legal representative fields (merged into W4-3)
+- QW-09 [W4-5]: Care plan participant acknowledgment field + signature date
+- QW-10 [W4-6]: Incident CMS/SMA notification tracking fields
+- QW-11 [W4-4]: VIS (Vaccine Information Statement) given field on immunizations
+- QW-12 [W4-6]: Significant change flag on ADT hospitalizations (A01/A03 events)
 
 ---
 
@@ -280,8 +414,8 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 - [x] PermissionService billing/capitation href: updated to '/finance/capitation' in Phase 9B.
 
 **CAT3 — Planned features (PlannedFeatureBanner, mode='planned'):**
-- [x] /clinical/orders       → ComingSoon mode=planned
-- [x] /clinical/medications  → ComingSoon mode=planned (cross-participant view; per-participant tabs live)
+- [x] /clinical/orders       → LIVE — ClinicalOverviewController::orders() (W3-8)
+- [x] /clinical/medications  → LIVE — ClinicalOverviewController::medications() (W3-8)
 - [x] /scheduling/day-center → LIVE — DayCenterController (W3-2)
 - [x] /billing/claims        → ComingSoon mode=planned
 - [x] /reports               → LIVE — ReportsController (W3-2)
@@ -401,7 +535,7 @@ SocialDeterminant, StateMedicaidConfig, Tenant, TransportRequest, User, Vital
 ## CONTROLLERS (58 root + Auth/ subdirectory + Dashboards/ subdirectory)
 AdlController, AlertController, AllergyController, AppointmentController,
 AssessmentController, BillingComplianceController, BillingEncounterController, CapitationController,
-CarePlanController, ChatController, ClinicalDashboardController, ClinicalNoteController,
+CarePlanController, ChatController, ClinicalDashboardController, ClinicalNoteController, ClinicalOverviewController,
 ComingSoonController, Controller (base), DayCenterController, DashboardController, DocumentController, EdiBatchController,
 EhiExportController, FhirController, FinanceController, FinanceDashboardController,
 HosMSurveyController, HpmsController, IdtMeetingController, ImmunizationController,
@@ -435,9 +569,9 @@ RiskAdjustmentService, SdrDeadlineService, TransferService, TransportBridgeServi
 - app/Jobs/ProcessHl7AdtJob.php — A01(admit→encounter+alert), A03(discharge→SDR+care_plan+alert), A08(audit only)
 - app/Jobs/ProcessLabResultJob.php — normal lab→encounter log; abnormal→encounter+primary_care alert
 
-## REACT PAGES (56 — Phase 7A/B adds 14 dept dashboards, Phase 9B adds 7, Phase 9C adds 3, Phase 10A adds 1, Phase 10B adds 3, W3-2 adds 4)
-Auth/Login, Clinical/Assessments, Clinical/CarePlans, Clinical/Notes,
-Clinical/Vitals, ComingSoon, Dashboard/Index, Enrollment/Index, Enrollment/Transfers,
+## REACT PAGES (58 — Phase 7A/B adds 14 dept dashboards, Phase 9B adds 7, Phase 9C adds 3, Phase 10A adds 1, Phase 10B adds 3, W3-2 adds 4, W3-8 adds 2)
+Auth/Login, Clinical/Assessments, Clinical/CarePlans, Clinical/Medications, Clinical/Notes,
+Clinical/Orders, Clinical/Vitals, ComingSoon, Dashboard/Index, Enrollment/Index, Enrollment/Transfers,
 Errors/403, Finance/Capitation, Finance/ComplianceChecklist, Finance/Dashboard, Finance/EdiBatch,
 Finance/Encounters, Finance/HosMSurvey, Finance/Hpms, Finance/Pde,
 Finance/RevenueIntegrity, Finance/RiskAdjustment, Idt/Dashboard, Idt/RunMeeting,
@@ -727,6 +861,7 @@ rsync -av --exclude=vendor --exclude=node_modules --exclude=public/build --exclu
 - [2026-03-21] Phase 12B complete — 1057 passing, 0 failing. Build clean. Project sealed.
 - [2026-03-24] W3-0 — test run pending (run from WSL2 before Wave 3 build begins; expected: 1057 passing, 0 failing).
 - [2026-03-24] W3-1 — test run pending (expected: 1065+ passing, 0 failing — adds ThemePreferenceTest with 8 tests).
+- [2026-03-31] W4-0 — 1181 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). Wave 4 baseline confirmed. Fixed 3 pre-existing test issues: QaMetricsServiceTest hospitalization boundary (subMonth→subMonths(2)), ComingSoonBannerTest clinical/orders test updated for live page (W3-8), DashboardActionabilityTest enrollment referral created_at (subDays(2) on Tuesday fell before week start → use startOfWeek+1h).
 - [2026-03-26] W3-2 — 1091 passing, 0 failing. Build clean. Adds NavRoutingTest (13 tests) + DayCenterAttendanceTest (12 tests) + Day Center attendance module + Reports page + System Settings page. Bugs fixed: scopeForSite null type hint, payer_id column DNE, pace_contract column DNE (mapped to cms_contract_id), ComingSoonBannerTest stale assertions for 3 now-live pages + /idt/minutes redirect target.
 - [2026-03-27] W3-4 — 1137 passing, 0 failing. Build clean. Adds FacesheetTest (6 tests) + ParticipantTabRoutingTest (22 tests). Show.tsx: print CSS fixed (visibility approach — position:fixed caused blank print), two-row tab layout (CLINICAL blue / ADMIN slate), switchTab() for URL sync via window.history.replaceState, valid tab list updated with immunizations/procedures/sdoh (Phase 11B), ParticipantHeader onTabChange prop + Care Plan/Schedule header buttons fixed, advance directive DNR/POLST/No Directive badges in sticky header flags row, CarePlanTab save error state (catch block no longer silent), editability guard on Edit button (hidden for active/archived plans). Bugs fixed: cross-tenant returns 403 not 404 (authorizeForTenant uses abort_if(..., 403)), PHPUnit @dataProvider converted to #[DataProvider] attribute.
 - [2026-03-27] W3-5 — 1155 passing, 0 failing. Build clean. Adds ChatSearchTest (10 tests) + ChatNotificationTest (8 tests). Migration 77: metadata JSONB on emr_alerts. Bugs fixed: DM search was calling /it-admin/users (403 for non-IT-admin) → replaced with /chat/users/search endpoint; urgent messages never created alerts (code comment but no implementation) → fixed.
@@ -1222,6 +1357,38 @@ Based on the audit above, Phase 9B (Encounter Data & Billing Infrastructure) sho
 ---
 
 ## SESSION LOG
+
+### 2026-03-31 — W4-0 Complete — CLAUDE.md Wave 4 Update
+- Added Wave 4 status block (W4-0 through W4-9) to WAVE STATUS. Wave 3 marked COMPLETE.
+- Added AUDIT FINDINGS section (5 blockers, 6 high gaps, 4 medium gaps, 12 quick wins) from the 2026-03-31 system audit with full 42 CFR and HIPAA citations and W4 phase tags.
+- Expanded FUTURE SCOPE with 18 deferred items in priority order.
+- Test baseline: see TEST STATUS below (W4-0 run recorded).
+
+### 2026-03-31 — W3-8 Complete — Catch-All Fixes
+
+**Part A — Help button popover (AppShell.tsx TopBar):**
+- Replaced static `{/* Help icon — placeholder */}` button with a functional popover.
+- Added `showHelp` state + `helpRef` ref + `useEffect` click-outside listener (mousedown pattern, same as SiteSwitcherDropdown).
+- Popover: title "Need Help?", support email `support@nostos-emr.com`, IT Administrator note for after-hours, close button (&#x2715;). Full dark mode.
+
+**Part B — Nav comment fix (routes/web.php):**
+- Updated stale comment at line 421 from "Medications and Orders remain stubs" → "Medications and Orders are live via ClinicalOverviewController (W3-8)."
+
+**Also completed in this session (prior to W3-8 spec):**
+- `Finance/Capitation.tsx` line 148: added `text-gray-700 dark:text-slate-300` to participant name `<td>` (dark mode fix).
+- Created `ClinicalOverviewController` (medications + orders Inertia methods, tenant-scoped).
+- Created `Clinical/Medications.tsx` (4 KPI cards + per-participant table, dark mode).
+- Created `Clinical/Orders.tsx` (3 KPI cards + domain filter + overdue filter + goals table, dark mode, DOMAIN_COLORS map for 12 domains).
+- `ReportsController`: wired CSV exports for census, disenrollments, sdr_compliance, care_plan_status (4 private helpers + single `export()` dispatch method + `/reports/export` route).
+- `routes/web.php`: added `ClinicalOverviewController` import; replaced clinical medications/orders ComingSoon closures with real Inertia routes; added `/reports/export` route.
+
+**CLAUDE.md updates:**
+- W3-8 marked COMPLETE.
+- CAT3 nav audit entries for /clinical/orders and /clinical/medications updated to LIVE.
+- New controllers added: ClinicalOverviewController (1 new).
+- New React pages added: Clinical/Medications, Clinical/Orders (2 new).
+
+**Result:** Wave 3 complete. All W3-0 through W3-8 phases done.
 
 ### 2026-03-31 — W3-7 Complete — Billing Seed & Math Verification + Sign Fix + GitHub push workflow
 

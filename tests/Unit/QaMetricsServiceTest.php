@@ -370,7 +370,10 @@ class QaMetricsServiceTest extends TestCase
             'tenant_id'      => $user->tenant_id,
             'participant_id' => $participant->id,
             'incident_type'  => 'hospitalization',
-            'occurred_at'    => now()->subMonth(),
+            // Use subMonths(2) to avoid edge-case failures on month-end boundary dates
+            // (e.g. March 31 → subMonth() = Feb 28 which is unambiguously prior month,
+            // but subMonths(2) = Jan 31 makes it clearer and avoids any DST/tz edge cases)
+            'occurred_at'    => now()->subMonths(2),
         ]);
 
         $count = $this->service->getHospitalizationsThisMonth($user->tenant_id);

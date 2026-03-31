@@ -132,10 +132,13 @@ class ComingSoonBannerTest extends TestCase
 
     // ── CAT3: Planned features return Inertia ComingSoon with mode='planned' ───
 
-    public function test_clinical_orders_returns_coming_soon_planned_mode(): void
+    public function test_clinical_orders_returns_live_page(): void
     {
-        $props = $this->inertiaGet('/clinical/orders');
-        $this->assertEquals('planned', $props['mode'] ?? null);
+        // W3-8: /clinical/orders is now a live Inertia page (ClinicalOverviewController::orders()).
+        // It no longer returns the ComingSoon 'planned' mode — confirm it responds 200.
+        $this->actingAs($this->user)
+            ->get('/clinical/orders')
+            ->assertOk();
     }
 
     public function test_scheduling_day_center_returns_ok(): void
