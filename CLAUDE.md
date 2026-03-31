@@ -83,7 +83,7 @@ Wave 3 (Phases W3-0 through W3-8): COMPLETE
 
 Wave 4 (Phases W4-0 through W4-9): IN PROGRESS
   W4-0  CLAUDE.md Wave 4 Update:          [x] COMPLETE — 2026-03-31
-  W4-1  Grievance & Consent Module:        [ ] NOT STARTED
+  W4-1  Grievance & Consent Module:        [x] COMPLETE — 2026-03-31
   W4-2  Encryption at Rest + BAA/SRA:      [ ] NOT STARTED
   W4-3  Demographics + Participant Fields:  [ ] NOT STARTED
   W4-4  Quick Wins — Vitals & Assessments: [ ] NOT STARTED
@@ -173,9 +173,8 @@ Full context for Wave 4 build. Status tags indicate which W4 phase addresses eac
 - BLOCKER-01 [W4-2]: Encryption at rest — no DB SSL configured, no field-level PHI
   encryption, SESSION_ENCRYPT not configured. Violates HIPAA Security Rule
   45 CFR §164.312(a)(2)(iv) and §164.312(e)(2)(ii).
-- BLOCKER-02 [W4-1]: Grievance & consent module absent — no grievance workflow,
-  no NPP (Notice of Privacy Practices) acknowledgment tracking, no formal
-  HIPAA Authorization form workflow. Required by 42 CFR §460.122 and §460.124.
+- BLOCKER-02 [W4-1]: RESOLVED — Grievance workflow + NPP consent module complete.
+  See W4-1 session log entry for full details.
 - BLOCKER-03 [W4-2]: No SRA (Security Risk Analysis) module, no BAA (Business
   Associate Agreement) tracking in system. Required by 45 CFR §164.308(a)(1)
   and §164.308(b)(1).
@@ -443,7 +442,7 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 - Known technical debt log: [x] COMPLETE — categorized by priority in HANDOFF.md
 - Environment setup verified from scratch: [ ] Not yet verified by independent developer
 
-## MIGRATIONS RUN (77 total, in order, all batch 1)
+## MIGRATIONS RUN (79 total, in order, all batch 1)
 1.  0001_01_01_000000_create_users_table
 2.  0001_01_01_000001_create_cache_table
 3.  0001_01_01_000002_create_jobs_table
@@ -521,24 +520,26 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 75. 2024_12_01_000001_add_theme_preference_to_shared_users
 76. 2024_12_02_000001_create_emr_day_center_attendance_table
 77. 2024_12_03_000001_add_metadata_to_emr_alerts_table
+78. 2025_01_04_000001_create_emr_grievances_table
+79. 2025_01_04_000002_create_emr_consent_records_table
 
-## MODELS (56)
+## MODELS (58)
 AdlRecord, AdlThreshold, Alert, Allergy, ApiToken, Appointment, Assessment, AuditLog,
 Authorization, CapitationRecord, CarePlan, CarePlanGoal, ChatChannel, ChatMembership, ChatMessage,
-ClinicalNote, DayCenterAttendance, Document, DrugInteractionAlert, EdiBatch, EhiExport, EmarRecord, EncounterLog,
-HccMapping, HosMSurvey, HpmsSubmission, Icd10Lookup, IdtMeeting, IdtParticipantReview, Immunization,
+ClinicalNote, ConsentRecord, DayCenterAttendance, Document, DrugInteractionAlert, EdiBatch, EhiExport, EmarRecord, EncounterLog,
+Grievance, HccMapping, HosMSurvey, HpmsSubmission, Icd10Lookup, IdtMeeting, IdtParticipantReview, Immunization,
 Incident, InsuranceCoverage, IntegrationLog, Location, MedReconciliation, Medication, OtpCode,
 Participant, ParticipantAddress, ParticipantContact, ParticipantFlag, ParticipantRiskScore,
 ParticipantSiteTransfer, PdeRecord, Problem, Procedure, Referral, RolePermission, Sdr, Site,
 SocialDeterminant, StateMedicaidConfig, Tenant, TransportRequest, User, Vital
 
-## CONTROLLERS (58 root + Auth/ subdirectory + Dashboards/ subdirectory)
+## CONTROLLERS (60 root + Auth/ subdirectory + Dashboards/ subdirectory)
 AdlController, AlertController, AllergyController, AppointmentController,
 AssessmentController, BillingComplianceController, BillingEncounterController, CapitationController,
 CarePlanController, ChatController, ClinicalDashboardController, ClinicalNoteController, ClinicalOverviewController,
-ComingSoonController, Controller (base), DayCenterController, DashboardController, DocumentController, EdiBatchController,
+ComingSoonController, ConsentController, Controller (base), DayCenterController, DashboardController, DocumentController, EdiBatchController,
 EhiExportController, FhirController, FinanceController, FinanceDashboardController,
-HosMSurveyController, HpmsController, IdtMeetingController, ImmunizationController,
+GrievanceController, HosMSurveyController, HpmsController, IdtMeetingController, ImmunizationController,
 ImpersonationController, IncidentController, IntegrationController, ItAdminController,
 LocationController, MedReconciliationController, MedicationController,
 ParticipantContactController, ParticipantController, ParticipantFlagController,
@@ -555,10 +556,10 @@ PharmacyDashboardController, IdtDashboardController, EnrollmentDashboardControll
 FinanceWidgetController, QaComplianceDashboardController, ItAdminDashboardController,
 ExecutiveDashboardController
 
-## SERVICES (26 — Phase 9B adds 4, Phase 9C adds 2, Phase 10A adds 1, Phase 11B adds 1)
+## SERVICES (27 — Phase 9B adds 4, Phase 9C adds 2, Phase 10A adds 1, Phase 11B adds 1, W4-1 adds 1)
 AdlThresholdService, AlertService, BillingComplianceService, ChatService, ConflictDetectionService,
 DrugInteractionService, Edi837PBuilderService, EhiExportService, EnrollmentService,
-HccRiskScoringService, HpmsFileService, ImpersonationService, IncidentService,
+GrievanceService, HccRiskScoringService, HpmsFileService, ImpersonationService, IncidentService,
 MedReconciliationService, MedicationScheduleService, MrnService, NotificationDispatcher,
 NoteTemplateService, OtpService, PermissionService, QaMetricsService, RevenueIntegrityService,
 RiskAdjustmentService, SdrDeadlineService, TransferService, TransportBridgeService
@@ -569,10 +570,10 @@ RiskAdjustmentService, SdrDeadlineService, TransferService, TransportBridgeServi
 - app/Jobs/ProcessHl7AdtJob.php — A01(admit→encounter+alert), A03(discharge→SDR+care_plan+alert), A08(audit only)
 - app/Jobs/ProcessLabResultJob.php — normal lab→encounter log; abnormal→encounter+primary_care alert
 
-## REACT PAGES (58 — Phase 7A/B adds 14 dept dashboards, Phase 9B adds 7, Phase 9C adds 3, Phase 10A adds 1, Phase 10B adds 3, W3-2 adds 4, W3-8 adds 2)
+## REACT PAGES (60 — Phase 7A/B adds 14 dept dashboards, Phase 9B adds 7, Phase 9C adds 3, Phase 10A adds 1, Phase 10B adds 3, W3-2 adds 4, W3-8 adds 2, W4-1 adds 2)
 Auth/Login, Clinical/Assessments, Clinical/CarePlans, Clinical/Medications, Clinical/Notes,
 Clinical/Orders, Clinical/Vitals, ComingSoon, Dashboard/Index, Enrollment/Index, Enrollment/Transfers,
-Errors/403, Finance/Capitation, Finance/ComplianceChecklist, Finance/Dashboard, Finance/EdiBatch,
+Errors/403, Finance/Capitation, Grievances/Index, Grievances/Show, Finance/ComplianceChecklist, Finance/Dashboard, Finance/EdiBatch,
 Finance/Encounters, Finance/HosMSurvey, Finance/Hpms, Finance/Pde,
 Finance/RevenueIntegrity, Finance/RiskAdjustment, Idt/Dashboard, Idt/RunMeeting,
 ItAdmin/Audit, ItAdmin/Integrations, ItAdmin/StateConfig, ItAdmin/Users,
@@ -655,6 +656,10 @@ Idt/Meetings, Scheduling/DayCenter, Reports/Index, ItAdmin/SystemSettings
 - [W3-3] ItAdminDashboardController: IntegrationLog has $timestamps=false, so created_at is a raw string. Must wrap with Carbon::parse() before calling diffInHours(). Pattern: `Carbon::parse($log->created_at)->diffInHours(now())`.
 - [W3-3] emr_sdrs status enum: submitted/acknowledged/in_progress/completed/cancelled. 'open' is NOT valid. All SDR tests must use one of these values.
 - [W3-4] Cross-tenant participant access returns 403 (not 404). ParticipantController::authorizeForTenant() uses abort_if($tenant_id !== $user->tenant_id, 403). Tests asserting cross-tenant isolation must use assertForbidden(), not assertNotFound().
+- [W4-1] GrievanceController::update() requires `authorizeQaAdmin()` after `authorizeTenant()`. The QA guard is NOT enforced by the UpdateGrievanceRequest form request — it must be in the controller method. Omitting it allows any tenant user to update.
+- [W4-1] Login route: Laravel's `auth` middleware redirects unauthenticated requests to the route named `login` which maps to `/login` (NOT `/auth/login`). Tests asserting unauthenticated redirects must use `assertRedirect('/login')`.
+- [W4-1] `emr_alerts` has NO `resource_id` or `resource_type` columns. All resource references are stored in the `metadata` JSONB column. Tests asserting grievance alert creation must use `alert_type`, `severity`, and `source_module` columns — not `resource_id`.
+- [W4-1] ConsentController uses nested routes (`/participants/{participant}/consents/{consent}`). No implicit Laravel scoped binding — `Participant` has no `consents()` relationship in this build. Cross-participant consent access is blocked by `authorizeConsent()` (checks `consent->participant_id === $participant->id` → 403).
 - [W3-4] Care plan save silently failed: original catch block was `catch { /* ignore */ }`. Fixed to capture error and display it via saveError state in CarePlanTab. Plan must be draft or under_review — approved plans are read-only (Edit button hidden, plan.status check added).
 - [W3-4] Tab URL sync: tabs are pure client-side state. switchTab() calls window.history.replaceState to update ?tab= param without Inertia reload. Server ignores the ?tab param entirely — always renders Participants/Show component.
 - [Phase 5A] ConflictDetectionService uses half-open interval comparison: existing.start < new.end AND existing.end > new.start. This means adjacent appointments (end = next start) do NOT conflict — correct PACE scheduling behavior (back-to-back appointments are allowed).
@@ -862,6 +867,7 @@ rsync -av --exclude=vendor --exclude=node_modules --exclude=public/build --exclu
 - [2026-03-24] W3-0 — test run pending (run from WSL2 before Wave 3 build begins; expected: 1057 passing, 0 failing).
 - [2026-03-24] W3-1 — test run pending (expected: 1065+ passing, 0 failing — adds ThemePreferenceTest with 8 tests).
 - [2026-03-31] W4-0 — 1181 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). Wave 4 baseline confirmed. Fixed 3 pre-existing test issues: QaMetricsServiceTest hospitalization boundary (subMonth→subMonths(2)), ComingSoonBannerTest clinical/orders test updated for live page (W3-8), DashboardActionabilityTest enrollment referral created_at (subDays(2) on Tuesday fell before week start → use startOfWeek+1h).
+- [2026-03-31] W4-1 — 1218 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). Grievance & Consent Module complete. BLOCKER-02 resolved.
 - [2026-03-26] W3-2 — 1091 passing, 0 failing. Build clean. Adds NavRoutingTest (13 tests) + DayCenterAttendanceTest (12 tests) + Day Center attendance module + Reports page + System Settings page. Bugs fixed: scopeForSite null type hint, payer_id column DNE, pace_contract column DNE (mapped to cms_contract_id), ComingSoonBannerTest stale assertions for 3 now-live pages + /idt/minutes redirect target.
 - [2026-03-27] W3-4 — 1137 passing, 0 failing. Build clean. Adds FacesheetTest (6 tests) + ParticipantTabRoutingTest (22 tests). Show.tsx: print CSS fixed (visibility approach — position:fixed caused blank print), two-row tab layout (CLINICAL blue / ADMIN slate), switchTab() for URL sync via window.history.replaceState, valid tab list updated with immunizations/procedures/sdoh (Phase 11B), ParticipantHeader onTabChange prop + Care Plan/Schedule header buttons fixed, advance directive DNR/POLST/No Directive badges in sticky header flags row, CarePlanTab save error state (catch block no longer silent), editability guard on Edit button (hidden for active/archived plans). Bugs fixed: cross-tenant returns 403 not 404 (authorizeForTenant uses abort_if(..., 403)), PHPUnit @dataProvider converted to #[DataProvider] attribute.
 - [2026-03-27] W3-5 — 1155 passing, 0 failing. Build clean. Adds ChatSearchTest (10 tests) + ChatNotificationTest (8 tests). Migration 77: metadata JSONB on emr_alerts. Bugs fixed: DM search was calling /it-admin/users (403 for non-IT-admin) → replaced with /chat/users/search endpoint; urgent messages never created alerts (code comment but no implementation) → fixed.
@@ -1357,6 +1363,49 @@ Based on the audit above, Phase 9B (Encounter Data & Billing Infrastructure) sho
 ---
 
 ## SESSION LOG
+
+### 2026-03-31 — W4-1 Complete — Grievance & Consent Module (BLOCKER-02)
+
+Implemented the full grievance workflow (42 CFR §460.120–§460.121) and participant consent tracking (HIPAA 45 CFR §164.520). Resolves BLOCKER-02.
+
+**New migrations (78–79):**
+- Migration 78: `emr_grievances` — 11 columns (participant_id, tenant_id, site_id, filed_by_name, filed_by_type, filed_at, received_by_user_id, category, description, status, priority, cms_reportable, investigation_notes, resolution_text, resolution_date, escalation_reason, notification_method, participant_notified_at, assigned_to_user_id, soft_deletes). Status CHECK: open/under_review/escalated/resolved/withdrawn. Priority CHECK: standard/urgent.
+- Migration 79: `emr_consent_records` — (participant_id, tenant_id, consent_type, document_title, status, acknowledged_by, representative_type, acknowledged_at, created_by_user_id, soft_deletes). consent_type CHECK: npp/hipaa_authorization/treatment_consent/research/marketing. Status CHECK: pending/acknowledged/declined/revoked.
+
+**New models:**
+- `Grievance` — VALID_TRANSITIONS state machine, CATEGORY_LABELS, STATUS_LABELS, NPP_TYPE, URGENCY_HOURS/DAYS constants, urgentOverdue/standardOverdue scopes, isClosed/categoryLabel/toApiArray methods.
+- `ConsentRecord` — NPP_TYPE constant, TYPE_LABELS, STATUS_LABELS, forTenant/forParticipant scopes, isPending/isAcknowledged helpers.
+
+**New factories:** GrievanceFactory (8 states), ConsentRecordFactory.
+
+**New service:** `GrievanceService` — open(), updateStatus() (VALID_TRANSITIONS enforcement, LogicException on invalid), notifyParticipant(), checkOverdue() (urgent 72h / standard 30d CMS rules, auto-escalate priority). All methods create AuditLog entries.
+
+**New job:** `GrievanceOverdueJob` — daily 8am on 'grievances' queue; calls GrievanceService::checkOverdue() per tenant.
+
+**New controllers:**
+- `GrievanceController` (8 routes: index Inertia, store, overdue JSON, show Inertia, update, resolve, escalate, notify-participant). Authorization: any authenticated user can file/view own site; qa_compliance/it_admin can update/resolve/escalate/notify.
+- `ConsentController` (3 routes nested under /participants/{participant}/consents: index, store, update). Authorization: enrollment/qa/it_admin. Cross-participant consent access → 403.
+
+**New React pages:** `Grievances/Index.tsx`, `Grievances/Show.tsx`.
+
+**EnrollmentService** updated: `handleEnrollment()` now auto-creates a pending NPP consent record for each newly enrolled participant (42 CFR §460.96 / HIPAA §164.520).
+
+**QaMetricsService** updated: added `getOpenGrievancesCount()` and `getMissingNppCount()` for QA dashboard KPIs.
+
+**QaDashboardController** updated: passes `grievance_count` and `missing_npp_count` KPI props.
+
+**PermissionService** updated: added `grievances` nav item for qa_compliance + it_admin.
+
+**Bug fixed during test run:**
+- `GrievanceController::update()` was missing `$this->authorizeQaAdmin()` call — any tenant user could update grievances. Added QA guard.
+- `GrievanceTest::test_index_requires_authentication()` expected `/auth/login` redirect but Laravel's auth middleware uses `/login` (route name 'login'). Fixed expected URL.
+- `GrievanceServiceTest::test_check_overdue_creates_critical_alert_for_urgent_overdue()` asserted `resource_id` on `emr_alerts` — that column doesn't exist; grievance_id is in `metadata` JSONB. Fixed assertion to use `alert_type = 'grievance_urgent_overdue'`.
+
+**Test files:** `tests/Feature/GrievanceTest.php` (16 tests), `tests/Feature/ConsentTest.php` (8 tests), `tests/Unit/GrievanceServiceTest.php` (13 tests) — 37 new tests total.
+
+**Result:** 1218 tests, 0 failures. Build pending. BLOCKER-02 resolved.
+
+---
 
 ### 2026-03-31 — W4-0 Complete — CLAUDE.md Wave 4 Update
 - Added Wave 4 status block (W4-0 through W4-9) to WAVE STATUS. Wave 3 marked COMPLETE.

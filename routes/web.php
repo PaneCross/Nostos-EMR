@@ -56,6 +56,8 @@ use App\Http\Controllers\ProblemController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\FinanceDashboardController;
 use App\Http\Controllers\FhirController;
+use App\Http\Controllers\ConsentController;
+use App\Http\Controllers\GrievanceController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\QaDashboardController;
 use App\Http\Controllers\ReferralController;
@@ -418,7 +420,7 @@ Route::middleware('auth')->group(function () {
     // ─── Clinical Module Landing Pages ───────────────────────────────────────
     // Cross-participant views powering the Clinical nav items.
     // Notes/Vitals/Assessments/CarePlans are fully implemented.
-    // Medications and Orders remain stubs until a future phase.
+    // Medications and Orders are live via ClinicalOverviewController (W3-8).
 
     // ─── Phase 6A: Enrollment & Intake (Kanban pipeline + state machine) ────────
     Route::get('/enrollment/referrals',                         [ReferralController::class, 'index'])->name('enrollment.referrals.index');
@@ -506,6 +508,31 @@ Route::middleware('auth')->group(function () {
         // Legacy redirects — nav hrefs updated in W3-2 but keep these for bookmark compat
         Route::get('/minutes', fn () => redirect('/idt/meetings'))->name('idt.minutes'); // W3-2: now redirects to meetings list
         Route::get('/sdr',     fn () => redirect('/sdrs'))->name('idt.sdr');             // SDR tracker is live at /sdrs
+    });
+
+    // ─── W4-1: Grievance Management (42 CFR §460.120–§460.121) ──────────────────
+    // Grievance workflow: open → under_review → resolved/escalated/withdrawn.
+    // Standard resolution: 30 days. Urgent: 72 hours.
+    // NOTE: GET /grievances/overdue MUST be declared before GET /grievances/{id}
+    // to prevent "overdue" matching Eloquent route model binding as an ID.
+    Route::prefix('grievances')->group(function () {
+        Route::get('/',                              [GrievanceController::class, 'index'])->name('grievances.index');
+        Route::post('/',                             [GrievanceController::class, 'store'])->name('grievances.store');
+        Route::get('/overdue',                       [GrievanceController::class, 'overdue'])->name('grievances.overdue');
+        Route::get('/{grievance}',                   [GrievanceController::class, 'show'])->name('grievances.show');
+        Route::put('/{grievance}',                   [GrievanceController::class, 'update'])->name('grievances.update');
+        Route::post('/{grievance}/resolve',          [GrievanceController::class, 'resolve'])->name('grievances.resolve');
+        Route::post('/{grievance}/escalate',         [GrievanceController::class, 'escalate'])->name('grievances.escalate');
+        Route::post('/{grievance}/notify-participant',[GrievanceController::class, 'notifyParticipant'])->name('grievances.notify');
+    });
+
+    // ─── W4-1: Participant Consent Records (HIPAA 45 CFR §164.520) ───────────
+    // Tracks NPP acknowledgment and other consent forms per participant.
+    // Accessible via the Consents tab in Participants/Show.tsx.
+    Route::prefix('participants/{participant}/consents')->group(function () {
+        Route::get('/',    [ConsentController::class, 'index'])->name('participant.consents.index');
+        Route::post('/',   [ConsentController::class, 'store'])->name('participant.consents.store');
+        Route::put('/{consent}', [ConsentController::class, 'update'])->name('participant.consents.update');
     });
 
     // ─── Phase 6B: QA / Compliance Dashboard + Incidents ─────────────────────

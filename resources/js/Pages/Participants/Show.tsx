@@ -5199,12 +5199,159 @@ function SdohTab({ participantId }: { participantId: number }) {
   )
 }
 
+// ── W4-1: Participant Grievances Tab ──────────────────────────────────────────
+// Lazy-loads grievances for this participant from GET /grievances?participant_id=N.
+// Visible to qa_compliance, it_admin, super_admin. (42 CFR §460.120–§460.121)
+function ParticipantGrievancesTab({ participantId }: { participantId: number }) {
+  const [items, setItems]       = React.useState<Array<{id:number; grievance_type:string; priority:string; status:string; subject:string; received_at:string; deadline_at:string|null; is_overdue:boolean}>>([])
+  const [loaded, setLoaded]     = React.useState(false)
+  const [loading, setLoading]   = React.useState(false)
+
+  React.useEffect(() => {
+    if (loaded) return
+    setLoading(true)
+    import('axios').then(({ default: ax }) =>
+      ax.get('/grievances', { params: { participant_id: participantId, per_page: 50 } })
+        .then(res => {
+          const rows = Array.isArray(res.data) ? res.data : ((res.data as { data: unknown[] }).data ?? [])
+          setItems(rows as typeof items)
+          setLoaded(true)
+        })
+        .finally(() => setLoading(false))
+    )
+  }, [])
+
+  if (loading) return <p className="py-8 text-center text-sm text-gray-500 dark:text-slate-400">Loading…</p>
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">Grievances</h3>
+        <a href="/grievances" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+          View all grievances
+        </a>
+      </div>
+      {items.length === 0 ? (
+        <p className="py-8 text-center text-sm text-gray-500 dark:text-slate-400">No grievances on file.</p>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-700">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700 text-sm">
+            <thead className="bg-gray-50 dark:bg-slate-700/50">
+              <tr>
+                {['Type','Priority','Status','Subject','Received','Deadline'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-slate-300">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-slate-700 bg-white dark:bg-slate-800">
+              {items.map(g => (
+                <tr key={g.id} className={`hover:bg-gray-50 dark:hover:bg-slate-700/50 ${g.is_overdue ? 'bg-red-50/40 dark:bg-red-950/20' : ''}`}>
+                  <td className="px-4 py-3 capitalize text-gray-700 dark:text-slate-300">{g.grievance_type.replace(/_/g, ' ')}</td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${g.priority === 'urgent' ? 'bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300' : 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'}`}>
+                      {g.priority === 'urgent' ? 'Urgent' : 'Standard'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 capitalize text-gray-700 dark:text-slate-300">{g.status.replace(/_/g, ' ')}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-300 max-w-xs truncate">{g.subject}</td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{new Date(g.received_at).toLocaleDateString()}</td>
+                  <td className="px-4 py-3">
+                    {g.deadline_at ? (
+                      <span className={`text-xs ${g.is_overdue ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-600 dark:text-slate-400'}`}>
+                        {new Date(g.deadline_at).toLocaleDateString()}
+                      </span>
+                    ) : <span className="text-gray-400 dark:text-slate-500">-</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── W4-1: Participant Consents Tab ─────────────────────────────────────────────
+// Lazy-loads consent records for this participant from GET /participants/{id}/consents.
+// Visible to enrollment, qa_compliance, it_admin, super_admin. (HIPAA 45 CFR §164.520)
+function ParticipantConsentsTab({ participantId }: { participantId: number }) {
+  const [items, setItems]       = React.useState<Array<{id:number; consent_type:string; document_title:string; status:string; acknowledged_at:string|null; expires_at:string|null; created_at:string}>>([])
+  const [loaded, setLoaded]     = React.useState(false)
+  const [loading, setLoading]   = React.useState(false)
+
+  React.useEffect(() => {
+    if (loaded) return
+    setLoading(true)
+    import('axios').then(({ default: ax }) =>
+      ax.get(`/participants/${participantId}/consents`)
+        .then(res => {
+          const rows = Array.isArray(res.data) ? res.data : ((res.data as { data: unknown[] }).data ?? [])
+          setItems(rows as typeof items)
+          setLoaded(true)
+        })
+        .finally(() => setLoading(false))
+    )
+  }, [])
+
+  const statusColor: Record<string, string> = {
+    pending:  'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300',
+    acknowledged: 'bg-green-50 dark:bg-green-950/60 text-green-700 dark:text-green-300',
+    revoked:  'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300',
+    expired:  'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400',
+  }
+
+  if (loading) return <p className="py-8 text-center text-sm text-gray-500 dark:text-slate-400">Loading…</p>
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100 mb-4">Consent Records</h3>
+      {items.length === 0 ? (
+        <p className="py-8 text-center text-sm text-gray-500 dark:text-slate-400">No consent records on file.</p>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-700">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700 text-sm">
+            <thead className="bg-gray-50 dark:bg-slate-700/50">
+              <tr>
+                {['Document','Type','Status','Acknowledged','Expires','Created'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-slate-300">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-slate-700 bg-white dark:bg-slate-800">
+              {items.map(c => (
+                <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{c.document_title}</td>
+                  <td className="px-4 py-3 capitalize text-gray-700 dark:text-slate-300">{c.consent_type.replace(/_/g, ' ')}</td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${statusColor[c.status] ?? 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'}`}>
+                      {c.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
+                    {c.acknowledged_at ? new Date(c.acknowledged_at).toLocaleDateString() : <span className="text-amber-600 dark:text-amber-400 font-medium text-xs">Pending</span>}
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
+                    {c.expires_at ? new Date(c.expires_at).toLocaleDateString() : <span className="text-gray-400 dark:text-slate-500 text-xs">-</span>}
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{new Date(c.created_at).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 type Tab =
   | 'overview'
   | 'chart' | 'vitals' | 'assessments' | 'problems' | 'allergies' | 'adl' | 'careplan'
   | 'medications' | 'emar' | 'med-recon'
   | 'immunizations' | 'procedures' | 'sdoh'
   | 'contacts' | 'flags' | 'insurance' | 'documents' | 'audit' | 'transfers'
+  | 'grievances' | 'consents'
 
 export default function ParticipantShow({
   participant, addresses, contacts, flags, insurances, auditLogs,
@@ -5217,6 +5364,14 @@ export default function ParticipantShow({
   const canManageTransfers = auth.user.is_super_admin ||
     ['enrollment', 'it_admin'].includes(auth.user.department)
 
+  // W4-1: Grievances visible to qa_compliance + it_admin + super_admin (42 CFR §460.120)
+  const canViewGrievances = auth.user.is_super_admin ||
+    ['qa_compliance', 'it_admin'].includes(auth.user.department)
+
+  // W4-1: Consents visible to enrollment + qa_compliance + it_admin + super_admin
+  const canViewConsents = auth.user.is_super_admin ||
+    ['enrollment', 'qa_compliance', 'it_admin'].includes(auth.user.department)
+
   // Read ?tab= from URL so deep-links (e.g. from Clinical/CarePlans row-click) land on the right tab.
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const params = new URLSearchParams(window.location.search)
@@ -5224,7 +5379,8 @@ export default function ParticipantShow({
     const valid: Tab[] = ['overview', 'chart', 'vitals', 'assessments', 'problems',
       'allergies', 'adl', 'careplan', 'medications', 'emar', 'med-recon',
       'immunizations', 'procedures', 'sdoh',
-      'contacts', 'flags', 'insurance', 'documents', 'audit', 'transfers']
+      'contacts', 'flags', 'insurance', 'documents', 'audit', 'transfers',
+      'grievances', 'consents']
     return raw && valid.includes(raw) ? raw : 'overview'
   })
 
@@ -5263,8 +5419,10 @@ export default function ParticipantShow({
     { id: 'insurance', label: 'Insurance',   count: insurances.length },
     { id: 'documents', label: 'Documents' },
     { id: 'sdoh',      label: 'SDOH' },
-    { id: 'transfers', label: 'Transfers',   hidden: !canManageTransfers },
-    { id: 'audit',     label: 'Audit Trail', hidden: !canViewAudit },
+    { id: 'transfers',  label: 'Transfers',   hidden: !canManageTransfers },
+    { id: 'grievances', label: 'Grievances',  hidden: !canViewGrievances },
+    { id: 'consents',   label: 'Consents',    hidden: !canViewConsents },
+    { id: 'audit',      label: 'Audit Trail', hidden: !canViewAudit },
   ]
 
   return (
@@ -5382,6 +5540,8 @@ export default function ParticipantShow({
             canManageTransfers={canManageTransfers}
           />
         )}
+        {activeTab === 'grievances' && canViewGrievances && <ParticipantGrievancesTab participantId={participant.id} />}
+        {activeTab === 'consents'   && canViewConsents   && <ParticipantConsentsTab   participantId={participant.id} />}
         {activeTab === 'audit' && canViewAudit && <AuditTab logs={auditLogs} />}
       </div>
     </AppShell>

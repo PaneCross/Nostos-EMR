@@ -49,6 +49,9 @@ class QaDashboardController extends Controller
             'open_incidents_count'      => $this->metrics->getOpenIncidents($tenantId)->count(),
             'overdue_care_plans_count'  => $this->metrics->getCarePlansOverdue($tenantId)->count(),
             'hospitalizations_month'    => $this->metrics->getHospitalizationsThisMonth($tenantId),
+            // W4-1: Grievance + consent KPIs (BLOCKER-02)
+            'open_grievances_count'     => $this->metrics->getOpenGrievancesCount($tenantId),
+            'missing_npp_count'         => $this->metrics->getMissingNppCount($tenantId),
         ];
 
         // Open incidents for the incident queue table (full load — typically <50)

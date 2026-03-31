@@ -31,6 +31,9 @@ interface Kpis {
     open_incidents_count:      number;
     overdue_care_plans_count:  number;
     hospitalizations_month:    number;
+    // W4-1: Grievance + consent KPIs (42 CFR §460.120, HIPAA 45 CFR §164.520)
+    open_grievances_count:     number;
+    missing_npp_count:         number;
 }
 
 interface ParticipantSummary {
@@ -85,7 +88,7 @@ interface QaDashboardProps extends PageProps {
 }
 
 // ── Compliance tab options ─────────────────────────────────────────────────────
-type ComplianceTab = 'incidents' | 'unsigned_notes' | 'overdue_assessments';
+type ComplianceTab = 'incidents' | 'unsigned_notes' | 'overdue_assessments' | 'grievances';
 
 // ── Status badge helper ────────────────────────────────────────────────────────
 function statusBadge(status: string): React.ReactElement {
@@ -267,6 +270,105 @@ function OverdueAssessmentsTab() {
     );
 }
 
+// ── Grievances Tab ────────────────────────────────────────────────────────────
+interface GrievanceItem {
+    id:             number;
+    grievance_type: string;
+    priority:       string;
+    status:         string;
+    subject:        string;
+    received_at:    string;
+    deadline_at:    string | null;
+    is_overdue:     boolean;
+    participant:    ParticipantSummary | null;
+    assigned_to:    string | null;
+}
+
+function GrievancesTab() {
+    const [grievances, setGrievances] = useState<GrievanceItem[]>([]);
+    const [loaded, setLoaded]         = useState(false);
+    const [loading, setLoading]       = useState(false);
+
+    // Lazy-load on first render of this tab
+    React.useEffect(() => {
+        if (loaded) return;
+        setLoading(true);
+        axios.get<{ data: GrievanceItem[] }>('/grievances', { params: { status: 'open', per_page: 50 } })
+            .then(res => {
+                // Handle both array and paginated {data:[]} response shapes
+                const items = Array.isArray(res.data) ? res.data : (res.data as { data: GrievanceItem[] }).data ?? [];
+                setGrievances(items);
+                setLoaded(true);
+            })
+            .finally(() => setLoading(false));
+    }, []);
+
+    const priorityClasses: Record<string, string> = {
+        urgent:   'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 ring-red-200',
+        standard: 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 ring-blue-200',
+    };
+
+    if (loading) return <p className="text-sm text-gray-500 dark:text-slate-400 py-8 text-center">Loading…</p>;
+
+    if (grievances.length === 0) {
+        return (
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">
+                <p className="text-sm font-medium">No open grievances.</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700 text-sm">
+                <thead className="bg-gray-50 dark:bg-slate-700/50">
+                    <tr>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-slate-300">Participant</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-slate-300">Type</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-slate-300">Priority</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-slate-300">Subject</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-slate-300">Received</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-slate-300">Deadline</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-slate-300">Assigned</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-slate-700 bg-white dark:bg-slate-800">
+                    {grievances.map(g => (
+                        <tr key={g.id} className={`hover:bg-gray-50 dark:hover:bg-slate-700/50 ${g.is_overdue ? 'bg-red-50/40 dark:bg-red-950/20' : ''}`}>
+                            <td className="px-4 py-3">
+                                {g.participant
+                                    ? <><span className="font-medium text-gray-900 dark:text-slate-100">{g.participant.name}</span> <span className="text-gray-400 dark:text-slate-500 text-xs">{g.participant.mrn}</span></>
+                                    : <span className="text-gray-400 dark:text-slate-500">-</span>}
+                            </td>
+                            <td className="px-4 py-3 capitalize text-gray-700 dark:text-slate-300">{g.grievance_type.replace(/_/g, ' ')}</td>
+                            <td className="px-4 py-3">
+                                <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${priorityClasses[g.priority] ?? 'bg-gray-50 dark:bg-slate-700 text-gray-700 dark:text-slate-300 ring-gray-200'}`}>
+                                    {g.priority === 'urgent' ? 'Urgent' : 'Standard'}
+                                </span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-700 dark:text-slate-300 max-w-xs truncate">{g.subject}</td>
+                            <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
+                                {new Date(g.received_at).toLocaleDateString()}
+                            </td>
+                            <td className="px-4 py-3">
+                                {g.deadline_at ? (
+                                    <span className={`text-xs font-medium ${g.is_overdue ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-slate-400'}`}>
+                                        {new Date(g.deadline_at).toLocaleDateString()}
+                                        {g.is_overdue && <span className="ml-1 font-semibold">(Overdue)</span>}
+                                    </span>
+                                ) : (
+                                    <span className="text-gray-400 dark:text-slate-500 text-xs">-</span>
+                                )}
+                            </td>
+                            <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{g.assigned_to ?? '-'}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function QaDashboard() {
     const { kpis, openIncidents, incidentTypes, statuses } = usePage<QaDashboardProps>().props;
@@ -306,8 +408,8 @@ export default function QaDashboard() {
                 </div>
             </div>
 
-            {/* ── 6 KPI Cards ──────────────────────────────────────────────── */}
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+            {/* ── 8 KPI Cards ──────────────────────────────────────────────── */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                 <KpiCard
                     label="SDR Compliance"
                     value={`${kpis.sdr_compliance_rate}%`}
@@ -350,6 +452,22 @@ export default function QaDashboard() {
                     color="red"
                     alert={false}
                 />
+                {/* W4-1: Grievance KPI — 42 CFR §460.120–§460.121 */}
+                <KpiCard
+                    label="Open Grievances"
+                    value={kpis.open_grievances_count}
+                    sublabel="Awaiting resolution"
+                    color="amber"
+                    alert={kpis.open_grievances_count > 0}
+                />
+                {/* W4-1: Missing NPP KPI — HIPAA 45 CFR §164.520 */}
+                <KpiCard
+                    label="Missing NPP"
+                    value={kpis.missing_npp_count}
+                    sublabel="NPP acknowledgment pending"
+                    color="amber"
+                    alert={kpis.missing_npp_count > 0}
+                />
             </div>
 
             {/* ── Compliance tabs section ───────────────────────────────────── */}
@@ -361,6 +479,7 @@ export default function QaDashboard() {
                         ['incidents',            'Open Incidents'],
                         ['unsigned_notes',       'Unsigned Notes'],
                         ['overdue_assessments',  'Overdue Assessments'],
+                        ['grievances',           'Grievances'],
                     ] as [ComplianceTab, string][]).map(([key, label]) => (
                         <button
                             key={key}
@@ -387,6 +506,11 @@ export default function QaDashboard() {
                                     {kpis.overdue_assessments_count}
                                 </span>
                             )}
+                            {key === 'grievances' && kpis.open_grievances_count > 0 && (
+                                <span className="ml-1.5 bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 text-xs px-1.5 py-0.5 rounded-full">
+                                    {kpis.open_grievances_count}
+                                </span>
+                            )}
                         </button>
                     ))}
                 </div>
@@ -402,6 +526,7 @@ export default function QaDashboard() {
                     )}
                     {complianceTab === 'unsigned_notes' && <UnsignedNotesTab tenantId={0} />}
                     {complianceTab === 'overdue_assessments' && <OverdueAssessmentsTab />}
+                    {complianceTab === 'grievances' && <GrievancesTab />}
                 </div>
             </div>
         </AppShell>

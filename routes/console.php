@@ -2,6 +2,7 @@
 
 use App\Jobs\DigestNotificationJob;
 use App\Jobs\DocumentationComplianceJob;
+use App\Jobs\GrievanceOverdueJob;
 use App\Jobs\SdrDeadlineEnforcementJob;
 use App\Jobs\TransferCompletionJob;
 use Illuminate\Foundation\Inspiring;
@@ -49,6 +50,16 @@ Schedule::job(DocumentationComplianceJob::class, 'compliance')->dailyAt('06:00')
 // Contains ZERO PHI per HIPAA requirements.
 Schedule::job(DigestNotificationJob::class, 'notifications')->everyTwoHours()
     ->name('digest-notifications')
+    ->withoutOverlapping();
+
+// ─── W4-1: Grievance overdue check (42 CFR §460.120–§460.121) ────────────────
+// Runs daily at 8:00 AM across all active tenants:
+//   - Escalates standard grievances open > 30 days to 'escalated' status
+//   - Creates critical alert if urgent grievance open > 72 hours without resolution
+//   - Creates info alerts for approaching deadlines
+// Per-tenant error handling ensures a single tenant failure doesn't abort the batch.
+Schedule::job(GrievanceOverdueJob::class, 'compliance')->dailyAt('08:00')
+    ->name('grievance-overdue')
     ->withoutOverlapping();
 
 // ─── Phase 10A: Participant site transfer completion ──────────────────────────

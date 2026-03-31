@@ -147,8 +147,8 @@ export default function GlobalSearch({
             className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4"
             onClick={e => { if (e.target === e.currentTarget) onClose(); }}
         >
-            {/* Dim overlay */}
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden />
+            {/* Dim overlay — pointer-events-none so outside clicks reach the parent handler */}
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-none" aria-hidden />
 
             {/* Panel */}
             <div className="relative w-full max-w-xl bg-white rounded-xl shadow-2xl ring-1 ring-black/10 flex flex-col overflow-hidden">

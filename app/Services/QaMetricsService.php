@@ -19,7 +19,10 @@ namespace App\Services;
 use App\Models\Assessment;
 use App\Models\CarePlan;
 use App\Models\ClinicalNote;
+use App\Models\ConsentRecord;
+use App\Models\Grievance;
 use App\Models\Incident;
+use App\Models\Participant;
 use App\Models\Sdr;
 use Illuminate\Support\Collection;
 
@@ -120,6 +123,38 @@ class QaMetricsService
             ->hospitalizations()
             ->whereYear('occurred_at', now()->year)
             ->whereMonth('occurred_at', now()->month)
+            ->count();
+    }
+
+    // ── W4-1: Grievance KPIs (42 CFR §460.120–§460.121) ──────────────────────
+
+    /**
+     * Count of open grievances (not resolved or withdrawn) for the tenant.
+     * Used for the "Open Grievances" KPI card on the QA dashboard.
+     *
+     * 42 CFR §460.122 requires PACE organizations to track and resolve all grievances
+     * within 30 days (standard) or 72 hours (urgent).
+     */
+    public function getOpenGrievancesCount(int $tenantId): int
+    {
+        return Grievance::where('tenant_id', $tenantId)
+            ->whereNotIn('status', ['resolved', 'withdrawn'])
+            ->count();
+    }
+
+    /**
+     * Count of enrolled participants who have a pending NPP acknowledgment.
+     * An NPP consent record is auto-created on enrollment (status='pending') and
+     * must be acknowledged before or at first service delivery.
+     *
+     * HIPAA 45 CFR §164.520: covered entities must provide NPP and make a good-faith
+     * effort to obtain written acknowledgment from each participant.
+     */
+    public function getMissingNppCount(int $tenantId): int
+    {
+        return ConsentRecord::where('tenant_id', $tenantId)
+            ->where('consent_type', ConsentRecord::NPP_TYPE)
+            ->where('status', 'pending')
             ->count();
     }
 }

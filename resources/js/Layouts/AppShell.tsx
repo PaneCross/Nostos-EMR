@@ -536,6 +536,22 @@ function TopBar({ onToggleSidebar, onOpenSearch, theme, onThemeChange }: {
     const canSwitchSite = (user.is_super_admin || user.department === 'super_admin' || user.department === 'executive')
         && available_sites.length > 1;;
 
+    // Help popover state
+    const [showHelp, setShowHelp] = useState(false);
+    const helpRef = useRef<HTMLDivElement>(null);
+
+    // Close help popover on outside click
+    useEffect(() => {
+        if (!showHelp) return;
+        const handler = (e: MouseEvent) => {
+            if (helpRef.current && !helpRef.current.contains(e.target as Node)) {
+                setShowHelp(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [showHelp]);
+
     return (
         <header className="h-14 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center px-4 gap-4 shrink-0 z-10">
             {/* Sidebar collapse/expand toggle */}
@@ -597,12 +613,46 @@ function TopBar({ onToggleSidebar, onOpenSearch, theme, onThemeChange }: {
                 {/* Notification bell — real-time alerts via Reverb (Phase 4) */}
                 <NotificationBell />
 
-                {/* Help icon — placeholder */}
-                <button className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400" aria-label="Help">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.6} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
-                    </svg>
-                </button>
+                {/* Help icon — opens support popover */}
+                <div className="relative" ref={helpRef}>
+                    <button
+                        onClick={() => setShowHelp(v => !v)}
+                        className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"
+                        aria-label="Help"
+                        aria-expanded={showHelp}
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.6} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                        </svg>
+                    </button>
+
+                    {showHelp && (
+                        <div className="absolute right-0 top-9 w-72 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 p-4 z-50">
+                            <div className="flex items-center justify-between mb-2">
+                                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Need Help?</h3>
+                                <button
+                                    onClick={() => setShowHelp(false)}
+                                    className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 text-lg leading-none"
+                                    aria-label="Close"
+                                >
+                                    &#x2715;
+                                </button>
+                            </div>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
+                                If you are experiencing an issue with NostosEMR, please contact our support team:
+                            </p>
+                            <a
+                                href="mailto:support@nostos-emr.com"
+                                className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium block mb-3"
+                            >
+                                support@nostos-emr.com
+                            </a>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                For urgent clinical system issues outside of business hours, contact your site IT Administrator.
+                            </p>
+                        </div>
+                    )}
+                </div>
 
                 {/* Logged-in user avatar chip.
                     When impersonating, show impersonated user's initials with amber ring. */}

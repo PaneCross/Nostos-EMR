@@ -217,6 +217,14 @@ class PermissionService
                     ['label' => 'Audit Log',        'module' => 'audit_log',           'href' => '/it-admin/audit'],
                 ],
             ],
+            // ── W4-1: QA / Compliance (42 CFR §460.120–§460.121) ──────────────
+            [
+                'label' => 'QA / Compliance',
+                'icon'  => 'clipboard',
+                'items' => [
+                    ['label' => 'Grievances', 'module' => 'grievances', 'href' => '/grievances'],
+                ],
+            ],
             [
                 'label' => 'Administration',
                 'icon'  => 'settings',

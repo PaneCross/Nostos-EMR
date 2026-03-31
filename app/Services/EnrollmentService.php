@@ -248,6 +248,19 @@ class EnrollmentService
             'referral_id'    => $referral->id,
         ]);
 
+        // Auto-create pending NPP acknowledgment consent record (HIPAA 45 CFR §164.520).
+        // The participant must acknowledge the Notice of Privacy Practices at or before
+        // first service delivery. Created as 'pending' so enrollment staff can track completion.
+        // W4-1: BLOCKER-02 resolution — formal consent tracking per 42 CFR §460.110.
+        \App\Models\ConsentRecord::create([
+            'participant_id'     => $participant->id,
+            'tenant_id'          => $referral->tenant_id,
+            'consent_type'       => \App\Models\ConsentRecord::NPP_TYPE,
+            'document_title'     => 'Notice of Privacy Practices',
+            'status'             => 'pending',
+            'created_by_user_id' => $user->id,
+        ]);
+
         // TODO Phase 7C: Create participant IDT chat channel
     }
 }
