@@ -195,7 +195,83 @@ class GrievanceController extends Controller
             description:  "Grievance #{$grievance->id} viewed.",
         );
 
-        $user     = Auth::user();
+        // ── Activity timeline ─────────────────────────────────────────────────
+        // Pull all meaningful audit events for this grievance, ordered oldest→newest.
+        // For status_changed, new_values['status'] is set by the service for new
+        // records; for older records we fall back to parsing the description string.
+        $deptLabels = [
+            'primary_care'     => 'Primary Care',
+            'therapies'        => 'Therapies',
+            'social_work'      => 'Social Work',
+            'behavioral_health'=> 'Behavioral Health',
+            'dietary'          => 'Dietary',
+            'activities'       => 'Activities',
+            'home_care'        => 'Home Care',
+            'transportation'   => 'Transportation',
+            'pharmacy'         => 'Pharmacy',
+            'idt'              => 'IDT',
+            'enrollment'       => 'Enrollment',
+            'finance'          => 'Finance',
+            'qa_compliance'    => 'QA Compliance',
+            'it_admin'         => 'IT Admin',
+            'executive'        => 'Executive',
+            'super_admin'      => 'Nostos Admin',
+        ];
+        $statusLabelMap = [
+            'under_review' => 'Marked Under Review',
+            'resolved'     => 'Resolved',
+            'escalated'    => 'Escalated',
+            'withdrawn'    => 'Withdrawn',
+        ];
+
+        $activity = AuditLog::where('resource_type', 'grievance')
+            ->where('resource_id', $grievance->id)
+            ->whereIn('action', [
+                'grievance.opened',
+                'grievance.status_changed',
+                'grievance.participant_notified',
+            ])
+            ->with('user:id,first_name,last_name,department')
+            ->orderBy('id', 'asc')
+            ->get()
+            ->map(function ($log) use ($statusLabelMap, $deptLabels) {
+                if ($log->action === 'grievance.status_changed') {
+                    // new_values['status'] set for records created after W4-1 add-on;
+                    // fall back to regex parse of description for older records.
+                    $newStatus = $log->new_values['status'] ?? null;
+                    if (!$newStatus) {
+                        preg_match("/to '(\w+)'/", $log->description ?? '', $m);
+                        $newStatus = $m[1] ?? null;
+                    }
+                    $label = $statusLabelMap[$newStatus] ?? 'Status Changed';
+                    $status = $newStatus;
+                } elseif ($log->action === 'grievance.opened') {
+                    $label  = 'Grievance Filed';
+                    $status = 'open';
+                } else {
+                    $label  = 'Participant Notified';
+                    $status = 'notified';
+                }
+
+                $dept      = $log->user?->department;
+                $deptLabel = $dept ? ($deptLabels[$dept] ?? ucfirst(str_replace('_', ' ', $dept))) : null;
+
+                return [
+                    'action'          => $log->action,
+                    'label'           => $label,
+                    'status'          => $status,
+                    'user_name'       => $log->user
+                        ? $log->user->first_name . ' ' . $log->user->last_name
+                        : 'System',
+                    'department'      => $dept,
+                    'department_label'=> $deptLabel,
+                    'timestamp'       => $log->created_at?->toIso8601String(),
+                ];
+            })
+            ->values()
+            ->toArray();
+
+        $user      = Auth::user();
         $isQaAdmin = in_array($user->department, ['qa_compliance', 'it_admin']) || $user->isSuperAdmin();
 
         return Inertia::render('Grievances/Show', [
@@ -208,6 +284,7 @@ class GrievanceController extends Controller
                     ? $grievance->receivedBy->first_name . ' ' . $grievance->receivedBy->last_name
                     : null,
             ]),
+            'activity'    => $activity,
             'categories'  => Grievance::CATEGORY_LABELS,
             'statuses'    => Grievance::STATUS_LABELS,
             'isQaAdmin'   => $isQaAdmin,

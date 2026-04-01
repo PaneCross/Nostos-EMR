@@ -163,6 +163,7 @@ class GrievanceService
             resourceType: 'grievance',
             resourceId:   $grievance->id,
             description:  "Grievance status changed from '{$grievance->getOriginal('status')}' to '{$newStatus}'.",
+            newValues:    ['status' => $newStatus],
         );
 
         // When escalating: create a targeted alert to the named assignee (if set),

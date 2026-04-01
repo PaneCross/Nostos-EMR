@@ -57,8 +57,19 @@ interface EscalationStaff {
     label:        string; // human-readable designation list
 }
 
+interface ActivityEntry {
+    action:           string;
+    label:            string;
+    status:           string;        // 'open' | 'under_review' | 'resolved' | 'escalated' | 'withdrawn' | 'notified'
+    user_name:        string;
+    department:       string | null;
+    department_label: string | null;
+    timestamp:        string | null;
+}
+
 interface GrievancesShowProps extends PageProps {
     grievance:            GrievanceDetail;
+    activity:             ActivityEntry[];
     categories:           Record<string, string>;
     statuses:             Record<string, string>;
     isQaAdmin:            boolean;
@@ -84,8 +95,19 @@ function StatusBadge({ status, label }: { status: string; label: string }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
+// ── Activity timeline dot/color config ───────────────────────────────────────
+
+const ACTIVITY_CONFIG: Record<string, { dot: string; line: string; text: string }> = {
+    open:         { dot: 'bg-blue-500',   line: 'border-blue-200 dark:border-blue-800',   text: 'text-blue-700 dark:text-blue-300' },
+    under_review: { dot: 'bg-amber-500',  line: 'border-amber-200 dark:border-amber-800', text: 'text-amber-700 dark:text-amber-300' },
+    resolved:     { dot: 'bg-green-500',  line: 'border-green-200 dark:border-green-800', text: 'text-green-700 dark:text-green-300' },
+    escalated:    { dot: 'bg-red-500',    line: 'border-red-200 dark:border-red-800',     text: 'text-red-700 dark:text-red-300' },
+    withdrawn:    { dot: 'bg-gray-400',   line: 'border-gray-200 dark:border-slate-700',  text: 'text-gray-500 dark:text-slate-400' },
+    notified:     { dot: 'bg-purple-500', line: 'border-purple-200 dark:border-purple-800', text: 'text-purple-700 dark:text-purple-300' },
+};
+
 export default function GrievancesShow() {
-    const { grievance, isQaAdmin, notificationMethods } = usePage<GrievancesShowProps>().props;
+    const { grievance, activity, isQaAdmin, notificationMethods } = usePage<GrievancesShowProps>().props;
 
     const [resolution, setResolution]         = useState({ resolution_text: '', resolution_date: '' });
     const [escalation, setEscalation]         = useState({ escalation_reason: '', escalated_to_user_id: '' });
@@ -224,9 +246,9 @@ export default function GrievancesShow() {
                     )}
                 </div>
 
-                {/* Right: Actions sidebar */}
-                {isQaAdmin && !isClosed && (
-                    <div className="space-y-4">
+                {/* Right: Actions + Activity timeline */}
+                <div className="space-y-4">
+                    {isQaAdmin && !isClosed && (<>
                         {/* Resolve */}
                         {grievance.status === 'under_review' && (
                             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
@@ -358,8 +380,56 @@ export default function GrievancesShow() {
                                 </div>
                             </div>
                         )}
+                    </>)}
+
+                    {/* ── Activity Timeline ─────────────────────────────────
+                        Visible to all users who can view this grievance.
+                        Shows each meaningful audit event in chronological order
+                        with who took the action, from which department, and when.
+                    ─────────────────────────────────────────────────────── */}
+                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-4">Activity</h3>
+                        {activity.length === 0 ? (
+                            <p className="text-xs text-gray-400 dark:text-slate-500 italic">No activity recorded yet.</p>
+                        ) : (
+                            <ol className="relative border-l border-gray-200 dark:border-slate-700 ml-2 space-y-5">
+                                {activity.map((entry, i) => {
+                                    const cfg = ACTIVITY_CONFIG[entry.status] ?? ACTIVITY_CONFIG['withdrawn'];
+                                    const isLast = i === activity.length - 1;
+                                    return (
+                                        <li key={i} className="ml-4">
+                                            {/* Dot on the timeline spine */}
+                                            <span className={`absolute -left-[9px] flex items-center justify-center w-[17px] h-[17px] rounded-full ring-2 ring-white dark:ring-slate-800 ${cfg.dot}`} />
+
+                                            {/* Event label */}
+                                            <p className={`text-xs font-semibold ${cfg.text} ${isLast ? '' : 'mb-0.5'}`}>
+                                                {entry.label}
+                                            </p>
+
+                                            {/* Who + department */}
+                                            <p className="text-xs text-gray-600 dark:text-slate-400">
+                                                {entry.user_name}
+                                                {entry.department_label && (
+                                                    <span className="text-gray-400 dark:text-slate-500"> ({entry.department_label})</span>
+                                                )}
+                                            </p>
+
+                                            {/* Timestamp */}
+                                            {entry.timestamp && (
+                                                <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+                                                    {new Date(entry.timestamp).toLocaleString([], {
+                                                        month: 'short', day: 'numeric', year: 'numeric',
+                                                        hour: '2-digit', minute: '2-digit',
+                                                    })}
+                                                </p>
+                                            )}
+                                        </li>
+                                    );
+                                })}
+                            </ol>
+                        )}
                     </div>
-                )}
+                </div>
             </div>
         </AppShell>
     );
