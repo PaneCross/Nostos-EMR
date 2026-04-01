@@ -1,11 +1,13 @@
 // ─── IdtDashboard ──────────────────────────────────────────────────────────────
 // Real-data dashboard for the IDT / Care Coordination department.
 // Rendered from Dashboard/Index.tsx when department === 'idt'.
-// Fetches 4 widget endpoints in parallel on mount:
-//   GET /dashboards/idt/meetings     — today's IDT meetings with Start Meeting links
-//   GET /dashboards/idt/overdue-sdrs — escalated SDRs grouped by department
-//   GET /dashboards/idt/care-plans   — care plans due for review within 30 days
-//   GET /dashboards/idt/alerts       — last 24h cross-department alert feed
+// Fetches 5 widget endpoints in parallel on mount:
+//   GET /dashboards/idt/meetings          — today's IDT meetings with Start Meeting links
+//   GET /dashboards/idt/overdue-sdrs      — escalated SDRs grouped by department
+//   GET /dashboards/idt/care-plans        — care plans due for review within 30 days
+//   GET /dashboards/idt/alerts            — last 24h cross-department alert feed
+//   GET /dashboards/idt/idt-review-overdue — participants overdue for 6-month IDT reassessment
+//                                            42 CFR §460.104(c): reassessment every 6 months
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useEffect, useState } from 'react';
@@ -68,18 +70,32 @@ interface AlertItem {
     href?: string;
 }
 
+// Participant overdue for 6-month IDT reassessment (42 CFR §460.104(c))
+interface IdtOverdueItem {
+    id: number;
+    name: string;
+    mrn: string | null;
+    site: string | null;
+    enrollment_date: string | null;
+    last_reviewed_at: string | null;
+    days_overdue: number | null;
+    href: string;
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 interface Props { departmentLabel: string; role: string }
 
 export default function IdtDashboard({ departmentLabel, role }: Props) {
-    const [loading, setLoading]       = useState(true);
-    const [meetings, setMeetings]     = useState<{ meetings: MeetingItem[]; count: number; has_meeting_today: boolean } | null>(null);
-    const [sdrs, setSdrs]             = useState<{ departments: SdrDeptGroup[]; total_count: number } | null>(null);
-    const [carePlans, setCarePlans]   = useState<{
+    const [loading, setLoading]         = useState(true);
+    const [meetings, setMeetings]       = useState<{ meetings: MeetingItem[]; count: number; has_meeting_today: boolean } | null>(null);
+    const [sdrs, setSdrs]               = useState<{ departments: SdrDeptGroup[]; total_count: number } | null>(null);
+    const [carePlans, setCarePlans]     = useState<{
         care_plans: CarePlanItem[]; overdue_count: number; due_soon_count: number;
     } | null>(null);
-    const [alerts, setAlerts]         = useState<{ alerts: AlertItem[]; critical_count: number } | null>(null);
+    const [alerts, setAlerts]           = useState<{ alerts: AlertItem[]; critical_count: number } | null>(null);
+    // 42 CFR §460.104(c): IDT must reassess each participant at least every 6 months
+    const [idtOverdue, setIdtOverdue]   = useState<{ participants: IdtOverdueItem[]; overdue_count: number } | null>(null);
 
     useEffect(() => {
         Promise.all([
@@ -87,11 +103,13 @@ export default function IdtDashboard({ departmentLabel, role }: Props) {
             axios.get('/dashboards/idt/overdue-sdrs'),
             axios.get('/dashboards/idt/care-plans'),
             axios.get('/dashboards/idt/alerts'),
-        ]).then(([meet, sdr, cp, alert]) => {
+            axios.get('/dashboards/idt/idt-review-overdue'),
+        ]).then(([meet, sdr, cp, alert, overdue]) => {
             setMeetings(meet.data);
             setSdrs(sdr.data);
             setCarePlans(cp.data);
             setAlerts(alert.data);
+            setIdtOverdue(overdue.data);
         }).finally(() => setLoading(false));
     }, []);
 
@@ -128,6 +146,15 @@ export default function IdtDashboard({ departmentLabel, role }: Props) {
             ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300'
             : 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
         sublabel: p.status.replace(/_/g, ' '),
+    }));
+
+    // Build ActionItems for IDT Reassessment Overdue — 42 CFR §460.104(c)
+    const idtOverdueItems: ActionItem[] = (idtOverdue?.participants ?? []).map(p => ({
+        label: p.name,
+        href: p.href,
+        badge: p.days_overdue !== null ? `${p.days_overdue}d overdue` : 'No review on record',
+        badgeColor: 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
+        sublabel: `MRN: ${p.mrn ?? '-'} | ${p.site ?? 'No site'} | Last reviewed: ${p.last_reviewed_at ?? 'Never'}`,
     }));
 
     // Build ActionItems for Alerts (24h)
@@ -179,6 +206,16 @@ export default function IdtDashboard({ departmentLabel, role }: Props) {
                 items={alertItems}
                 emptyMessage="No alerts in the last 24 hours"
                 viewAllHref="/qa/dashboard"
+                loading={loading}
+            />
+
+            {/* 42 CFR §460.104(c): IDT must reassess each participant at least every 6 months */}
+            <ActionWidget
+                title="IDT Reassessment Overdue"
+                description="Enrolled participants who have not had an IDT reassessment within 6 months (180 days). Schedule at next IDT meeting. 42 CFR §460.104(c)."
+                items={idtOverdueItems}
+                emptyMessage="All participants are within their 6-month reassessment window"
+                viewAllHref="/participants"
                 loading={loading}
             />
 

@@ -4,12 +4,17 @@
 // Manages CMS-compliant care plans for PACE participants.
 //
 // Routes (nested under /participants/{participant}/careplan):
-//   GET    /careplan          — active care plan with all goals
-//   POST   /careplan          — create a new draft plan
-//   GET    /careplan/{id}     — specific plan version with goals
-//   PUT    /careplan/{id}/goals/{domain} — upsert a domain goal
-//   POST   /careplan/{id}/approve        — approve plan (IDT/PC Admin only)
-//   POST   /careplan/{id}/new-version    — create new draft version
+//   GET    /careplan                              — active plan with goals
+//   POST   /careplan                              — create a new draft plan
+//   GET    /careplan/{id}                         — specific plan version with goals
+//   PUT    /careplan/{id}/goals/{domain}          — upsert a domain goal
+//   POST   /careplan/{id}/approve                 — approve plan (IDT/PC Admin only)
+//   POST   /careplan/{id}/new-version             — create new draft version
+//   PATCH  /careplan/{id}/participation           — record participant offer/response (W4-5)
+//
+// W4-5: approve() now enforces 42 CFR §460.104(d) — participation must be offered
+// before a plan can be approved. A warning is returned if the field is missing,
+// but approval proceeds (soft enforcement per CMS survey guidance).
 //
 // Broadcasts CarePlanUpdatedEvent on goal changes for real-time chart refresh.
 // ──────────────────────────────────────────────────────────────────────────────
@@ -163,6 +168,10 @@ class CarePlanController extends Controller
      * POST /participants/{participant}/careplan/{carePlan}/approve
      * Approves a draft or under_review care plan.
      * Restricted to IDT Admin + Primary Care Admin.
+     *
+     * W4-5: 42 CFR §460.104(d) — participation must be documented before approval.
+     * This is a soft enforcement: the plan is approved but a 'participation_warning'
+     * flag in the response signals the UI to surface a reminder to staff.
      */
     public function approve(Request $request, Participant $participant, CarePlan $carePlan): JsonResponse
     {
@@ -170,6 +179,10 @@ class CarePlanController extends Controller
         $this->authorizeForTenant($participant, $user);
         abort_if($carePlan->participant_id !== $participant->id, 404);
         abort_unless($carePlan->canBeApprovedBy($user), 403, 'Only IDT Admin or Primary Care Admin may approve care plans.');
+
+        // W4-5: Check participation documentation before editability guard
+        $participationWarning = ! $carePlan->participant_offered_participation;
+
         abort_unless($carePlan->isEditable(), 422, 'Only draft or under-review care plans can be approved.');
 
         $carePlan->approve($user);
@@ -180,13 +193,60 @@ class CarePlanController extends Controller
             userId: $user->id,
             resourceType: 'participant',
             resourceId: $participant->id,
-            description: "Care plan v{$carePlan->version} approved for {$participant->mrn}",
-            newValues: ['care_plan_id' => $carePlan->id, 'effective_date' => $carePlan->effective_date],
+            description: "Care plan v{$carePlan->version} approved for {$participant->mrn}"
+                . ($participationWarning ? ' (participation not documented — 42 CFR §460.104(d))' : ''),
+            newValues: [
+                'care_plan_id'          => $carePlan->id,
+                'effective_date'        => $carePlan->effective_date,
+                'participation_warning' => $participationWarning,
+            ],
         );
 
         broadcast(new CarePlanUpdatedEvent($carePlan->refresh(), 'all', $user->department))->toOthers();
 
-        return response()->json($carePlan->fresh(['goals', 'approvedBy:id,first_name,last_name']));
+        return response()->json(array_merge(
+            $carePlan->fresh(['goals', 'approvedBy:id,first_name,last_name'])->toArray(),
+            ['participation_warning' => $participationWarning]
+        ));
+    }
+
+    /**
+     * PATCH /participants/{participant}/careplan/{carePlan}/participation
+     * Records whether the participant was offered the opportunity to participate
+     * in care plan development and their response.
+     * 42 CFR §460.104(d): PACE must offer participation to participant/representative.
+     * Any authenticated user with canEdit access may record this.
+     */
+    public function updateParticipation(Request $request, Participant $participant, CarePlan $carePlan): JsonResponse
+    {
+        $user = $request->user();
+        $this->authorizeForTenant($participant, $user);
+        abort_if($carePlan->participant_id !== $participant->id, 404);
+
+        $validated = $request->validate([
+            'participant_offered_participation' => ['required', 'boolean'],
+            'participant_response'              => ['nullable', 'string', Rule::in(['accepted', 'declined', 'no_response'])],
+            'offered_at'                        => ['nullable', 'date'],
+        ]);
+
+        $carePlan->update(array_merge($validated, [
+            'offered_by_user_id' => $user->id,
+            'offered_at'         => $validated['offered_at'] ?? now(),
+        ]));
+
+        AuditLog::record(
+            action: 'participant.careplan.participation_updated',
+            tenantId: $user->tenant_id,
+            userId: $user->id,
+            resourceType: 'participant',
+            resourceId: $participant->id,
+            description: "Participation documented for care plan v{$carePlan->version} ({$participant->mrn}): "
+                . ($validated['participant_offered_participation'] ? 'offered' : 'not offered')
+                . ($validated['participant_response'] ? ', response: ' . $validated['participant_response'] : ''),
+            newValues: $validated,
+        );
+
+        return response()->json($carePlan->fresh(['offeredBy:id,first_name,last_name']));
     }
 
     /**

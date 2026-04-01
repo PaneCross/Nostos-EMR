@@ -22,16 +22,20 @@
 // Disenrollment (separate from referral workflow):
 //   POST /participants/{id}/disenroll → sets enrollment_status,
 //   disenrollment_date, disenrollment_reason on emr_participants.
-//   cms_notification_required=true creates a QA task (TODO Phase 6B).
+//   W4-5: also creates DisenrollmentRecord (42 CFR §460.116 transition plan) and
+//   up to 2 SDRs (social_work for transition plan, enrollment for CMS notification).
 // ──────────────────────────────────────────────────────────────────────────────
 
 namespace App\Services;
 
 use App\Exceptions\InvalidStateTransitionException;
 use App\Models\AuditLog;
+use App\Models\DisenrollmentRecord;
 use App\Models\Participant;
 use App\Models\Referral;
+use App\Models\Sdr;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class EnrollmentService
@@ -186,13 +190,61 @@ class EnrollmentService
                 ($cmsNotificationRequired ? ' [CMS notification required]' : ''),
         );
 
-        // TODO Phase 6B: if $cmsNotificationRequired, create emr_qa_tasks record
-        // for HPMS reporting workflow
+        // W4-5: Create DisenrollmentRecord for 42 CFR §460.116 transition plan tracking.
+        // Transition plan due = effective_date + 30 days.
+        // For deceased participants, transition plan status = 'not_required'.
+        $planStatus = $reason === 'deceased' ? DisenrollmentRecord::PLAN_NOT_REQUIRED : DisenrollmentRecord::PLAN_PENDING;
+        $effectiveDateCarbon = Carbon::parse($effectiveDate);
+
+        $disRecord = DisenrollmentRecord::create([
+            'participant_id'           => $participant->id,
+            'tenant_id'                => $participant->tenant_id,
+            'created_by_user_id'       => $user->id,
+            'reason'                   => $reason,
+            'effective_date'           => $effectiveDate,
+            'notes'                    => $notes,
+            'transition_plan_status'   => $planStatus,
+            'transition_plan_due_date' => $reason !== 'deceased'
+                ? $effectiveDateCarbon->copy()->addDays(DisenrollmentRecord::TRANSITION_PLAN_DUE_DAYS)->toDateString()
+                : null,
+            'cms_notification_required' => $cmsNotificationRequired,
+        ]);
+
+        // W4-5: Create an SDR for the transition plan (social_work dept must coordinate).
+        // request_type = 'other' (only valid ENUM value for custom workflow SDRs).
+        Sdr::create([
+            'tenant_id'             => $participant->tenant_id,
+            'participant_id'        => $participant->id,
+            'requesting_user_id'    => $user->id,
+            'requesting_department' => 'enrollment',   // enrollment coordinator initiates
+            'assigned_department'   => 'social_work',
+            'request_type'          => 'other',
+            'priority'              => 'urgent',
+            'description'           => "Transition plan required: {$participant->first_name} {$participant->last_name}"
+                . " disenrolled effective {$effectiveDate}. Reason: {$reason}."
+                . " 42 CFR §460.116: transition plan due within 30 days (by {$effectiveDateCarbon->copy()->addDays(30)->toDateString()}).",
+        ]);
+
+        // W4-5: If CMS notification is required, also create an SDR for enrollment dept.
         if ($cmsNotificationRequired) {
-            Log::warning("CMS notification required for disenrollment of participant #{$participant->id}", [
-                'reason'          => $reason,
-                'effective_date'  => $effectiveDate,
-                'participant_id'  => $participant->id,
+            Sdr::create([
+                'tenant_id'             => $participant->tenant_id,
+                'participant_id'        => $participant->id,
+                'requesting_user_id'    => $user->id,
+                'requesting_department' => 'enrollment',   // enrollment coordinator initiates
+                'assigned_department'   => 'enrollment',
+                'request_type'          => 'other',
+                'priority'              => 'urgent',
+                'description'           => "CMS/SMA notification required: {$participant->first_name} {$participant->last_name}"
+                    . " disenrolled effective {$effectiveDate}. Reason: {$reason}."
+                    . " Submit disenrollment notification to CMS and State Medicaid Agency (SMA)."
+                    . " Record completion in the disenrollment record (DisenrollmentRecord #{$disRecord->id}).",
+            ]);
+
+            Log::info("CMS notification SDR created for disenrollment of participant #{$participant->id}", [
+                'reason'             => $reason,
+                'effective_date'     => $effectiveDate,
+                'disenrollment_id'   => $disRecord->id,
             ]);
         }
     }

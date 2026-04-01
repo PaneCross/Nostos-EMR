@@ -79,7 +79,15 @@ class ParticipantController extends Controller
             $query->whereHas('activeFlags');
         }
 
-        $participants = $query->paginate(50)->withQueryString();
+        $participants = $query->paginate(50)->withQueryString()->through(
+            // W4-5: Append idt_review_overdue computed flag so Participants/Index.tsx
+            // can show an amber "IDT Due" badge for enrolled participants overdue for their
+            // 6-month IDT reassessment (42 CFR §460.104(c)).
+            // idtReviewOverdue() returns false for non-enrolled participants — safe to call on all.
+            fn (Participant $p) => array_merge($p->toArray(), [
+                'idt_review_overdue' => $p->idtReviewOverdue(),
+            ])
+        );
 
         // Log the search to audit trail
         AuditLog::record(

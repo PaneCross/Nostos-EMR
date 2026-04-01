@@ -11,17 +11,19 @@ interface Flag {
 }
 
 interface Participant {
-  id:                number
-  mrn:               string
-  first_name:        string
-  last_name:         string
-  preferred_name:    string | null
-  dob:               string
-  enrollment_status: string
-  is_active:         boolean
-  photo_path:        string | null
-  site:              { id: number; name: string }
-  active_flags:      Flag[]
+  id:                  number
+  mrn:                 string
+  first_name:          string
+  last_name:           string
+  preferred_name:      string | null
+  dob:                 string
+  enrollment_status:   string
+  is_active:           boolean
+  photo_path:          string | null
+  site:                { id: number; name: string }
+  active_flags:        Flag[]
+  // W4-5: QW-06 — 42 CFR §460.104(c) IDT 6-month reassessment overdue indicator
+  idt_review_overdue:  boolean
 }
 
 interface Paginator<T> {
@@ -260,6 +262,15 @@ export default function ParticipantIndex({ participants, sites, filters, canCrea
                       ))}
                       {ppt.active_flags.length > 4 && (
                         <span className="text-xs text-gray-400 dark:text-slate-500">+{ppt.active_flags.length - 4}</span>
+                      )}
+                      {/* W4-5 QW-06: IDT reassessment overdue badge — 42 CFR §460.104(c) */}
+                      {ppt.idt_review_overdue && (
+                        <span
+                          title="IDT reassessment overdue (42 CFR §460.104(c) — 6-month required)"
+                          className="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300"
+                        >
+                          IDT Due
+                        </span>
                       )}
                     </div>
                   </td>

@@ -3,6 +3,7 @@
 use App\Jobs\DigestNotificationJob;
 use App\Jobs\DocumentationComplianceJob;
 use App\Jobs\GrievanceOverdueJob;
+use App\Jobs\IdtReviewFrequencyJob;
 use App\Jobs\SdrDeadlineEnforcementJob;
 use App\Jobs\TransferCompletionJob;
 use Illuminate\Foundation\Inspiring;
@@ -60,6 +61,16 @@ Schedule::job(DigestNotificationJob::class, 'notifications')->everyTwoHours()
 // Per-tenant error handling ensures a single tenant failure doesn't abort the batch.
 Schedule::job(GrievanceOverdueJob::class, 'compliance')->dailyAt('08:00')
     ->name('grievance-overdue')
+    ->withoutOverlapping();
+
+// ─── W4-5: IDT reassessment frequency check (42 CFR §460.104(c)) ─────────────
+// Runs daily at 7:30 AM. Scans all active enrolled participants across all tenants
+// and creates warning alerts for participants whose last IDT reassessment was
+// more than 180 days ago (or who have never been reviewed and enrolled > 180 days).
+// Alert deduplication: skips participants with an existing unacknowledged
+// 'idt_review_overdue' alert. This is a common CMS survey deficiency finding.
+Schedule::job(IdtReviewFrequencyJob::class, 'idt-review')->dailyAt('07:30')
+    ->name('idt-review-frequency')
     ->withoutOverlapping();
 
 // ─── Phase 10A: Participant site transfer completion ──────────────────────────

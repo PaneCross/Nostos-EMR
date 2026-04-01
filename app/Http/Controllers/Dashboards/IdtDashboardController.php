@@ -6,10 +6,11 @@
 // IDT has cross-department visibility into SDRs and alerts.
 //
 // Routes (GET, all under /dashboards/idt/):
-//   meetings     — today's IDT meetings with Start Meeting links
-//   overdue-sdrs — escalated SDRs grouped by originating department
-//   care-plans   — care plans with review_due_date within 30 days
-//   alerts       — last 24h alerts across all departments, all severities
+//   meetings          — today's IDT meetings with Start Meeting links
+//   overdue-sdrs      — escalated SDRs grouped by originating department
+//   care-plans        — care plans with review_due_date within 30 days
+//   alerts            — last 24h alerts across all departments, all severities
+//   idt-review-overdue — participants overdue for 6-month IDT reassessment (W4-5)
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace App\Http\Controllers\Dashboards;
@@ -18,6 +19,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Alert;
 use App\Models\CarePlan;
 use App\Models\IdtMeeting;
+use App\Models\Participant;
 use App\Models\Sdr;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -206,6 +208,48 @@ class IdtDashboardController extends Controller
         return response()->json([
             'alerts'          => $alerts,
             'critical_count'  => $alerts->where('severity', 'critical')->count(),
+        ]);
+    }
+
+    /**
+     * GET /dashboards/idt/idt-review-overdue
+     * Participants whose last IDT review was more than 180 days ago (or who have
+     * never been reviewed and have been enrolled more than 180 days).
+     * 42 CFR §460.104(c): reassessment at least every 6 months.
+     * Used by IdtReviewFrequencyJob and the IDT department dashboard widget.
+     */
+    public function idtReviewOverdue(): JsonResponse
+    {
+        $this->requireDept();
+        $tenantId = Auth::user()->tenant_id;
+
+        // Load all enrolled participants and use the model method to check overdue status.
+        // We limit DB round-trips by pulling all enrolled participants and their latest review
+        // in a single query via subquery, then filtering in PHP (participant counts are small).
+        $overdue = Participant::forTenant($tenantId)
+            ->where('enrollment_status', 'enrolled')
+            ->where('is_active', true)
+            ->whereNull('deleted_at')
+            ->with('site:id,name')
+            ->get()
+            ->filter(fn (Participant $p) => $p->idtReviewOverdue())
+            ->map(fn (Participant $p) => [
+                'id'               => $p->id,
+                'name'             => $p->first_name . ' ' . $p->last_name,
+                'mrn'              => $p->mrn,
+                'site'             => $p->site?->name,
+                'enrollment_date'  => $p->enrollment_date?->toDateString(),
+                'last_reviewed_at' => $p->lastIdtReviewedAt()?->toDateString(),
+                'days_overdue'     => $p->lastIdtReviewedAt()
+                    ? (int) $p->lastIdtReviewedAt()->diffInDays(now()) - 180
+                    : null,
+                'href'             => "/participants/{$p->id}?tab=assessments",
+            ])
+            ->values();
+
+        return response()->json([
+            'participants'   => $overdue,
+            'overdue_count'  => $overdue->count(),
         ]);
     }
 }

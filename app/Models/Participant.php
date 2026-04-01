@@ -239,6 +239,25 @@ class Participant extends Model
         return $this->hasMany(ParticipantSiteTransfer::class, 'participant_id');
     }
 
+    // ─── W4-5: IDT review frequency relationships ─────────────────────────────
+
+    /**
+     * All IDT participant reviews for this participant.
+     * Reviews are linked through IdtMeeting (meeting_id FK) — see IdtParticipantReview model.
+     * Note: the model uses `meeting_id` (not `idt_meeting_id`) and has no `tenant_id`.
+     */
+    public function idtParticipantReviews(): HasMany
+    {
+        return $this->hasMany(IdtParticipantReview::class, 'participant_id');
+    }
+
+    // ─── W4-5: Disenrollment record relationship ──────────────────────────────
+
+    public function disenrollmentRecords(): HasMany
+    {
+        return $this->hasMany(DisenrollmentRecord::class, 'participant_id');
+    }
+
     /**
      * Returns true if this participant has ever completed a site transfer.
      * Used to decide whether site-source labels should appear on clinical data.
@@ -246,6 +265,47 @@ class Participant extends Model
     public function hasMultipleSites(): bool
     {
         return $this->siteTransfers()->where('status', 'completed')->exists();
+    }
+
+    // ─── W4-5: IDT review frequency helpers ──────────────────────────────────
+
+    /**
+     * Returns the most recent IDT review date for this participant, or null if
+     * no reviews have been recorded. Used by idtReviewOverdue() and the
+     * participant header badge.
+     * 42 CFR §460.104(c): reassessment at least every 6 months.
+     */
+    public function lastIdtReviewedAt(): ?\Illuminate\Support\Carbon
+    {
+        $latest = $this->idtParticipantReviews()
+            ->whereNotNull('reviewed_at')
+            ->orderByDesc('reviewed_at')
+            ->value('reviewed_at');
+
+        return $latest ? \Illuminate\Support\Carbon::parse($latest) : null;
+    }
+
+    /**
+     * True when this participant is overdue for an IDT reassessment.
+     * "Overdue" = last review was more than 180 days ago (or no review exists).
+     * 42 CFR §460.104(c) requires reassessment every 6 months.
+     */
+    public function idtReviewOverdue(): bool
+    {
+        // Only enrolled participants can be overdue
+        if (! $this->isEnrolled()) {
+            return false;
+        }
+
+        $lastReview = $this->lastIdtReviewedAt();
+
+        if (is_null($lastReview)) {
+            // No review on record — overdue if enrolled more than 180 days
+            return $this->enrollment_date !== null
+                && $this->enrollment_date->diffInDays(now()) > 180;
+        }
+
+        return $lastReview->diffInDays(now()) > 180;
     }
 
     // ─── Computed helpers ──────────────────────────────────────────────────────

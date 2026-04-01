@@ -4122,6 +4122,165 @@ function TransfersTab({ participantId, currentSiteId, canManageTransfers }: {
   )
 }
 
+// ─── ParticipantAcknowledgmentSection ─────────────────────────────────────────
+// W4-5: Tracks participant acknowledgment on care plans per 42 CFR §460.104(d).
+// PACE must document that participation was offered and record the participant's
+// response. This is a common CMS survey deficiency finding.
+// Renders as a collapsible card inside CarePlanTab.
+// Write access: enrollment, idt, primary_care, it_admin, super_admin.
+// ──────────────────────────────────────────────────────────────────────────────
+
+function ParticipantAcknowledgmentSection({
+  plan, participantId, onPlanUpdate, userDept, userIsSuperAdmin,
+}: {
+  plan: any
+  participantId: number
+  onPlanUpdate: (updated: any) => void
+  userDept: string
+  userIsSuperAdmin: boolean
+}) {
+  const canEdit = userIsSuperAdmin || ['enrollment', 'idt', 'primary_care', 'it_admin'].includes(userDept)
+  const [editing, setEditing]   = React.useState(false)
+  const [saving, setSaving]     = React.useState(false)
+  const [error, setError]       = React.useState<string | null>(null)
+  const [form, setForm]         = React.useState({
+    participant_offered_participation: plan.participant_offered_participation ?? false,
+    participant_response:              plan.participant_response ?? '',
+    offered_at:                        plan.offered_at ? plan.offered_at.split('T')[0] : '',
+  })
+
+  const RESPONSE_LABELS: Record<string, string> = {
+    accepted:   'Accepted',
+    declined:   'Declined',
+    no_response: 'No Response',
+  }
+
+  const save = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      const { data } = await axios.patch(
+        `/participants/${participantId}/careplan/${plan.id}/participation`,
+        form
+      )
+      onPlanUpdate((prev: any) => ({ ...prev, ...data.care_plan }))
+      setEditing(false)
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Save failed.')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+      {/* Section header */}
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Participant Acknowledgment</h4>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            42 CFR §460.104(d): PACE must offer each participant the opportunity to participate in care planning.
+          </p>
+        </div>
+        {canEdit && !editing && (
+          <button
+            onClick={() => { setEditing(true); setError(null) }}
+            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            {plan.participant_offered_participation ? 'Edit' : 'Record Acknowledgment'}
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.participant_offered_participation}
+              onChange={e => setForm(f => ({ ...f, participant_offered_participation: e.target.checked }))}
+              className="rounded border-gray-300 text-blue-600"
+            />
+            Participant was offered the opportunity to participate in care planning
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Participant Response</label>
+              <select
+                value={form.participant_response}
+                onChange={e => setForm(f => ({ ...f, participant_response: e.target.value }))}
+                className="w-full text-sm border border-slate-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-700 dark:text-slate-100"
+              >
+                <option value="">Select response…</option>
+                <option value="accepted">Accepted</option>
+                <option value="declined">Declined</option>
+                <option value="no_response">No Response</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Date Offered</label>
+              <input
+                type="date"
+                value={form.offered_at}
+                onChange={e => setForm(f => ({ ...f, offered_at: e.target.value }))}
+                className="w-full text-sm border border-slate-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-700 dark:text-slate-100"
+              />
+            </div>
+          </div>
+          {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={save}
+              disabled={saving}
+              className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              onClick={() => { setEditing(false); setError(null) }}
+              className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : plan.participant_offered_participation ? (
+        <div className="flex flex-wrap gap-4 text-sm">
+          <div>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Offered</span>
+            <p className="text-green-700 dark:text-green-300 font-medium">Yes</p>
+          </div>
+          {plan.participant_response && (
+            <div>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Response</span>
+              <p className="text-slate-800 dark:text-slate-200">{RESPONSE_LABELS[plan.participant_response] ?? plan.participant_response}</p>
+            </div>
+          )}
+          {plan.offered_at && (
+            <div>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Date Offered</span>
+              <p className="text-slate-700 dark:text-slate-300">{plan.offered_at.split('T')[0]}</p>
+            </div>
+          )}
+          {plan.offered_by && (
+            <div>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Documented By</span>
+              <p className="text-slate-700 dark:text-slate-300">{plan.offered_by.first_name} {plan.offered_by.last_name}</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300">
+            Not yet documented
+          </span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">
+            Participant acknowledgment must be recorded for CMS survey compliance.
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── CarePlanTab ───────────────────────────────────────────────────────────────
 // Displays the active care plan for the participant with domain goals.
 // Lazy-loads on first activation via GET /participants/{id}/careplan.
@@ -4332,6 +4491,18 @@ function CarePlanTab({ participantId }: { participantId: number }) {
           <p className="text-sm text-blue-900 dark:text-blue-200">{plan.overall_goals_text}</p>
         </div>
       )}
+
+      {/* W4-5: Participant Acknowledgment section — 42 CFR §460.104(d)
+          Tracks whether the care plan was offered to the participant and their response.
+          Required for CMS survey compliance: PACE must document participant involvement.
+          Enrollment/IDT/primary_care/it_admin can update; all others read-only. */}
+      <ParticipantAcknowledgmentSection
+        plan={plan}
+        participantId={participantId}
+        onPlanUpdate={setPlan}
+        userDept={auth.user.department}
+        userIsSuperAdmin={auth.user.is_super_admin}
+      />
 
       {/* Domain goals grid — all 12 PACE disciplines always shown */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -6174,6 +6345,308 @@ function ParticipantConsentsTab({ participantId }: { participantId: number }) {
   )
 }
 
+// ─── DisenrollmentTab ─────────────────────────────────────────────────────────
+// W4-5: Displays the 42 CFR §460.116 transition plan and CMS notification
+// tracking for a disenrolled participant. Read-only for all; updates restricted
+// to enrollment, qa_compliance, it_admin, and super_admin.
+// Lazy-loads via GET /participants/{id}/disenrollment.
+// Returns 204 if no disenrollment record exists yet.
+// ──────────────────────────────────────────────────────────────────────────────
+
+function DisenrollmentTab({
+  participantId,
+  userDept,
+  userIsSuperAdmin,
+}: {
+  participantId: number
+  userDept: string
+  userIsSuperAdmin: boolean
+}) {
+  const canEdit = userIsSuperAdmin || ['enrollment', 'qa_compliance', 'it_admin'].includes(userDept)
+  const [record, setRecord]     = React.useState<any>(null)
+  const [loaded, setLoaded]     = React.useState(false)
+  const [loading, setLoading]   = React.useState(false)
+  const [editing, setEditing]   = React.useState(false)
+  const [saving, setSaving]     = React.useState(false)
+  const [error, setError]       = React.useState<string | null>(null)
+  const [form, setForm]         = React.useState<any>({})
+
+  React.useEffect(() => {
+    if (loaded) return
+    setLoading(true)
+    import('axios').then(({ default: ax }) =>
+      ax.get(`/participants/${participantId}/disenrollment`)
+        .then(res => { if (res.status !== 204) setRecord(res.data) })
+        .catch(() => {})
+        .finally(() => { setLoaded(true); setLoading(false) })
+    )
+  }, [participantId, loaded])
+
+  const openEdit = () => {
+    if (!record) return
+    setForm({
+      transition_plan_status:         record.transition_plan_status ?? 'pending',
+      transition_plan_text:           record.transition_plan_text ?? '',
+      transition_plan_completed_date: record.transition_plan_completed_date ?? '',
+      cms_notified_at:                record.cms_notified_at ? record.cms_notified_at.split('T')[0] : '',
+      cms_notification_notes:         record.cms_notification_notes ?? '',
+      providers_notified:             record.providers_notified ?? false,
+      notes:                          record.notes ?? '',
+    })
+    setEditing(true)
+    setError(null)
+  }
+
+  const save = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      await import('axios').then(({ default: ax }) =>
+        ax.patch(`/participants/${participantId}/disenrollment`, form)
+      )
+      setLoaded(false) // re-fetch
+      setEditing(false)
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Save failed.')
+    } finally { setSaving(false) }
+  }
+
+  const PLAN_STATUS_LABELS: Record<string, string> = {
+    pending:      'Pending',
+    in_progress:  'In Progress',
+    completed:    'Completed',
+    not_required: 'Not Required',
+  }
+
+  const planStatusColor: Record<string, string> = {
+    pending:      'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
+    in_progress:  'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300',
+    completed:    'bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300',
+    not_required: 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400',
+  }
+
+  if (loading) return <p className="py-8 text-center text-sm text-gray-500 dark:text-slate-400">Loading…</p>
+
+  if (!record) return (
+    <div className="py-12 text-center">
+      <p className="text-sm text-gray-500 dark:text-slate-400">
+        No disenrollment record found. This participant has not been disenrolled.
+      </p>
+    </div>
+  )
+
+  return (
+    <div className="space-y-5">
+      <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">
+        Disenrollment Record
+      </h3>
+
+      {/* Core disenrollment info (read-only) */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">Disenrollment Details</h4>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+          <div>
+            <dt className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">Reason</dt>
+            <dd className="text-gray-900 dark:text-slate-100 capitalize">{record.reason?.replace(/_/g, ' ') ?? '-'}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">Effective Date</dt>
+            <dd className="text-gray-900 dark:text-slate-100">{record.effective_date ?? '-'}</dd>
+          </div>
+          {record.notes && (
+            <div className="col-span-2">
+              <dt className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">Notes</dt>
+              <dd className="text-gray-700 dark:text-slate-300">{record.notes}</dd>
+            </div>
+          )}
+          <div>
+            <dt className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide">Documented By</dt>
+            <dd className="text-gray-700 dark:text-slate-300">{record.created_by ?? '-'}</dd>
+          </div>
+        </dl>
+      </div>
+
+      {/* Transition plan — 42 CFR §460.116 */}
+      <div className={`bg-white dark:bg-slate-800 rounded-xl border p-4 ${
+        record.transition_plan_overdue
+          ? 'border-red-300 dark:border-red-700'
+          : 'border-gray-200 dark:border-slate-700'
+      }`}>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+              Transition Plan
+            </h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              42 CFR §460.116: Due within 30 days of effective date
+              {record.transition_plan_due_date ? ` (by ${record.transition_plan_due_date})` : ''}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {record.transition_plan_overdue && (
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300">
+                OVERDUE
+              </span>
+            )}
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${planStatusColor[record.transition_plan_status] ?? ''}`}>
+              {PLAN_STATUS_LABELS[record.transition_plan_status] ?? record.transition_plan_status}
+            </span>
+          </div>
+        </div>
+        {record.transition_plan_text && (
+          <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{record.transition_plan_text}</p>
+        )}
+        {record.transition_plan_completed_date && (
+          <p className="text-xs text-green-700 dark:text-green-400 mt-2">
+            Completed: {record.transition_plan_completed_date}
+            {record.transition_plan_completed_by ? ` by ${record.transition_plan_completed_by}` : ''}
+          </p>
+        )}
+      </div>
+
+      {/* CMS notification tracking */}
+      {record.cms_notification_required && (
+        <div className={`bg-white dark:bg-slate-800 rounded-xl border p-4 ${
+          record.cms_notification_pending
+            ? 'border-amber-300 dark:border-amber-700'
+            : 'border-gray-200 dark:border-slate-700'
+        }`}>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">CMS/SMA Notification</h4>
+            {record.cms_notification_pending && (
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300">
+                PENDING
+              </span>
+            )}
+          </div>
+          {record.cms_notified_at ? (
+            <p className="text-sm text-green-700 dark:text-green-400">
+              Notified: {new Date(record.cms_notified_at).toLocaleDateString()}
+              {record.cms_notified_by ? ` by ${record.cms_notified_by}` : ''}
+            </p>
+          ) : (
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              Notification to CMS and SMA not yet recorded.
+            </p>
+          )}
+          {record.cms_notification_notes && (
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">{record.cms_notification_notes}</p>
+          )}
+        </div>
+      )}
+
+      {/* Provider notifications */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Provider Notifications</h4>
+        {record.providers_notified ? (
+          <p className="text-sm text-green-700 dark:text-green-400">
+            External providers notified
+            {record.providers_notified_at ? ` on ${new Date(record.providers_notified_at).toLocaleDateString()}` : ''}
+          </p>
+        ) : (
+          <p className="text-sm text-amber-700 dark:text-amber-400">External providers not yet notified.</p>
+        )}
+      </div>
+
+      {/* Edit controls */}
+      {canEdit && !editing && (
+        <button
+          onClick={openEdit}
+          className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          Update Disenrollment Record
+        </button>
+      )}
+
+      {editing && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 space-y-4">
+          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Update Disenrollment Record</h4>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Transition Plan Status</label>
+              <select
+                value={form.transition_plan_status}
+                onChange={e => setForm((f: any) => ({ ...f, transition_plan_status: e.target.value }))}
+                className="w-full text-sm border border-slate-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-700"
+              >
+                <option value="pending">Pending</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="not_required">Not Required</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Transition Plan Completed Date</label>
+              <input
+                type="date"
+                value={form.transition_plan_completed_date}
+                onChange={e => setForm((f: any) => ({ ...f, transition_plan_completed_date: e.target.value }))}
+                className="w-full text-sm border border-slate-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-700"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Transition Plan Notes</label>
+            <textarea
+              rows={3}
+              value={form.transition_plan_text}
+              onChange={e => setForm((f: any) => ({ ...f, transition_plan_text: e.target.value }))}
+              className="w-full text-sm border border-slate-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-700 resize-none"
+            />
+          </div>
+          {record.cms_notification_required && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">CMS Notified Date</label>
+                <input
+                  type="date"
+                  value={form.cms_notified_at}
+                  onChange={e => setForm((f: any) => ({ ...f, cms_notified_at: e.target.value }))}
+                  className="w-full text-sm border border-slate-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-700"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">CMS Notification Notes</label>
+                <input
+                  type="text"
+                  value={form.cms_notification_notes}
+                  onChange={e => setForm((f: any) => ({ ...f, cms_notification_notes: e.target.value }))}
+                  className="w-full text-sm border border-slate-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-700"
+                />
+              </div>
+            </div>
+          )}
+          <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.providers_notified}
+              onChange={e => setForm((f: any) => ({ ...f, providers_notified: e.target.checked }))}
+              className="rounded border-gray-300 text-blue-600"
+            />
+            External providers have been notified of the disenrollment
+          </label>
+          {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={save}
+              disabled={saving}
+              className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save Changes'}
+            </button>
+            <button
+              onClick={() => { setEditing(false); setError(null) }}
+              className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 type Tab =
   | 'overview'
   | 'chart' | 'vitals' | 'assessments' | 'problems' | 'allergies' | 'adl' | 'careplan'
@@ -6181,6 +6654,7 @@ type Tab =
   | 'immunizations' | 'procedures' | 'sdoh'
   | 'contacts' | 'flags' | 'insurance' | 'documents' | 'audit' | 'transfers'
   | 'grievances' | 'consents'
+  | 'disenrollment' // W4-5: 42 CFR §460.116 transition plan tracking
 
 export default function ParticipantShow({
   participant, addresses, contacts, flags, insurances, auditLogs,
@@ -6201,6 +6675,11 @@ export default function ParticipantShow({
   const canViewConsents = auth.user.is_super_admin ||
     ['enrollment', 'qa_compliance', 'it_admin'].includes(auth.user.department)
 
+  // W4-5: Disenrollment tab visible to enrollment + qa_compliance + it_admin + super_admin
+  // Shows 42 CFR §460.116 transition plan and CMS notification tracking
+  const canViewDisenrollment = auth.user.is_super_admin ||
+    ['enrollment', 'qa_compliance', 'it_admin'].includes(auth.user.department)
+
   // Read ?tab= from URL so deep-links (e.g. from Clinical/CarePlans row-click) land on the right tab.
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const params = new URLSearchParams(window.location.search)
@@ -6209,7 +6688,7 @@ export default function ParticipantShow({
       'allergies', 'adl', 'careplan', 'medications', 'emar', 'med-recon',
       'immunizations', 'procedures', 'sdoh',
       'contacts', 'flags', 'insurance', 'documents', 'audit', 'transfers',
-      'grievances', 'consents']
+      'grievances', 'consents', 'disenrollment']
     return raw && valid.includes(raw) ? raw : 'overview'
   })
 
@@ -6251,9 +6730,10 @@ export default function ParticipantShow({
     { id: 'documents', label: 'Documents' },
     { id: 'sdoh',      label: 'SDOH' },
     { id: 'transfers',  label: 'Transfers',   hidden: !canManageTransfers },
-    { id: 'grievances', label: 'Grievances',  hidden: !canViewGrievances },
-    { id: 'consents',   label: 'Consents',    hidden: !canViewConsents },
-    { id: 'audit',      label: 'Audit Trail', hidden: !canViewAudit },
+    { id: 'grievances',    label: 'Grievances',    hidden: !canViewGrievances },
+    { id: 'consents',      label: 'Consents',      hidden: !canViewConsents },
+    { id: 'disenrollment', label: 'Disenrollment', hidden: !canViewDisenrollment },
+    { id: 'audit',         label: 'Audit Trail',   hidden: !canViewAudit },
   ]
 
   return (
@@ -6388,8 +6868,15 @@ export default function ParticipantShow({
             canManageTransfers={canManageTransfers}
           />
         )}
-        {activeTab === 'grievances' && canViewGrievances && <ParticipantGrievancesTab participantId={participant.id} />}
-        {activeTab === 'consents'   && canViewConsents   && <ParticipantConsentsTab   participantId={participant.id} />}
+        {activeTab === 'grievances'    && canViewGrievances    && <ParticipantGrievancesTab participantId={participant.id} />}
+        {activeTab === 'consents'      && canViewConsents      && <ParticipantConsentsTab   participantId={participant.id} />}
+        {activeTab === 'disenrollment' && canViewDisenrollment && (
+          <DisenrollmentTab
+            participantId={participant.id}
+            userDept={auth.user.department}
+            userIsSuperAdmin={auth.user.is_super_admin}
+          />
+        )}
         {activeTab === 'audit' && canViewAudit && <AuditTab logs={auditLogs} />}
       </div>
     </AppShell>

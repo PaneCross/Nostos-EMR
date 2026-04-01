@@ -9,13 +9,14 @@
 //   GET /qa/compliance/overdue-assessments    → overdueAssessments() (JSON)
 //   GET /qa/reports/export                    → exportCsv()  (CSV download)
 //
-// The dashboard page pre-loads the 6 KPI values server-side.
+// The dashboard page pre-loads KPI values server-side (8 KPIs as of W4-5).
 // Compliance tabs lazy-load their detail lists via dedicated JSON endpoints.
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace App\Http\Controllers;
 
 use App\Models\BaaRecord;
+use App\Models\DisenrollmentRecord;
 use App\Models\Incident;
 use App\Models\Participant;
 use App\Models\SraRecord;
@@ -55,6 +56,11 @@ class QaDashboardController extends Controller
             // W4-1: Grievance + consent KPIs (BLOCKER-02)
             'open_grievances_count'     => $this->metrics->getOpenGrievancesCount($tenantId),
             'missing_npp_count'         => $this->metrics->getMissingNppCount($tenantId),
+            // W4-5: Disenrollment CMS notification overdue (42 CFR §460.116)
+            // Participants disenrolled >7 days ago where CMS has not been notified.
+            'pending_cms_disenrollment_count' => DisenrollmentRecord::forTenant($tenantId)
+                ->pendingCmsNotification()
+                ->count(),
         ];
 
         // Open incidents for the incident queue table (full load — typically <50)

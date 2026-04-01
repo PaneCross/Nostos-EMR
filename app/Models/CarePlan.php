@@ -12,6 +12,12 @@
 // Only one version per participant can be 'active' at any time.
 // Creating a new version archives the current active plan.
 //
+// 42 CFR §460.104(d) — Participant Acknowledgment:
+//   Approval now requires that the participant was offered the opportunity to
+//   participate in care plan development. Fields:
+//   participant_offered_participation, participant_response, offered_at,
+//   offered_by_user_id are tracked per plan and surface in the Care Plan tab.
+//
 // Domain-specific goals are stored in CarePlanGoal (emr_care_plan_goals).
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -42,12 +48,20 @@ class CarePlan extends Model
         'approved_by_user_id',
         'approved_at',
         'overall_goals_text',
+        // W4-5: 42 CFR §460.104(d) participant acknowledgment fields
+        'participant_offered_participation',
+        'participant_response',
+        'offered_at',
+        'offered_by_user_id',
     ];
 
     protected $casts = [
-        'effective_date'  => 'date',
-        'review_due_date' => 'date',
-        'approved_at'     => 'datetime',
+        'effective_date'                    => 'date',
+        'review_due_date'                   => 'date',
+        'approved_at'                       => 'datetime',
+        // W4-5: participant acknowledgment casts
+        'participant_offered_participation' => 'boolean',
+        'offered_at'                        => 'datetime',
     ];
 
     // ── Relationships ─────────────────────────────────────────────────────────
@@ -65,6 +79,12 @@ class CarePlan extends Model
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by_user_id');
+    }
+
+    /** The clinician who offered plan participation to the participant (W4-5). */
+    public function offeredBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'offered_by_user_id');
     }
 
     public function goals(): HasMany
@@ -107,6 +127,21 @@ class CarePlan extends Model
     public function isEditable(): bool
     {
         return in_array($this->status, ['draft', 'under_review'], true);
+    }
+
+    /**
+     * True when participation has been fully documented:
+     *   - The offer was made (participant_offered_participation = true)
+     *   - A response was recorded (participant_response is not null)
+     *
+     * 42 CFR §460.104(d): PACE must offer each participant the opportunity to
+     * participate in care plan development and document their response.
+     * Used by the approval workflow to surface a compliance warning when missing.
+     */
+    public function participationDocumented(): bool
+    {
+        return $this->participant_offered_participation === true
+            && $this->participant_response !== null;
     }
 
     /**

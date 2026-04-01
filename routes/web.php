@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdlController;
+use App\Http\Controllers\DisenrollmentController;
 use App\Http\Controllers\BillingEncounterController;
 use App\Http\Controllers\CapitationController;
 use App\Http\Controllers\DocumentController;
@@ -188,6 +189,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/overdue-sdrs', [IdtDashboardController::class, 'overdueSdrs'])->name('dashboards.idt.overdue-sdrs');
             Route::get('/care-plans',   [IdtDashboardController::class, 'carePlans'])->name('dashboards.idt.care-plans');
             Route::get('/alerts',       [IdtDashboardController::class, 'alerts'])->name('dashboards.idt.alerts');
+            // W4-5: 42 CFR §460.104(c) — IDT reassessment frequency tracking
+            Route::get('/idt-review-overdue', [IdtDashboardController::class, 'idtReviewOverdue'])->name('dashboards.idt.idt-review-overdue');
         });
 
         Route::prefix('enrollment')->group(function () {
@@ -337,6 +340,12 @@ Route::middleware('auth')->group(function () {
     // ─── Phase 6A: Disenrollment (nested under participant) ──────────────────
     Route::post('/participants/{participant}/disenroll', [ReferralController::class, 'disenroll'])->name('participants.disenroll');
 
+    // ─── W4-5: Disenrollment record (42 CFR §460.116 transition plan) ─────────
+    Route::prefix('participants/{participant}/disenrollment')->group(function () {
+        Route::get('/',   [DisenrollmentController::class, 'show'])->name('participants.disenrollment.show');
+        Route::patch('/', [DisenrollmentController::class, 'update'])->name('participants.disenrollment.update');
+    });
+
     // ─── Phase 11B: Immunizations (nested under participant) ─────────────────
     Route::prefix('participants/{participant}/immunizations')->group(function () {
         Route::get('/',   [ImmunizationController::class, 'index'])->name('participants.immunizations.index');
@@ -392,6 +401,8 @@ Route::middleware('auth')->group(function () {
         Route::put('/{carePlan}/goals/{domain}', [CarePlanController::class, 'upsertGoal'])->name('participants.careplan.goal');
         Route::post('/{carePlan}/approve',     [CarePlanController::class, 'approve'])->name('participants.careplan.approve');
         Route::post('/{carePlan}/new-version', [CarePlanController::class, 'newVersion'])->name('participants.careplan.new-version');
+        // W4-5: 42 CFR §460.104(d) participant participation acknowledgment
+        Route::patch('/{carePlan}/participation', [CarePlanController::class, 'updateParticipation'])->name('participants.careplan.participation');
     });
 
     // ─── Phase 4: Alerts ──────────────────────────────────────────────────────

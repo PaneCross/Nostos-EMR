@@ -2,18 +2,20 @@
 // Powers the qa_compliance department's compliance monitoring view.
 //
 // Layout:
-//   - 6 KPI cards (pre-loaded from server): SDR Rate, Overdue Assessments,
-//     Unsigned Notes, Open Incidents, Overdue Care Plans, Hospitalizations
+//   - 9 KPI cards (pre-loaded from server): SDR Rate, Overdue Assessments,
+//     Unsigned Notes, Open Incidents, Overdue Care Plans, Hospitalizations,
+//     Open Grievances (W4-1), Missing NPP (W4-1), CMS Disenrollment Pending (W4-5)
 //   - Incident queue table (open incidents, all in props)
-//   - Compliance tabs (lazy-loaded): Unsigned Notes | Overdue Assessments
+//   - Compliance tabs (lazy-loaded): Incidents | Unsigned Notes | Overdue Assessments | Grievances
 //   - CSV export button (type selector → download)
+//   - Security Posture widget (W4-2)
 //
 // Data loading strategy:
 //   - KPIs and incident queue: pre-loaded server-side (Inertia props)
 //   - Compliance tab details: lazy-loaded via JSON endpoints on first tab click
 //   - CSV export: direct download link with ?type= param
 //
-// Props: kpis, openIncidents, incidentTypes, statuses
+// Props: kpis, openIncidents, incidentTypes, statuses, compliance_posture
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useState, useCallback } from 'react';
@@ -34,6 +36,8 @@ interface Kpis {
     // W4-1: Grievance + consent KPIs (42 CFR §460.120, HIPAA 45 CFR §164.520)
     open_grievances_count:     number;
     missing_npp_count:         number;
+    // W4-5: Disenrollment CMS notification overdue (42 CFR §460.116)
+    pending_cms_disenrollment_count: number;
 }
 
 interface ParticipantSummary {
@@ -484,7 +488,7 @@ export default function QaDashboard() {
                 </div>
             </div>
 
-            {/* ── 8 KPI Cards ──────────────────────────────────────────────── */}
+            {/* ── 9 KPI Cards ──────────────────────────────────────────────── */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                 <KpiCard
                     label="SDR Compliance"
@@ -543,6 +547,14 @@ export default function QaDashboard() {
                     sublabel="NPP acknowledgment pending"
                     color="amber"
                     alert={kpis.missing_npp_count > 0}
+                />
+                {/* W4-5: Disenrollment CMS notification overdue — 42 CFR §460.116 */}
+                <KpiCard
+                    label="CMS Disenrollment Pending"
+                    value={kpis.pending_cms_disenrollment_count}
+                    sublabel="Awaiting CMS notification (>7d)"
+                    color="amber"
+                    alert={kpis.pending_cms_disenrollment_count > 0}
                 />
             </div>
 
