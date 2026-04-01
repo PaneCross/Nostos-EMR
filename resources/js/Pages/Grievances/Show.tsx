@@ -111,6 +111,7 @@ export default function GrievancesShow() {
 
     const [resolution, setResolution]         = useState({ resolution_text: '', resolution_date: '' });
     const [escalation, setEscalation]         = useState({ escalation_reason: '', escalated_to_user_id: '' });
+    const [withdrawal, setWithdrawal]         = useState({ reason: '', confirming: false });
     const [notifyMethod, setNotifyMethod]     = useState('written');
     const [error, setError]                   = useState<string | null>(null);
     const [loading, setLoading]               = useState(false);
@@ -248,8 +249,28 @@ export default function GrievancesShow() {
 
                 {/* Right: Actions + Activity timeline */}
                 <div className="space-y-4">
+
+                    {/* ── Active workflow actions (hidden once resolved/withdrawn) ── */}
                     {isQaAdmin && !isClosed && (<>
-                        {/* Resolve */}
+
+                        {/* Start Investigation — open only */}
+                        {grievance.status === 'open' && (
+                            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+                                <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Start Investigation</h3>
+                                <p className="text-xs text-gray-500 dark:text-slate-400 mb-3">
+                                    Move this grievance into active investigation. Once under review, you can resolve or escalate it.
+                                </p>
+                                <button
+                                    onClick={() => action('start-review', {})}
+                                    disabled={loading}
+                                    className="w-full px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+                                >
+                                    Mark Under Review
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Resolve — under_review only */}
                         {grievance.status === 'under_review' && (
                             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
                                 <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">Resolve Grievance</h3>
@@ -276,24 +297,7 @@ export default function GrievancesShow() {
                             </div>
                         )}
 
-                        {/* Mark under review */}
-                        {grievance.status === 'open' && (
-                            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
-                                <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Start Investigation</h3>
-                                <p className="text-xs text-gray-500 dark:text-slate-400 mb-3">
-                                    Move this grievance into active investigation. Once under review, you can resolve or escalate it.
-                                </p>
-                                <button
-                                    onClick={() => action('start-review', {})}
-                                    disabled={loading}
-                                    className="w-full px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg disabled:opacity-50"
-                                >
-                                    Mark Under Review
-                                </button>
-                            </div>
-                        )}
-
-                        {/* Escalate — only valid from under_review (open → escalated is not a permitted transition) */}
+                        {/* Escalate — under_review only (open→escalated is not a valid transition) */}
                         {grievance.status === 'under_review' && (
                             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
                                 <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">Escalate</h3>
@@ -304,11 +308,8 @@ export default function GrievancesShow() {
                                     rows={2}
                                     className="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 mb-2 resize-none"
                                 />
-                                {/* Staff dropdown: designees available for direct assignment */}
                                 <div className="mb-2">
-                                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">
-                                        Assign to (optional)
-                                    </label>
+                                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Assign to (optional)</label>
                                     {staffLoading ? (
                                         <p className="text-xs text-gray-400 dark:text-slate-500">Loading staff...</p>
                                     ) : escalationStaff.length > 0 ? (
@@ -344,19 +345,72 @@ export default function GrievancesShow() {
                             </div>
                         )}
 
-                        {/* Notify participant */}
-                        {grievance.status === 'resolved' && !grievance.participant_notified_at && (
+                        {/* Withdraw — any active status; two-step to prevent accidents */}
+                        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+                            <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Withdraw Grievance</h3>
+                            <p className="text-xs text-gray-500 dark:text-slate-400 mb-3">
+                                Mark this grievance as withdrawn — typically when the participant retracts their complaint.
+                                This is a terminal action and cannot be undone.
+                            </p>
+                            {!withdrawal.confirming ? (
+                                <button
+                                    onClick={() => setWithdrawal(w => ({ ...w, confirming: true }))}
+                                    disabled={loading}
+                                    className="w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 text-sm font-medium rounded-lg disabled:opacity-50"
+                                >
+                                    Withdraw Grievance
+                                </button>
+                            ) : (
+                                <div className="space-y-2">
+                                    <textarea
+                                        value={withdrawal.reason}
+                                        onChange={e => setWithdrawal(w => ({ ...w, reason: e.target.value }))}
+                                        placeholder="Reason for withdrawal (optional)..."
+                                        rows={2}
+                                        className="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 resize-none"
+                                    />
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setWithdrawal({ reason: '', confirming: false })}
+                                            className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={() => action('withdraw', { withdrawal_reason: withdrawal.reason || undefined })}
+                                            disabled={loading}
+                                            className="flex-1 px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+                                        >
+                                            Confirm Withdraw
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </>)}
+
+                    {/* ── Notify Participant — shown after resolution, outside isClosed gate ──
+                        CMS §460.120(d) requires participants be notified of the outcome.
+                        Deliberately separated from active workflow so it remains accessible
+                        on resolved grievances even though they are otherwise closed.
+                    ── */}
+                    {isQaAdmin && grievance.status === 'resolved' && (
+                        !grievance.participant_notified_at ? (
                             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
-                                <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">
-                                    <BellIcon className="w-4 h-4 inline mr-1" />
-                                    Notify Participant
+                                <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
+                                    <BellIcon className="w-4 h-4" /> Notify Participant
                                 </h3>
+                                <p className="text-xs text-gray-500 dark:text-slate-400 mb-3">
+                                    Record how the participant was informed of the resolution outcome (CMS §460.120(d)).
+                                </p>
                                 <select
                                     value={notifyMethod}
                                     onChange={e => setNotifyMethod(e.target.value)}
                                     className="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 mb-2"
                                 >
-                                    {notificationMethods.map(m => <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>)}
+                                    {notificationMethods.map(m => (
+                                        <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>
+                                    ))}
                                 </select>
                                 <button
                                     onClick={() => action('notify-participant', { notification_method: notifyMethod })}
@@ -366,21 +420,18 @@ export default function GrievancesShow() {
                                     Record Notification
                                 </button>
                             </div>
-                        )}
-
-                        {/* Notification recorded */}
-                        {grievance.participant_notified_at && (
+                        ) : (
                             <div className="bg-green-50 dark:bg-green-950/20 rounded-xl border border-green-200 dark:border-green-800 p-4 flex items-center gap-2">
                                 <CheckCircleIcon className="w-5 h-5 text-green-600 dark:text-green-400 shrink-0" />
                                 <div>
-                                    <p className="text-xs font-medium text-green-800 dark:text-green-200">Participant Notified</p>
+                                    <p className="text-xs font-semibold text-green-800 dark:text-green-200">Participant Notified</p>
                                     <p className="text-xs text-green-600 dark:text-green-400">
                                         {new Date(grievance.participant_notified_at).toLocaleDateString()} via {grievance.notification_method}
                                     </p>
                                 </div>
                             </div>
-                        )}
-                    </>)}
+                        )
+                    )}
 
                     {/* ── Activity Timeline ─────────────────────────────────
                         Visible to all users who can view this grievance.

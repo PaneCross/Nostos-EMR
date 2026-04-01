@@ -379,6 +379,32 @@ class GrievanceController extends Controller
     }
 
     /**
+     * Withdraw a grievance (terminal state).
+     * Valid from any active status (open, under_review, escalated).
+     * Optional withdrawal_reason is stored in investigation_notes.
+     */
+    public function withdraw(\Illuminate\Http\Request $request, Grievance $grievance): JsonResponse
+    {
+        $this->authorizeTenant($grievance);
+        $this->authorizeQaAdmin();
+
+        $data = [];
+        if ($request->filled('withdrawal_reason')) {
+            // Append to investigation notes so prior notes are preserved
+            $existing = $grievance->investigation_notes ? $grievance->investigation_notes . "\n\n" : '';
+            $data['investigation_notes'] = $existing . 'Withdrawal reason: ' . trim($request->withdrawal_reason);
+        }
+
+        try {
+            $this->service->updateStatus($grievance, 'withdrawn', $data, Auth::user());
+        } catch (LogicException $e) {
+            return response()->json(['message' => $e->getMessage()], 409);
+        }
+
+        return response()->json(['grievance' => $grievance->fresh()->toApiArray()]);
+    }
+
+    /**
      * Record that the participant was notified of the grievance outcome.
      * CMS §460.120(d): participants must be notified of the resolution.
      */
