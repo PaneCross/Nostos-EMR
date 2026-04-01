@@ -113,6 +113,19 @@ class ClinicalDataSeeder extends Seeder
                 $recordedAt = Carbon::now()->subDays(rand(0, 90))
                     ->setTime(rand(8, 16), rand(0, 59));
 
+                // ~65% of vitals include a glucose reading (common in PACE/diabetic population)
+                // Valid timing values per emr_vitals_blood_glucose_timing_check constraint
+                $timings        = ['fasting', 'pre_meal', 'post_meal_2h', 'random'];
+                $glucoseTiming  = $timings[array_rand($timings)];
+                $glucoseRanges  = [
+                    'fasting'      => [80, 130],
+                    'pre_meal'     => [85, 145],
+                    'post_meal_2h' => [120, 210],
+                    'random'       => [75, 195],
+                ];
+                [$gMin, $gMax] = $glucoseRanges[$glucoseTiming];
+                $hasGlucose = (rand(1, 100) <= 65);
+
                 Vital::create([
                     'participant_id'       => $participant->id,
                     'tenant_id'            => $tenant->id,
@@ -127,6 +140,8 @@ class ClinicalDataSeeder extends Seeder
                     'weight_lbs'           => round(140 + lcg_value() * 80, 1),
                     'height_in'            => rand(60, 70),
                     'pain_score'           => rand(0, 5),
+                    'blood_glucose'        => $hasGlucose ? rand($gMin, $gMax) : null,
+                    'blood_glucose_timing' => $hasGlucose ? $glucoseTiming : null,
                     'notes'                => null,
                 ]);
                 $vitalCount++;

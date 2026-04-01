@@ -35,7 +35,7 @@ class VitalFactory extends Factory
             'height_in'         => $this->faker->numberBetween(58, 74),
             'pain_score'           => $this->faker->numberBetween(0, 10),
             'blood_glucose'        => $this->faker->optional(0.4)->numberBetween(70, 250),
-            'blood_glucose_timing' => null,
+            'blood_glucose_timing' => $this->faker->optional(0.4)->randomElement(['fasting', 'pre_meal', 'post_meal_2h', 'random']),
             'notes'                => $this->faker->boolean(20) ? $this->faker->sentence() : null,
         ];
     }
