@@ -1960,6 +1960,7 @@ function VitalsTab({ participantId, initialVitals, completedTransfers }: {
     weight_lbs:       { label: 'Weight',            lines: [{ key: 'weight_lbs', color: '#64748b', name: 'Weight' }],       unit: 'lbs' },
     pain_score:       { label: 'Pain Score',        lines: [{ key: 'pain_score', color: '#be123c', name: 'Pain' }],         unit: '/10',  domain: [0, 10] },
     blood_glucose:    { label: 'Blood Glucose',     lines: [{ key: 'blood_glucose', color: '#0891b2', name: 'Glucose' }],  unit: 'mg/dL', domain: [40, 400] },
+    bmi:              { label: 'BMI',               lines: [{ key: 'bmi', color: '#16a34a', name: 'BMI' }],                unit: '',      domain: [10, 50] },
   }
 
   // Table column headers — those with a chartKey become clickable buttons
@@ -1971,7 +1972,7 @@ function VitalsTab({ participantId, initialVitals, completedTransfers }: {
     { label: 'RR',      chartKey: 'respiratory_rate' },
     { label: 'O₂%',     chartKey: 'o2_saturation' },
     { label: 'Weight',  chartKey: 'weight_lbs' },
-    { label: 'BMI' },
+    { label: 'BMI',     chartKey: 'bmi' },
     { label: 'Glucose', chartKey: 'blood_glucose' },
     { label: 'Pain',    chartKey: 'pain_score' },
   ]
@@ -2012,6 +2013,7 @@ function VitalsTab({ participantId, initialVitals, completedTransfers }: {
     respiratory_rate: v.respiratory_rate,
     o2_saturation:    v.o2_saturation,
     weight_lbs:       v.weight_lbs,
+    bmi:              v.bmi,
     pain_score:       v.pain_score,
     blood_glucose:    v.blood_glucose,
   }))
@@ -2171,9 +2173,11 @@ function VitalsTab({ participantId, initialVitals, completedTransfers }: {
         )
       })()}
 
-      {/* Vitals table (most recent 20) */}
-      <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
+      {/* Vitals table (most recent 20) — overflow-x-auto lets columns be
+          content-width so glucose+timing don't inflate the gap to pain;
+          on small screens the table scrolls rather than squishing */}
+      <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-x-auto">
+        <table className="text-sm w-max min-w-full">
           <thead className="bg-gray-50 dark:bg-slate-700/50">
             <tr>
               {TABLE_HEADERS.map(h => (
@@ -2219,15 +2223,14 @@ function VitalsTab({ participantId, initialVitals, completedTransfers }: {
                 <td className={`px-3 py-2 text-xs font-mono ${bmiColor(v.bmi)}`}>
                   {v.bmi != null ? v.bmi : '-'}
                 </td>
-                {/* Blood glucose — value on first line, timing label below so column
-                    width is driven by the 3-digit number, not the label text */}
-                <td className="px-3 py-2 text-xs text-gray-700 dark:text-slate-300">
+                {/* Blood glucose with timing inline — QW-02 */}
+                <td className="px-3 py-2 text-xs text-gray-700 dark:text-slate-300 whitespace-nowrap">
                   {v.blood_glucose != null ? (
-                    <span className="flex flex-col leading-tight">
-                      <span>{v.blood_glucose}</span>
+                    <span>
+                      {v.blood_glucose}
                       {v.blood_glucose_timing && (
-                        <span className="text-gray-400 dark:text-slate-500 text-[10px]">
-                          {GLUCOSE_TIMING_LABELS[v.blood_glucose_timing] ?? v.blood_glucose_timing}
+                        <span className="ml-1 text-gray-400 dark:text-slate-500">
+                          ({GLUCOSE_TIMING_LABELS[v.blood_glucose_timing] ?? v.blood_glucose_timing})
                         </span>
                       )}
                     </span>
