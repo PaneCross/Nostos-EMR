@@ -365,8 +365,24 @@ const ALLERGY_SEVERITY_COLORS: Record<string, string> = {
 
 // ─── Utility Helpers ──────────────────────────────────────────────────────────
 
+// Laravel 11 serializes `date` cast fields as full ISO timestamps
+// ("1942-04-01T00:00:00.000000Z"), not bare "YYYY-MM-DD" strings.
+// Appending 'T12:00:00' to an ISO timestamp produces an unparseable string → "Invalid Date".
+// This helper slices to the date portion first, then anchors at local noon to avoid
+// UTC-midnight → previous-day timezone shifts.
+function parseDate(val: string | null | undefined): Date | null {
+  if (!val) return null
+  return new Date(val.slice(0, 10) + 'T12:00:00')
+}
+
+function fmtDate(val: string | null | undefined, opts?: Intl.DateTimeFormatOptions): string {
+  const d = parseDate(val)
+  if (!d) return '-'
+  return d.toLocaleDateString('en-US', opts ?? { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 function age(dob: string): number {
-  const d   = new Date(dob)
+  const d   = parseDate(dob) ?? new Date()
   const now = new Date()
   let a = now.getFullYear() - d.getFullYear()
   if (now < new Date(now.getFullYear(), d.getMonth(), d.getDate())) a--
@@ -444,7 +460,7 @@ function ParticipantHeader({ participant, activeFlags, canDelete, onTabChange }:
           <div className="flex items-center gap-3 mt-1 flex-wrap">
             <span className="font-mono text-xs bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 px-2 py-0.5 rounded">{participant.mrn}</span>
             <span className="text-xs text-gray-500 dark:text-slate-400">
-              {new Date(participant.dob).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              {fmtDate(participant.dob)}
               <span className="ml-1 text-gray-400 dark:text-slate-500">({age(participant.dob)} yrs)</span>
             </span>
             <span className="text-xs bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 px-2 py-0.5 rounded">{participant.site.name}</span>
@@ -756,7 +772,7 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
               {participant.last_name}, {participant.first_name}
               {participant.preferred_name && <span className="font-normal text-gray-500 dark:text-slate-400 text-[12px] ml-1.5">"{participant.preferred_name}"</span>}
             </span>
-            <span className="text-gray-500 dark:text-slate-400">DOB: <span className="font-semibold text-gray-800 dark:text-slate-200">{participant.dob ? new Date(participant.dob + 'T12:00:00').toLocaleDateString('en-US') : '-'}</span></span>
+            <span className="text-gray-500 dark:text-slate-400">DOB: <span className="font-semibold text-gray-800 dark:text-slate-200">{fmtDate(participant.dob)}</span></span>
             <span className="text-gray-500 dark:text-slate-400">Age: <span className="font-semibold text-gray-800 dark:text-slate-200">{age(participant.dob)} yrs</span></span>
             <span className="text-gray-500 dark:text-slate-400">Gender: <span className="font-semibold text-gray-800 dark:text-slate-200">{participant.gender ?? '-'}</span></span>
             {participant.marital_status && participant.marital_status !== 'unknown' && (
@@ -790,7 +806,7 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
             { label: 'H-Number',      value: participant.h_number },
             { label: 'Contract ID',   value: participant.pace_contract_id },
             { label: 'SSN (last 4)',  value: participant.ssn_last_four ? `•••–••–${participant.ssn_last_four}` : null },
-            { label: 'Enrolled',      value: participant.enrollment_date ? new Date(participant.enrollment_date + 'T12:00:00').toLocaleDateString('en-US') : null },
+            { label: 'Enrolled',      value: fmtDate(participant.enrollment_date) !== '-' ? fmtDate(participant.enrollment_date) : null },
           ].map(({ label, value }) => value ? (
             <div key={label} className="flex items-center gap-1.5">
               <span className="text-[11px] text-gray-400 dark:text-slate-500 uppercase tracking-wide">{label}:</span>
@@ -839,12 +855,12 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
             <section>
               <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1 border-b border-gray-100 dark:border-slate-700/50 pb-0.5">Enrollment</h4>
               <div className="flex flex-wrap gap-x-5 gap-y-0.5">
-                <span className="text-gray-500 dark:text-slate-400">Enrolled: <span className="font-medium text-gray-800 dark:text-slate-200">{participant.enrollment_date ? new Date(participant.enrollment_date + 'T12:00:00').toLocaleDateString('en-US') : '-'}</span></span>
+                <span className="text-gray-500 dark:text-slate-400">Enrolled: <span className="font-medium text-gray-800 dark:text-slate-200">{fmtDate(participant.enrollment_date)}</span></span>
                 {participant.nf_certification_date && (
-                  <span className="text-gray-500 dark:text-slate-400">NF Cert: <span className="font-medium text-gray-800 dark:text-slate-200">{new Date(participant.nf_certification_date + 'T12:00:00').toLocaleDateString('en-US')}</span></span>
+                  <span className="text-gray-500 dark:text-slate-400">NF Cert: <span className="font-medium text-gray-800 dark:text-slate-200">{fmtDate(participant.nf_certification_date)}</span></span>
                 )}
                 {participant.disenrollment_date && (
-                  <span className="text-gray-500 dark:text-slate-400">Disenrolled: <span className="font-medium text-gray-800 dark:text-slate-200">{new Date(participant.disenrollment_date + 'T12:00:00').toLocaleDateString('en-US')}</span></span>
+                  <span className="text-gray-500 dark:text-slate-400">Disenrolled: <span className="font-medium text-gray-800 dark:text-slate-200">{fmtDate(participant.disenrollment_date)}</span></span>
                 )}
               </div>
             </section>
@@ -980,7 +996,7 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
                   )}
                   {participant.advance_directive_reviewed_at && (
                     <span className="text-[10px] text-gray-400 dark:text-slate-500 ml-1">
-                      Reviewed {new Date(participant.advance_directive_reviewed_at).toLocaleDateString()}
+                      Reviewed {fmtDate(participant.advance_directive_reviewed_at, { month: 'short', day: 'numeric', year: 'numeric' })}
                     </span>
                   )}
                 </div>

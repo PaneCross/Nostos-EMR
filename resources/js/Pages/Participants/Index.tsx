@@ -64,8 +64,21 @@ function rowBg(status: string): string {
   return 'bg-white dark:bg-slate-800'
 }
 
+// Laravel 11 serializes `date` cast fields as full ISO timestamps ("YYYY-MM-DDTHH:mm:ss.ssssssZ").
+// Slice to date portion first to avoid "Invalid Date" from appending 'T12:00:00' to an ISO string.
+function parseDate(val: string | null | undefined): Date | null {
+  if (!val) return null
+  return new Date(val.slice(0, 10) + 'T12:00:00')
+}
+
+function fmtDate(val: string | null | undefined, opts?: Intl.DateTimeFormatOptions): string {
+  const d = parseDate(val)
+  if (!d) return '-'
+  return d.toLocaleDateString('en-US', opts ?? { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
 function age(dob: string): number {
-  const d = new Date(dob)
+  const d = parseDate(dob) ?? new Date()
   const now = new Date()
   let a = now.getFullYear() - d.getFullYear()
   if (now < new Date(now.getFullYear(), d.getMonth(), d.getDate())) a--
@@ -230,7 +243,7 @@ export default function ParticipantIndex({ participants, sites, filters, canCrea
                     </div>
                   </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
-                    <div>{new Date(ppt.dob).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</div>
+                    <div>{fmtDate(ppt.dob)}</div>
                     <div className="text-xs text-gray-400 dark:text-slate-500">{age(ppt.dob)} yrs</div>
                   </td>
                   <td className="px-4 py-3">
