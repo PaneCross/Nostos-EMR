@@ -415,11 +415,13 @@ function LoadingSpinner() {
 // ─── Sticky Participant Header ─────────────────────────────────────────────────
 // Shown at the top of every tab. Displays avatar, name, MRN, DOB, flag chips,
 // advance directive badge, and quick-access buttons.
-function ParticipantHeader({ participant, activeFlags, canDelete, onTabChange }: {
+function ParticipantHeader({ participant, activeFlags, canDelete, canEdit, onTabChange, onEdit }: {
   participant:  Participant
   activeFlags:  Flag[]
   canDelete:    boolean
+  canEdit:      boolean
   onTabChange:  (tab: string) => void
+  onEdit:       () => void
 }) {
   const [deleting, setDeleting] = useState(false)
 
@@ -516,6 +518,15 @@ function ParticipantHeader({ participant, activeFlags, canDelete, onTabChange }:
           <Link href="/schedule" className="text-xs px-3 py-1.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
             Schedule
           </Link>
+          {canEdit && (
+            <button
+              onClick={onEdit}
+              data-testid="edit-participant-btn"
+              className="text-xs px-3 py-1.5 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+            >
+              Edit
+            </button>
+          )}
           {canDelete && (
             <button
               onClick={handleDelete}
@@ -562,6 +573,386 @@ function LifeThreateningBanner({ count, onViewAllergies }: {
 
 // ─── Overview Tab — PACE Facesheet ────────────────────────────────────────────
 // Full clinical facesheet layout with print-to-PDF support.
+// ─── Edit Participant Modal ───────────────────────────────────────────────────
+// Full demographics + identity edit form. Visible to canEdit users (enrollment admin
+// and it_admin). Sections are shown/hidden based on the user's department.
+// Uses Inertia router.patch() — on success the page re-renders with fresh data.
+function EditParticipantModal({ participant, contacts, onClose, department }: {
+  participant: Participant
+  contacts:    Contact[]
+  onClose:     () => void
+  department:  string
+}) {
+  const isEnrollmentOrAdmin = ['enrollment', 'it_admin'].includes(department)
+
+  const [saving, setSaving] = React.useState(false)
+  const [errors, setErrors] = React.useState<Record<string, string>>({})
+  const [form, setForm] = React.useState({
+    // Core identity (enrollment/it_admin only)
+    first_name:        participant.first_name,
+    last_name:         participant.last_name,
+    preferred_name:    participant.preferred_name ?? '',
+    dob:               participant.dob ? participant.dob.slice(0, 10) : '',
+    gender:            participant.gender ?? '',
+    pronouns:          participant.pronouns ?? '',
+    // Enrollment info (enrollment/it_admin only)
+    enrollment_status:          participant.enrollment_status,
+    enrollment_date:            participant.enrollment_date ? participant.enrollment_date.slice(0, 10) : '',
+    disenrollment_date:         participant.disenrollment_date ? participant.disenrollment_date.slice(0, 10) : '',
+    disenrollment_reason:       participant.disenrollment_reason ?? '',
+    nursing_facility_eligible:  participant.nursing_facility_eligible,
+    nf_certification_date:      participant.nf_certification_date ? participant.nf_certification_date.slice(0, 10) : '',
+    medicare_id:                participant.medicare_id ?? '',
+    medicaid_id:                participant.medicaid_id ?? '',
+    pace_contract_id:           participant.pace_contract_id ?? '',
+    h_number:                   participant.h_number ?? '',
+    ssn_last_four:              participant.ssn_last_four ?? '',
+    // Language (all depts)
+    primary_language:           participant.primary_language ?? '',
+    interpreter_needed:         participant.interpreter_needed,
+    interpreter_language:       participant.interpreter_language ?? '',
+    // Advance directive (all depts)
+    advance_directive_status:   participant.advance_directive_status ?? '',
+    advance_directive_type:     participant.advance_directive_type ?? '',
+    advance_directive_reviewed_at: participant.advance_directive_reviewed_at ? participant.advance_directive_reviewed_at.slice(0, 10) : '',
+    // Demographics (all depts)
+    race:                             participant.race ?? '',
+    ethnicity:                        participant.ethnicity ?? '',
+    race_detail:                      participant.race_detail ?? '',
+    marital_status:                   participant.marital_status ?? '',
+    legal_representative_type:        participant.legal_representative_type ?? '',
+    legal_representative_contact_id:  participant.legal_representative_contact_id?.toString() ?? '',
+    religion:                         participant.religion ?? '',
+    veteran_status:                   participant.veteran_status ?? '',
+    education_level:                  participant.education_level ?? '',
+  })
+
+  const field = (label: string, name: string, type = 'text', opts?: { placeholder?: string }) => (
+    <div>
+      <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">{label}</label>
+      <input
+        type={type}
+        value={form[name as keyof typeof form] as string}
+        onChange={e => setForm(f => ({ ...f, [name]: e.target.value }))}
+        placeholder={opts?.placeholder}
+        className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      {errors[name] && <p className="text-red-600 dark:text-red-400 text-xs mt-0.5">{errors[name]}</p>}
+    </div>
+  )
+
+  const select = (label: string, name: string, options: { value: string; label: string }[], nullable = true) => (
+    <div>
+      <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">{label}</label>
+      <select
+        value={form[name as keyof typeof form] as string}
+        onChange={e => setForm(f => ({ ...f, [name]: e.target.value }))}
+        className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        {nullable && <option value="">— not set —</option>}
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      {errors[name] && <p className="text-red-600 dark:text-red-400 text-xs mt-0.5">{errors[name]}</p>}
+    </div>
+  )
+
+  const sectionHead = (title: string) => (
+    <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest border-b border-gray-200 dark:border-slate-700 pb-1 mt-2">{title}</h4>
+  )
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setErrors({})
+
+    // Build payload — omit empty strings for optional fields, convert types
+    const payload: Record<string, unknown> = {
+      primary_language:    form.primary_language || null,
+      interpreter_needed:  form.interpreter_needed,
+      interpreter_language: form.interpreter_needed ? (form.interpreter_language || null) : null,
+      advance_directive_status:      form.advance_directive_status  || null,
+      advance_directive_type:        form.advance_directive_type    || null,
+      advance_directive_reviewed_at: form.advance_directive_reviewed_at || null,
+      race:                form.race           || null,
+      ethnicity:           form.ethnicity      || null,
+      race_detail:         form.race_detail    || null,
+      marital_status:      form.marital_status || null,
+      legal_representative_type:        form.legal_representative_type       || null,
+      legal_representative_contact_id:  form.legal_representative_contact_id
+        ? parseInt(form.legal_representative_contact_id)
+        : null,
+      religion:        form.religion       || null,
+      veteran_status:  form.veteran_status || null,
+      education_level: form.education_level || null,
+    }
+
+    if (isEnrollmentOrAdmin) {
+      Object.assign(payload, {
+        first_name:        form.first_name,
+        last_name:         form.last_name,
+        preferred_name:    form.preferred_name    || null,
+        dob:               form.dob               || null,
+        gender:            form.gender            || null,
+        pronouns:          form.pronouns          || null,
+        enrollment_status: form.enrollment_status,
+        enrollment_date:   form.enrollment_date   || null,
+        disenrollment_date:   form.disenrollment_date   || null,
+        disenrollment_reason: form.disenrollment_reason || null,
+        nursing_facility_eligible: form.nursing_facility_eligible,
+        nf_certification_date: form.nf_certification_date || null,
+        medicare_id:      form.medicare_id      || null,
+        medicaid_id:      form.medicaid_id      || null,
+        pace_contract_id: form.pace_contract_id || null,
+        h_number:         form.h_number         || null,
+        ssn_last_four:    form.ssn_last_four    || null,
+      })
+    }
+
+    router.patch(`/participants/${participant.id}`, payload, {
+      onSuccess: () => { setSaving(false); onClose() },
+      onError:   (errs) => { setSaving(false); setErrors(errs) },
+    })
+  }
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700 shrink-0">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-slate-100">
+            Edit Participant — {participant.first_name} {participant.last_name}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 text-xl leading-none"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Scrollable form body */}
+        <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+
+          {/* ── Core Identity — enrollment/it_admin only ───────────────────── */}
+          {isEnrollmentOrAdmin && (
+            <div className="space-y-3">
+              {sectionHead('Identity')}
+              <div className="grid grid-cols-2 gap-3">
+                {field('First Name', 'first_name')}
+                {field('Last Name', 'last_name')}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {field('Preferred Name', 'preferred_name', 'text', { placeholder: 'Optional' })}
+                {field('Date of Birth', 'dob', 'date')}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {select('Gender', 'gender', [
+                  { value: 'male',              label: 'Male' },
+                  { value: 'female',            label: 'Female' },
+                  { value: 'non_binary',        label: 'Non-binary' },
+                  { value: 'prefer_not_to_say', label: 'Prefer not to say' },
+                ])}
+                {field('Pronouns', 'pronouns', 'text', { placeholder: 'e.g. she/her' })}
+              </div>
+            </div>
+          )}
+
+          {/* ── Enrollment Info — enrollment/it_admin only ─────────────────── */}
+          {isEnrollmentOrAdmin && (
+            <div className="space-y-3">
+              {sectionHead('Enrollment')}
+              <div className="grid grid-cols-2 gap-3">
+                {select('Enrollment Status', 'enrollment_status', [
+                  { value: 'referred',    label: 'Referred' },
+                  { value: 'intake',      label: 'Intake' },
+                  { value: 'pending',     label: 'Pending' },
+                  { value: 'enrolled',    label: 'Enrolled' },
+                  { value: 'disenrolled', label: 'Disenrolled' },
+                  { value: 'deceased',    label: 'Deceased' },
+                ], false)}
+                {field('Enrollment Date', 'enrollment_date', 'date')}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {field('Disenrollment Date', 'disenrollment_date', 'date')}
+                {field('Disenrollment Reason', 'disenrollment_reason', 'text')}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">NF Eligible</label>
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300 cursor-pointer mt-1.5">
+                    <input
+                      type="checkbox"
+                      checked={form.nursing_facility_eligible}
+                      onChange={e => setForm(f => ({ ...f, nursing_facility_eligible: e.target.checked }))}
+                      className="rounded border-gray-300"
+                    />
+                    Nursing Facility Eligible
+                  </label>
+                </div>
+                {field('NF Certification Date', 'nf_certification_date', 'date')}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {field('Medicare ID', 'medicare_id')}
+                {field('Medicaid ID', 'medicaid_id')}
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                {field('PACE Contract ID', 'pace_contract_id')}
+                {field('H-Number', 'h_number')}
+                {field('SSN Last 4', 'ssn_last_four', 'text', { placeholder: '####' })}
+              </div>
+            </div>
+          )}
+
+          {/* ── Language & Interpreter — all depts ────────────────────────── */}
+          <div className="space-y-3">
+            {sectionHead('Language & Interpreter')}
+            <div className="grid grid-cols-2 gap-3">
+              {field('Primary Language', 'primary_language')}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Interpreter Needed</label>
+                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300 cursor-pointer mt-1.5">
+                  <input
+                    type="checkbox"
+                    checked={form.interpreter_needed}
+                    onChange={e => setForm(f => ({ ...f, interpreter_needed: e.target.checked }))}
+                    className="rounded border-gray-300"
+                  />
+                  Interpreter needed
+                </label>
+              </div>
+            </div>
+            {form.interpreter_needed && field('Interpreter Language', 'interpreter_language')}
+          </div>
+
+          {/* ── Advance Directive — all depts ─────────────────────────────── */}
+          <div className="space-y-3">
+            {sectionHead('Advance Directive (42 CFR 460.96)')}
+            <div className="grid grid-cols-2 gap-3">
+              {select('Directive Status', 'advance_directive_status', [
+                { value: 'has_directive',                 label: 'Has Directive' },
+                { value: 'declined_directive',            label: 'Declined' },
+                { value: 'incapacitated_no_directive',    label: 'Incapacitated — No Directive' },
+                { value: 'unknown',                       label: 'Unknown' },
+              ])}
+              {select('Directive Type', 'advance_directive_type', [
+                { value: 'dnr',              label: 'DNR' },
+                { value: 'polst',            label: 'POLST' },
+                { value: 'living_will',      label: 'Living Will' },
+                { value: 'healthcare_proxy', label: 'Healthcare Proxy' },
+                { value: 'combined',         label: 'Combined' },
+              ])}
+            </div>
+            {field('Reviewed Date', 'advance_directive_reviewed_at', 'date')}
+          </div>
+
+          {/* ── Demographics — all depts ───────────────────────────────────── */}
+          <div className="space-y-3">
+            {sectionHead('Demographics')}
+            <div className="grid grid-cols-2 gap-3">
+              {select('Ethnicity (OMB Q1)', 'ethnicity', [
+                { value: 'hispanic_latino',     label: 'Hispanic or Latino' },
+                { value: 'not_hispanic_latino', label: 'Not Hispanic or Latino' },
+                { value: 'unknown',             label: 'Unknown' },
+                { value: 'declined',            label: 'Prefer not to answer' },
+              ])}
+              {select('Race (OMB Q2)', 'race', [
+                { value: 'white',                              label: 'White' },
+                { value: 'black_african_american',             label: 'Black or African American' },
+                { value: 'asian',                              label: 'Asian' },
+                { value: 'american_indian_alaska_native',      label: 'American Indian or Alaska Native' },
+                { value: 'native_hawaiian_pacific_islander',   label: 'Native Hawaiian or Other Pacific Islander' },
+                { value: 'multiracial',                        label: 'Multiracial' },
+                { value: 'other',                              label: 'Other' },
+                { value: 'unknown',                            label: 'Unknown' },
+                { value: 'declined',                           label: 'Prefer not to answer' },
+              ])}
+            </div>
+            {field('Race Detail (self-identified)', 'race_detail', 'text', { placeholder: 'Optional — e.g. Guatemalan, Filipino' })}
+            <div className="grid grid-cols-2 gap-3">
+              {select('Marital Status', 'marital_status', [
+                { value: 'single',           label: 'Single' },
+                { value: 'married',          label: 'Married' },
+                { value: 'domestic_partner', label: 'Domestic Partner' },
+                { value: 'divorced',         label: 'Divorced' },
+                { value: 'widowed',          label: 'Widowed' },
+                { value: 'separated',        label: 'Separated' },
+                { value: 'unknown',          label: 'Unknown' },
+              ])}
+              {select('Veteran Status', 'veteran_status', [
+                { value: 'not_veteran',      label: 'Not a Veteran' },
+                { value: 'veteran_active',   label: 'Veteran (Active Benefits)' },
+                { value: 'veteran_inactive', label: 'Veteran (Inactive)' },
+                { value: 'unknown',          label: 'Unknown' },
+              ])}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {select('Education Level', 'education_level', [
+                { value: 'less_than_high_school', label: 'Less than High School' },
+                { value: 'high_school_ged',       label: 'High School / GED' },
+                { value: 'some_college',          label: 'Some College' },
+                { value: 'associates',            label: 'Associate Degree' },
+                { value: 'bachelors',             label: "Bachelor's Degree" },
+                { value: 'graduate',              label: 'Graduate Degree' },
+                { value: 'unknown',               label: 'Unknown' },
+              ])}
+              {field('Religion', 'religion', 'text', { placeholder: 'Optional — patient-supplied' })}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {select('Legal Representative Type', 'legal_representative_type', [
+                { value: 'self',             label: 'Self' },
+                { value: 'legal_guardian',   label: 'Legal Guardian' },
+                { value: 'durable_poa',      label: 'Durable POA' },
+                { value: 'healthcare_proxy', label: 'Healthcare Proxy' },
+                { value: 'court_appointed',  label: 'Court-Appointed' },
+                { value: 'other',            label: 'Other' },
+              ])}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Legal Rep Contact</label>
+                <select
+                  value={form.legal_representative_contact_id}
+                  onChange={e => setForm(f => ({ ...f, legal_representative_contact_id: e.target.value }))}
+                  className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">— select from contacts —</option>
+                  {contacts.map(c => (
+                    <option key={c.id} value={c.id.toString()}>
+                      {c.first_name} {c.last_name}{c.relationship ? ` (${c.relationship})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </form>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-slate-700 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="edit-participant-form"
+            onClick={handleSubmit}
+            disabled={saving}
+            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Additional Demographics Section (collapsible, W4-3) ─────────────────────
 // Shows veteran status, religion, education level, and legal representative.
 // Collapsed by default — expands on click. Hidden during print to keep facesheet concise.
@@ -5537,6 +5928,8 @@ export default function ParticipantShow({
     return raw && valid.includes(raw) ? raw : 'overview'
   })
 
+  const [editOpen, setEditOpen] = useState(false)
+
   // switchTab: updates React state AND syncs the URL query string so the browser
   // back/forward buttons work and the user can share/bookmark a specific tab.
   const switchTab = (tab: Tab) => {
@@ -5590,7 +5983,24 @@ export default function ParticipantShow({
       </div>
 
       {/* Sticky participant header (avatar, name, MRN, flag chips) */}
-      <ParticipantHeader participant={participant} activeFlags={activeFlags} canDelete={canDelete} onTabChange={switchTab} />
+      <ParticipantHeader
+        participant={participant}
+        activeFlags={activeFlags}
+        canDelete={canDelete}
+        canEdit={canEdit}
+        onTabChange={switchTab}
+        onEdit={() => setEditOpen(true)}
+      />
+
+      {/* Edit participant modal — enrollment/it_admin only */}
+      {editOpen && (
+        <EditParticipantModal
+          participant={participant}
+          contacts={contacts}
+          department={auth.user.department}
+          onClose={() => setEditOpen(false)}
+        />
+      )}
 
       {/* Life-threatening allergy banner — persists across all tabs */}
       {lifeThreateningAllergyCount > 0 && (
