@@ -481,10 +481,10 @@ function ParticipantHeader({ participant, activeFlags, canDelete, canEdit, onTab
             <img
               src={`/storage/${photoPath}`}
               alt={`${participant.first_name} ${participant.last_name}`}
-              className="w-14 h-14 rounded-full object-cover border-2 border-gray-200 dark:border-slate-600"
+              className="w-28 h-28 rounded-full object-cover border-2 border-gray-200 dark:border-slate-600"
             />
           ) : (
-            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xl font-bold">
+            <div className="w-28 h-28 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-3xl font-bold">
               {participant.first_name[0]}{participant.last_name[0]}
             </div>
           )}
