@@ -1218,7 +1218,7 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
               <img
                 src={`/storage/${participant.photo_path}`}
                 alt={`${participant.first_name} ${participant.last_name}`}
-                className="w-10 h-10 rounded-full object-cover border border-slate-600 shrink-0"
+                className="w-20 h-20 rounded-full object-cover border border-slate-600 shrink-0"
               />
             )}
             <div>
