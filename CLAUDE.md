@@ -57,12 +57,7 @@ Seed: `php artisan db:seed --class=DemoEnvironmentSeeder`
 5. If anything seems inconsistent with actual code, flag it in KNOWN ISSUES
 6. Update WAVE STATUS and SESSION LOG at end of every session
 7. **Push to GitHub as final step of every phase** — run from WSL2: `cd ~/projects/nostosemr && git add -A && git commit -m "W3-X: <phase name>" && git push` (use `~/bin/gh` for GH CLI ops; plain git push works for normal pushes)
-8. **After every `--parallel` test run, fix storage permissions** (parallel workers run as root and leave root-owned cache files that break localhost):
-   ```bash
-   docker compose exec -T laravel.test chmod -R 777 storage bootstrap/cache
-   docker compose exec -T laravel.test php artisan view:clear
-   docker compose exec -T laravel.test php artisan config:clear && php artisan optimize
-   ```
+8. **After every `--parallel` test run, just run `./start.sh`** — it fixes root-owned storage/cache files (HTTP 500 cause), clears stale caches, and re-optimizes. No need to run individual chmod/clear commands manually anymore.
 9. Output a RESUME PROMPT before ending (format: "To resume: We are in [phase]. Last completed: [task]. Next step: [task]. Run [command] to verify state.")
 
 ---
@@ -841,11 +836,10 @@ Rules (enforced going forward — audit ran 2026-03-14, all gaps patched):
 
 ## KEY DOCKER COMMANDS
 **Run all commands from WSL2 Ubuntu terminal at `/home/tj/projects/nostosemr`** (not Windows PowerShell):
-- Start:       `./start.sh`  (preferred — runs docker compose up + waits for health + artisan optimize)
+- Start:       `./start.sh`  (preferred — fixes permissions + clears stale caches + artisan optimize. Run this after every test suite to restore localhost.)
 - Start (manual): `docker compose up -d`
 - Tests:       `docker compose exec -T laravel.test php artisan config:clear && docker compose exec -T laravel.test php artisan test --parallel --processes=4`
-- **After tests (REQUIRED):** `docker compose exec -T laravel.test chmod -R 777 storage bootstrap/cache && docker compose exec -T laravel.test php artisan view:clear && docker compose exec -T laravel.test php artisan config:clear && docker compose exec -T laravel.test php artisan optimize`
-  ↳ Parallel test workers run as root and leave root-owned view/cache files. Without this, localhost returns HTTP 500 on next page load.
+- **After tests (REQUIRED — just run `./start.sh`):** Parallel test workers run as root and leave root-owned files in `storage/` and `bootstrap/cache/`. The web server (www-data) can't write to them → HTTP 500 on next page load. `start.sh` now handles this automatically: chmod 777 → view:clear → config:clear → optimize. Just run `./start.sh` from WSL2 after any test run.
 - Build UI:    `docker compose exec -T laravel.test npm run build`
 - Fresh seed:  `docker compose exec -T laravel.test php artisan migrate:fresh --seed --seeder=DemoEnvironmentSeeder`
 - Artisan:     `docker compose exec -T laravel.test php artisan <cmd>`
