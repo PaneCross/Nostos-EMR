@@ -2,9 +2,10 @@
 // Powers the qa_compliance department's compliance monitoring view.
 //
 // Layout:
-//   - 9 KPI cards (pre-loaded from server): SDR Rate, Overdue Assessments,
+//   - 11 KPI cards (pre-loaded from server): SDR Rate, Overdue Assessments,
 //     Unsigned Notes, Open Incidents, Overdue Care Plans, Hospitalizations,
-//     Open Grievances (W4-1), Missing NPP (W4-1), CMS Disenrollment Pending (W4-5)
+//     Open Grievances (W4-1), Missing NPP (W4-1), CMS Disenrollment Pending (W4-5),
+//     CMS Notification Overdue (W4-6), Active QAPI Projects (W4-6)
 //   - Incident queue table (open incidents, all in props)
 //   - Compliance tabs (lazy-loaded): Incidents | Unsigned Notes | Overdue Assessments | Grievances
 //   - CSV export button (type selector → download)
@@ -38,6 +39,10 @@ interface Kpis {
     missing_npp_count:         number;
     // W4-5: Disenrollment CMS notification overdue (42 CFR §460.116)
     pending_cms_disenrollment_count: number;
+    // W4-6: Incident CMS notification overdue (42 CFR §460.136)
+    cms_notification_overdue_count: number;
+    // W4-6: QAPI active project count (42 CFR §460.136-§460.140)
+    active_qapi_count: number;
 }
 
 interface ParticipantSummary {
@@ -488,7 +493,7 @@ export default function QaDashboard() {
                 </div>
             </div>
 
-            {/* ── 9 KPI Cards ──────────────────────────────────────────────── */}
+            {/* ── 11 KPI Cards ─────────────────────────────────────────────── */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                 <KpiCard
                     label="SDR Compliance"
@@ -555,6 +560,22 @@ export default function QaDashboard() {
                     sublabel="Awaiting CMS notification (>7d)"
                     color="amber"
                     alert={kpis.pending_cms_disenrollment_count > 0}
+                />
+                {/* W4-6: Incident CMS/SMA notification overdue — 42 CFR §460.136 */}
+                <KpiCard
+                    label="CMS Notification Overdue"
+                    value={kpis.cms_notification_overdue_count}
+                    sublabel="Incidents past 72h reporting window"
+                    color="red"
+                    alert={kpis.cms_notification_overdue_count > 0}
+                />
+                {/* W4-6: QAPI minimum active project count — 42 CFR §460.136-§460.140 */}
+                <KpiCard
+                    label="Active QAPI Projects"
+                    value={kpis.active_qapi_count}
+                    sublabel={kpis.active_qapi_count >= 2 ? 'Meets CMS minimum (2)' : 'Below CMS minimum of 2'}
+                    color={kpis.active_qapi_count >= 2 ? 'green' : 'red'}
+                    alert={kpis.active_qapi_count < 2}
                 />
             </div>
 

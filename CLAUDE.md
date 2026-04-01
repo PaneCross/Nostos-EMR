@@ -83,7 +83,7 @@ Wave 4 (Phases W4-0 through W4-9): IN PROGRESS
   W4-3  Demographics + Participant Fields:  [x] COMPLETE — 2026-04-01
   W4-4  Quick Wins — Vitals & Assessments: [x] COMPLETE — 2026-04-01
   W4-5  Care Plan + IDT Compliance:        [x] COMPLETE — 2026-04-01
-  W4-6  Incident + Regulatory Tracking:    [ ] NOT STARTED
+  W4-6  Incident + Regulatory Tracking:    [x] COMPLETE — 2026-04-01
   W4-7  CPOE — Lightweight Order Entry:    [ ] NOT STARTED
   W4-8  New Note Types + Assessments:      [ ] NOT STARTED
   W4-9  FHIR Gaps + HPMS Verification:     [ ] NOT STARTED
@@ -192,15 +192,17 @@ Full context for Wave 4 build. Status tags indicate which W4 phase addresses eac
 - GAP-07 [W4-3]: RESOLVED — Race/ethnicity (OMB two-question format), marital status,
   veteran status, education level, religion, legal rep FK all added in migration 85.
   Photo display implemented in header + directory. ParticipantDemographicsTest (19 tests).
-- GAP-08 [W4-6]: No CMS/SMA (State Medicaid Agency) notification tracking on
-  incidents. 42 CFR §460.136 requires notifying CMS and SMA of significant
-  adverse events within specified timeframes.
+- GAP-08 [W4-6]: RESOLVED — CMS/SMA notification tracking on incidents complete.
+  Incident model: CMS_NOTIFICATION_TYPES, cms_notification_required, regulatory_deadline
+  (occurred_at+72h). IncidentNotificationOverdueJob creates critical alerts.
+  QA dashboard KPI: cms_notification_overdue_count.
 - GAP-09 [W4-5]: RESOLVED — Disenrollment transition plan complete.
   Migration 90: emr_disenrollment_records; DisenrollmentRecord model;
   EnrollmentService::disenroll() auto-creates record + SDRs; QA dashboard KPI.
-- GAP-10 [W4-6]: No significant change event tracking (30-day IDT reassessment rule).
-  42 CFR §460.104(b) requires IDT reassessment within 30 days of significant
-  change in health status (hospitalization, functional decline, etc.).
+- GAP-10 [W4-6]: RESOLVED — Significant change event tracking complete.
+  SignificantChangeEvent model (IDT_REVIEW_DUE_DAYS=30, isOverdue(), daysUntilDue()).
+  Auto-created by IncidentService (fall+injury) and ProcessHl7AdtJob (A01 admission).
+  SignificantChangeOverdueJob creates warning alerts. IDT dashboard 6th widget.
 
 ### MEDIUM GAPS
 - GAP-11 [W4-7]: CPOE — clinical order entry system needed beyond care plan goals.
@@ -224,9 +226,9 @@ Full context for Wave 4 build. Status tags indicate which W4 phase addresses eac
 - QW-07 [W4-4]: Participant photo display in clinical sticky header
 - QW-08 [W4-3]: Marital status + legal representative fields (merged into W4-3)
 - QW-09 [W4-5]: RESOLVED — Care plan participation section + offered/response/date fields
-- QW-10 [W4-6]: Incident CMS/SMA notification tracking fields
+- QW-10 [W4-6]: RESOLVED — Incident CMS/SMA notification tracking fields complete
 - QW-11 [W4-4]: VIS (Vaccine Information Statement) given field on immunizations
-- QW-12 [W4-6]: Significant change flag on ADT hospitalizations (A01/A03 events)
+- QW-12 [W4-6]: RESOLVED — Significant change flag on ADT hospitalizations complete
 
 ---
 
@@ -442,7 +444,7 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 - Known technical debt log: [x] COMPLETE — categorized by priority in HANDOFF.md
 - Environment setup verified from scratch: [ ] Not yet verified by independent developer
 
-## MIGRATIONS RUN (90 total, in order, all batch 1)
+## MIGRATIONS RUN (93 total, in order, all batch 1)
 1.  0001_01_01_000000_create_users_table
 2.  0001_01_01_000001_create_cache_table
 3.  0001_01_01_000002_create_jobs_table
@@ -533,18 +535,21 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 88. 2025_03_03_000003_add_new_assessment_types
 89. 2025_04_01_000001_add_participation_fields_to_emr_care_plans
 90. 2025_04_01_000002_create_emr_disenrollment_records
+91. 2025_04_02_000001_add_notification_fields_to_emr_incidents
+92. 2025_04_02_000002_create_emr_significant_change_events
+93. 2025_04_02_000003_create_emr_qapi_projects
 
-## MODELS (60)
+## MODELS (62)
 AdlRecord, AdlThreshold, Alert, Allergy, ApiToken, Appointment, Assessment, AuditLog,
 Authorization, BaaRecord, CapitationRecord, CarePlan, CarePlanGoal, ChatChannel, ChatMembership, ChatMessage,
 ClinicalNote, ConsentRecord, DayCenterAttendance, DisenrollmentRecord, Document, DrugInteractionAlert, EdiBatch, EhiExport, EmarRecord, EncounterLog,
 Grievance, HccMapping, HosMSurvey, HpmsSubmission, Icd10Lookup, IdtMeeting, IdtParticipantReview, Immunization,
 Incident, InsuranceCoverage, IntegrationLog, Location, MedReconciliation, Medication, OtpCode,
 Participant, ParticipantAddress, ParticipantContact, ParticipantFlag, ParticipantRiskScore,
-ParticipantSiteTransfer, PdeRecord, Problem, Procedure, Referral, RolePermission, Sdr, Site,
-SocialDeterminant, SraRecord, StateMedicaidConfig, Tenant, TransportRequest, User, Vital
+ParticipantSiteTransfer, PdeRecord, Problem, Procedure, QapiProject, Referral, RolePermission, Sdr, Site,
+SignificantChangeEvent, SocialDeterminant, SraRecord, StateMedicaidConfig, Tenant, TransportRequest, User, Vital
 
-## CONTROLLERS (60 root + Auth/ subdirectory + Dashboards/ subdirectory)
+## CONTROLLERS (61 root + Auth/ subdirectory + Dashboards/ subdirectory)
 AdlController, AlertController, AllergyController, AppointmentController,
 AssessmentController, BillingComplianceController, BillingEncounterController, CapitationController,
 CarePlanController, ChatController, ClinicalDashboardController, ClinicalNoteController, ClinicalOverviewController,
@@ -554,7 +559,7 @@ GrievanceController, HosMSurveyController, HpmsController, IdtMeetingController,
 ImpersonationController, IncidentController, IntegrationController, ItAdminController,
 LocationController, MedReconciliationController, MedicationController,
 ParticipantContactController, ParticipantController, ParticipantFlagController,
-PdeController, ProfileController, ProblemController, QaDashboardController, ReferralController,
+PdeController, ProfileController, ProblemController, QaDashboardController, QapiController, ReferralController,
 ReportsController, RevenueIntegrityController, RiskAdjustmentController, SdrController, SecurityComplianceController, SiteContextController,
 SocialDeterminantController, StateMedicaidConfigController, SuperAdminPanelController,
 SystemSettingsController, TransferAdminController, TransferController, ThemePreferenceController,
@@ -575,13 +580,15 @@ MedReconciliationService, MedicationScheduleService, MrnService, NotificationDis
 NoteTemplateService, OtpService, PermissionService, QaMetricsService, RevenueIntegrityService,
 RiskAdjustmentService, SdrDeadlineService, TransferService, TransportBridgeService
 
-## INTEGRATIONS (2 connectors, 2 jobs)
+## INTEGRATIONS (2 connectors, 4 jobs)
 - app/Integrations/Hl7AdtConnector.php — static receive(), dispatches ProcessHl7AdtJob
 - app/Integrations/LabResultConnector.php — static receive(), dispatches ProcessLabResultJob
-- app/Jobs/ProcessHl7AdtJob.php — A01(admit→encounter+alert), A03(discharge→SDR+care_plan+alert), A08(audit only)
+- app/Jobs/ProcessHl7AdtJob.php — A01(admit→encounter+SCE+alert), A03(discharge→SDR+care_plan+alert), A08(audit only)
 - app/Jobs/ProcessLabResultJob.php — normal lab→encounter log; abnormal→encounter+primary_care alert
+- app/Jobs/IncidentNotificationOverdueJob.php — daily; CMS-required incidents past 72h → critical alert
+- app/Jobs/SignificantChangeOverdueJob.php — daily; IDT review past 30d due date → warning alert
 
-## REACT PAGES (60 — Phase 7A/B adds 14 dept dashboards, Phase 9B adds 7, Phase 9C adds 3, Phase 10A adds 1, Phase 10B adds 3, W3-2 adds 4, W3-8 adds 2, W4-1 adds 2)
+## REACT PAGES (61 — Phase 7A/B adds 14 dept dashboards, Phase 9B adds 7, Phase 9C adds 3, Phase 10A adds 1, Phase 10B adds 3, W3-2 adds 4, W3-8 adds 2, W4-1 adds 2, W4-6 adds 1)
 Auth/Login, Clinical/Assessments, Clinical/CarePlans, Clinical/Medications, Clinical/Notes,
 Clinical/Orders, Clinical/Vitals, ComingSoon, Dashboard/Index, Enrollment/Index, Enrollment/Transfers,
 Errors/403, Finance/Capitation, Grievances/Index, Grievances/Show, Finance/ComplianceChecklist, Finance/Dashboard, Finance/EdiBatch,
@@ -600,7 +607,8 @@ Dashboard/Depts/QaComplianceDashboard, Dashboard/Depts/ItAdminDashboard,
 Dashboard/Depts/ExecutiveDashboard, Dashboard/Depts/SuperAdminDashboard,
 SuperAdmin/Index,
 Chat/Index, Profile/Notifications,
-Idt/Meetings, Scheduling/DayCenter, Reports/Index, ItAdmin/SystemSettings
+Idt/Meetings, Scheduling/DayCenter, Reports/Index, ItAdmin/SystemSettings,
+Qapi/Projects
 
 ## KNOWN ISSUES & GOTCHAS
 - [Infra] Project runs from WSL2 Ubuntu (`/home/tj/projects/nostosemr`). Docker Desktop WSL Integration must be enabled for Ubuntu (Settings → Resources → WSL Integration → Ubuntu). Always use Ubuntu terminal for docker compose commands — running from Windows PowerShell works but is 5-20x slower due to Windows↔WSL2 filesystem bridge.
@@ -911,6 +919,7 @@ rsync -av --exclude=vendor --exclude=node_modules --exclude=public/build --exclu
 - [2026-03-31] W4-1 User Designations add-on — 1232 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). User Designations system complete. Migrations 80–81. 14 new tests (UserDesignationTest).
 - [2026-04-01] W4-4 — 1302 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). BMI auto-calc, blood glucose timing, VIS fields on immunizations, Braden/MoCA/OHAT assessment types + alert thresholds, assessment due-date endpoint.
 - [2026-04-01] W4-5 — 1335 passing, 0 failing (16 deprecations, 158 PHPUnit deprecations — non-blocking). Care plan participation acknowledgment, IDT review frequency tracking, disenrollment transition plan.
+- [2026-04-01] W4-6 — 1370 passing, 0 failing (16 deprecations, 228 PHPUnit deprecations — non-blocking). Incident regulatory tracking + QAPI module. 3 migrations, 2 models, 1 controller, 2 jobs, 1 React page (Qapi/Projects), 35 new tests.
 - [2026-03-31] W4-2 + Grievance permissions + Timestamp fix — 1263 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). Migration 84 (column widening for encrypted PHI). 28 new tests (EncryptionTest 10 + BaaTrackerTest 18). Grievances nav opened to all 14 depts. Grievance datetime toIso8601String() fix. SecurityComplianceController JSON returns. Build clean.
 - [2026-03-26] W3-2 — 1091 passing, 0 failing. Build clean. Adds NavRoutingTest (13 tests) + DayCenterAttendanceTest (12 tests) + Day Center attendance module + Reports page + System Settings page. Bugs fixed: scopeForSite null type hint, payer_id column DNE, pace_contract column DNE (mapped to cms_contract_id), ComingSoonBannerTest stale assertions for 3 now-live pages + /idt/minutes redirect target.
 - [2026-03-27] W3-4 — 1137 passing, 0 failing. Build clean. Adds FacesheetTest (6 tests) + ParticipantTabRoutingTest (22 tests). Show.tsx: print CSS fixed (visibility approach — position:fixed caused blank print), two-row tab layout (CLINICAL blue / ADMIN slate), switchTab() for URL sync via window.history.replaceState, valid tab list updated with immunizations/procedures/sdoh (Phase 11B), ParticipantHeader onTabChange prop + Care Plan/Schedule header buttons fixed, advance directive DNR/POLST/No Directive badges in sticky header flags row, CarePlanTab save error state (catch block no longer silent), editability guard on Edit button (hidden for active/archived plans). Bugs fixed: cross-tenant returns 403 not 404 (authorizeForTenant uses abort_if(..., 403)), PHPUnit @dataProvider converted to #[DataProvider] attribute.
@@ -1407,6 +1416,57 @@ Based on the audit above, Phase 9B (Encounter Data & Billing Infrastructure) sho
 ---
 
 ## SESSION LOG
+
+### 2026-04-01 — W4-6 Complete — Incident Regulatory Tracking + QAPI Module (GAP-08, GAP-10, QW-10, QW-12)
+
+Implemented W4-6 (42 CFR §460.104(b) + §460.136 + §460.136–§460.140). 35 new tests, 0 failures. Migrations 91–93 confirmed.
+
+**GAP-08 / QW-10 — CMS/SMA Notification Tracking (42 CFR §460.136):**
+- Migration 91: `cms_notification_required` (bool), `cms_notification_sent_at`, `sma_notification_sent_at`, `notification_notes`, `regulatory_deadline` (timestamp) on emr_incidents. Also drops old `emr_incidents_type_check` constraint + re-adds as `emr_incidents_incident_type_check` to include `'unexpected_death'`.
+- `Incident::CMS_NOTIFICATION_TYPES`: ['abuse_neglect', 'hospitalization', 'er_visit', 'unexpected_death'].
+- `Incident::CMS_NOTIFICATION_DEADLINE_HOURS = 72` — stored as `regulatory_deadline = occurred_at + 72h`.
+- `Incident::isCmsNotificationOverdue()`: true when required + sent_at null + deadline past.
+- `Incident::scopeCmsNotificationOverdue()`: queryable scope for the same condition.
+- `IncidentService` wired to auto-set `cms_notification_required=true` and `regulatory_deadline` for qualifying types.
+- `IncidentNotificationOverdueJob` (daily): finds qualifying incidents past deadline without notification → creates critical alert `alert_type='cms_notification_overdue'`, deduplicates via `whereJsonContains('metadata->incident_id', $id)`.
+- `QaDashboardController`: `cms_notification_overdue_count` KPI added to `/qa/dashboard`.
+- `Qa/Dashboard.tsx`: 2 new KPI cards — CMS Notification Overdue (red when count > 0) + Active QAPI Projects (green/red vs CMS minimum of 2).
+
+**GAP-10 / QW-12 — Significant Change Event Tracking (42 CFR §460.104(b)):**
+- Migration 92: `emr_significant_change_events` — trigger_type (6 types), trigger_date, trigger_source, idt_review_due_date (trigger_date + 30 days default), status (pending/completed), notes, created_by_user_id.
+- `SignificantChangeEvent` model: `IDT_REVIEW_DUE_DAYS=30`, `TRIGGER_TYPES`, `isOverdue()`, `daysUntilDue()`, `isPending()`, `triggerTypeLabel()`, `scopeOverdue()`, `scopePending()`, `scopeDueSoon()`.
+- `SignificantChangeEventFactory`: `overdue()` and `completed()` states.
+- `IncidentService` wired: fall incident + injuries_sustained=true → creates SCE with trigger_type='fall_with_injury', trigger_source='incident_service'.
+- `ProcessHl7AdtJob` A01 wired: creates SCE with trigger_type='hospitalization', trigger_source='adt_connector', alongside existing encounter + alert creation.
+- `SignificantChangeOverdueJob` (daily): finds pending SCEs past due date → creates warning alert `alert_type='significant_change_idt_overdue'`, deduplicates via `whereJsonContains('metadata->significant_change_event_id', $id)`.
+- `IdtDashboardController::significantChanges()`: GET /dashboards/idt/significant-changes — returns events with `urgency` field (overdue/soon/ok), total_count, overdue_count.
+- `IdtDashboard.tsx`: 6th widget "Significant Change Reviews Due" with urgency-colored badges (red=overdue, amber=soon, blue=ok).
+
+**QAPI Module (42 CFR §460.136–§460.140):**
+- Migration 93: `emr_qapi_projects` — title, description, aim_statement, domain (8 CHECK-constrained values), status (5 values: planning/active/remeasuring/completed/suspended), start_date, target_completion_date, actual_completion_date, baseline/target/current metrics, interventions, findings, project_lead_user_id, team_member_ids (JSONB), created_by_user_id.
+- `QapiProject` model: `DOMAINS`, `STATUSES`, `DOMAIN_LABELS`, `STATUS_LABELS`, `isActive()` (planning+active+remeasuring all count for CMS minimum), `isCompleted()`, `scopeActive()`, `scopeForTenant()`.
+- `QapiProjectFactory`: 5 states (planning/active/remeasuring/completed/suspended).
+- `QapiController` (5 endpoints): index (Inertia, projects + active_count + meets_minimum + min_required=2), store (201, qa_compliance/it_admin only), show (JSON, tenant-scoped 404), update (PATCH, auto-sets actual_completion_date when completing), remeasure (POST /{id}/remeasure, advances active→remeasuring, rejects non-active with 422).
+- `QaDashboardController`: `active_qapi_count` KPI via `QapiProject::forTenant()->active()->count()`.
+- `Qapi/Projects.tsx`: Kanban board (5 columns: Planning/Active/Remeasuring/Completed/Suspended), `ProjectCard` component, `ProjectDetailModal` (read-only view + status advance buttons), `ProjectFormModal` (create/edit form), compliance minimum banner (green ≥2 active, amber <2), isQaAdmin gating, dark mode.
+
+**W46DataSeeder:** Seeds 2 active QAPI projects (safety + clinical_outcomes) + 2 demo SCEs (1 pending due in 18 days, 1 overdue by 5 days). Added to DemoEnvironmentSeeder.
+
+**Test files created:**
+- `tests/Feature/IncidentNotificationTest.php` — 9 tests
+- `tests/Feature/SignificantChangeTest.php` — 10 tests
+- `tests/Feature/QapiTest.php` — 14 tests (2 index, 4 store, 2 show/update, 2 remeasure, 1 QA KPI, 2 model helpers, 1 scope)
+
+**Bugs found and fixed:**
+1. Migration 91 used `DROP CONSTRAINT emr_incidents_incident_type_check` (wrong name — original was `emr_incidents_type_check`). Fixed by dropping BOTH possible names before adding new constraint.
+2. Test route: tests wrote to `/participants/{id}/incidents` (doesn't exist) — fixed to `/qa/incidents` + `participant_id` in body, `reported_at` removed (not in StoreIncidentRequest).
+3. Test injury validation: `injuries_sustained=true` requires `injury_description` — added to test payload.
+4. IntegrationLog creation in test: used non-existent `source_system`/`message_type`/`payload` columns — fixed to `connector_type`/`direction`/`raw_payload`.
+5. ProcessHl7AdtJob constructor: test used named params `tenantId`/`logId`/`messageType` (wrong) — actual signature is positional `($integrationLogId, $payload, $tenantId)`. Fixed.
+6. SignificantChangeOverdueJob `alert_type`: uses `'significant_change_idt_overdue'` (not `'significant_change_review_overdue'`). Test assertions updated.
+7. Route/migration caching: `route:clear` required after first deployment of new routes; migrations pending in WSL2 due to stale state.
+
+**Result:** 1370 tests, 0 failures. Migrations 91–93 confirmed. GAP-08 + GAP-10 + QW-10 + QW-12 all resolved.
 
 ### 2026-04-01 — W4-5 Complete — Care Plan + IDT Compliance Fields (GAP-05, GAP-06, GAP-09)
 

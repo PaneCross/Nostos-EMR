@@ -65,6 +65,8 @@ class PermissionSeeder extends Seeder
         'grievances'               => 'Grievances',
         'incident_reports'         => 'Incident Reports',
         'quality_metrics'          => 'Quality Metrics',
+        // W4-6: QAPI quality improvement project tracking (42 CFR §460.136–§460.140)
+        'qapi_projects'            => 'QAPI Projects',
 
         // Reports + Audit
         'reports'                  => 'Reports',
@@ -158,6 +160,8 @@ class PermissionSeeder extends Seeder
         // QA owns the grievance workflow: manage, escalate, resolve, submit to CMS
         // (42 CFR §460.120–§460.121 compliance officer responsibility)
         $qaBase['grievances']       = $full();
+        // W4-6: QA owns QAPI project management (42 CFR §460.136–§460.140)
+        $qaBase['qapi_projects']    = $full();
 
         // ─── Finance — billing CRUD, enrollment/participants read ─────────────
         $financeBase = [];

@@ -224,6 +224,13 @@ class DemoEnvironmentSeeder extends Seeder
         $this->command->info('  Seeding W4-2 security & compliance demo data...');
         $this->call(W42DataSeeder::class);
 
+        // ─── W4-6: QAPI Projects + Significant Change Events ─────────────────
+        // Seeds 2 active QAPI projects (satisfies CMS minimum per 42 CFR §460.136)
+        // and demo significant change events for the IDT dashboard widget.
+        $this->command->info('');
+        $this->command->info('  Seeding W4-6 QAPI projects and significant change demo data...');
+        $this->call(W46DataSeeder::class);
+
         // ─── Participant Photos ────────────────────────────────────────────────
         // Downloads pravatar.cc placeholder images for the first 15 enrolled
         // participants so the photo upload feature is visually testable.

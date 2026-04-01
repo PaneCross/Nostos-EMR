@@ -62,6 +62,7 @@ use App\Http\Controllers\GrievanceController;
 use App\Http\Controllers\SecurityComplianceController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\QaDashboardController;
+use App\Http\Controllers\QapiController;
 use App\Http\Controllers\ReferralController;
 use App\Http\Controllers\SdrController;
 use App\Http\Controllers\VitalController;
@@ -191,6 +192,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/alerts',       [IdtDashboardController::class, 'alerts'])->name('dashboards.idt.alerts');
             // W4-5: 42 CFR §460.104(c) — IDT reassessment frequency tracking
             Route::get('/idt-review-overdue', [IdtDashboardController::class, 'idtReviewOverdue'])->name('dashboards.idt.idt-review-overdue');
+            // W4-6: 42 CFR §460.104(b) — Significant change event 30-day IDT review tracking
+            Route::get('/significant-changes', [IdtDashboardController::class, 'significantChanges'])->name('dashboards.idt.significant-changes');
         });
 
         Route::prefix('enrollment')->group(function () {
@@ -577,6 +580,16 @@ Route::middleware('auth')->group(function () {
         Route::get('/compliance/overdue-assessments',        [QaDashboardController::class, 'overdueAssessments'])->name('qa.compliance.overdue-assessments');
         // CSV export — type param: incidents|unsigned_notes|overdue_assessments
         Route::get('/reports/export',                        [QaDashboardController::class, 'exportCsv'])->name('qa.reports.export');
+    });
+
+    // ─── W4-6: QAPI Project Tracking ─────────────────────────────────────────
+    // 42 CFR §460.136–§460.140: PACE QAPI program — at least 2 active QI projects.
+    Route::prefix('qapi')->group(function () {
+        Route::get('/projects',                          [QapiController::class, 'index'])->name('qapi.projects.index');
+        Route::post('/projects',                         [QapiController::class, 'store'])->name('qapi.projects.store');
+        Route::get('/projects/{id}',                     [QapiController::class, 'show'])->name('qapi.projects.show');
+        Route::patch('/projects/{id}',                   [QapiController::class, 'update'])->name('qapi.projects.update');
+        Route::post('/projects/{id}/remeasure',          [QapiController::class, 'remeasure'])->name('qapi.projects.remeasure');
     });
 
     // ─── Finance / Billing (Phase 6C) ────────────────────────────────────────

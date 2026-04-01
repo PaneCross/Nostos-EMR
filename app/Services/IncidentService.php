@@ -4,15 +4,20 @@
 // Business logic for incident reporting and RCA workflow.
 //
 // Core responsibilities:
-//   - createIncident(): auto-sets rca_required based on incident_type
+//   - createIncident(): auto-sets rca_required + cms_notification_required + regulatory_deadline
 //   - updateStatus(): validates allowed transitions
 //   - submitRca(): records RCA text + marks rca_completed
 //   - closeIncident(): blocks closure if RCA is required but not completed
 //
 // CMS Rule (42 CFR 460.136):
 //   Root cause analysis is required for: falls, medication errors, elopements,
-//   hospitalizations, ER visits, and abuse/neglect incidents.
-//   This is enforced here, never overridable from the UI.
+//   hospitalizations, ER visits, abuse/neglect, unexpected_death.
+//   CMS/SMA notification required within 72h for: abuse_neglect, hospitalization,
+//   er_visit, unexpected_death. regulatory_deadline = occurred_at + 72h.
+//   Both are enforced here, never overridable from the UI.
+//
+// W4-6 / GAP-10: For falls with injuries_sustained=true, creates a
+//   SignificantChangeEvent (42 CFR §460.104(b) — IDT reassessment within 30 days).
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace App\Services;
@@ -20,7 +25,9 @@ namespace App\Services;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Participant;
+use App\Models\SignificantChangeEvent;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use LogicException;
 
 class IncidentService
@@ -40,15 +47,27 @@ class IncidentService
         // CMS 42 CFR 460.136: RCA mandatory for specified high-severity types
         $rcaRequired = in_array($incidentType, Incident::RCA_REQUIRED_TYPES, true);
 
+        // W4-6: CMS/SMA notification required within 72h for certain incident types.
+        // regulatory_deadline = occurred_at + 72 hours.
+        $cmsNotificationRequired = in_array($incidentType, Incident::CMS_NOTIFICATION_TYPES, true);
+        $occurredAt = isset($data['occurred_at'])
+            ? Carbon::parse($data['occurred_at'])
+            : now();
+        $regulatoryDeadline = $cmsNotificationRequired
+            ? $occurredAt->copy()->addHours(Incident::CMS_NOTIFICATION_DEADLINE_HOURS)
+            : null;
+
         $incident = Incident::create([
             ...$data,
-            'tenant_id'          => $participant->tenant_id,
-            'participant_id'     => $participant->id,
-            'reported_by_user_id'=> $user->id,
-            'reported_at'        => $data['reported_at'] ?? now(),
-            'rca_required'       => $rcaRequired,
-            'rca_completed'      => false,
-            'status'             => 'open',
+            'tenant_id'                  => $participant->tenant_id,
+            'participant_id'             => $participant->id,
+            'reported_by_user_id'        => $user->id,
+            'reported_at'                => $data['reported_at'] ?? now(),
+            'rca_required'               => $rcaRequired,
+            'rca_completed'              => false,
+            'status'                     => 'open',
+            'cms_notification_required'  => $cmsNotificationRequired,
+            'regulatory_deadline'        => $regulatoryDeadline,
         ]);
 
         AuditLog::record(
@@ -58,8 +77,15 @@ class IncidentService
             resourceType: 'incident',
             resourceId: $incident->id,
             description: "Incident reported: {$incident->typeLabel()} for participant #{$participant->id}" .
-                ($rcaRequired ? ' [RCA required]' : ''),
+                ($rcaRequired ? ' [RCA required]' : '') .
+                ($cmsNotificationRequired ? " [CMS/SMA notification due by {$regulatoryDeadline?->toDateTimeString()}]" : ''),
         );
+
+        // W4-6 / GAP-10: Fall with injuries → create SignificantChangeEvent.
+        // 42 CFR §460.104(b): IDT must reassess within 30 days of significant change.
+        if ($incidentType === 'fall' && ($data['injuries_sustained'] ?? false)) {
+            $this->createSignificantChangeEventFromIncident($incident, $participant, $user);
+        }
 
         return $incident;
     }
@@ -134,5 +160,36 @@ class IncidentService
     public function closeIncident(Incident $incident, User $user): void
     {
         $this->updateStatus($incident, 'closed', $user);
+    }
+
+    // ── Internal helpers ──────────────────────────────────────────────────────
+
+    /**
+     * Create a SignificantChangeEvent for a fall with injury incident.
+     * Called only when incident_type='fall' and injuries_sustained=true.
+     * 42 CFR §460.104(b): IDT reassessment due within 30 days.
+     */
+    private function createSignificantChangeEventFromIncident(
+        Incident $incident,
+        Participant $participant,
+        User $user,
+    ): void {
+        $triggerDate = $incident->occurred_at
+            ? $incident->occurred_at->toDateString()
+            : now()->toDateString();
+
+        SignificantChangeEvent::create([
+            'tenant_id'           => $participant->tenant_id,
+            'participant_id'      => $participant->id,
+            'trigger_type'        => 'fall_with_injury',
+            'trigger_date'        => $triggerDate,
+            'trigger_source'      => 'incident_service',
+            'source_incident_id'  => $incident->id,
+            'idt_review_due_date' => Carbon::parse($triggerDate)
+                ->addDays(SignificantChangeEvent::IDT_REVIEW_DUE_DAYS)
+                ->toDateString(),
+            'status'              => 'pending',
+            'created_by_user_id'  => $user->id,
+        ]);
     }
 }

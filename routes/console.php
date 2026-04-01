@@ -4,6 +4,8 @@ use App\Jobs\DigestNotificationJob;
 use App\Jobs\DocumentationComplianceJob;
 use App\Jobs\GrievanceOverdueJob;
 use App\Jobs\IdtReviewFrequencyJob;
+use App\Jobs\IncidentNotificationOverdueJob;
+use App\Jobs\SignificantChangeOverdueJob;
 use App\Jobs\SdrDeadlineEnforcementJob;
 use App\Jobs\TransferCompletionJob;
 use Illuminate\Foundation\Inspiring;
@@ -71,6 +73,23 @@ Schedule::job(GrievanceOverdueJob::class, 'compliance')->dailyAt('08:00')
 // 'idt_review_overdue' alert. This is a common CMS survey deficiency finding.
 Schedule::job(IdtReviewFrequencyJob::class, 'idt-review')->dailyAt('07:30')
     ->name('idt-review-frequency')
+    ->withoutOverlapping();
+
+// ─── W4-6: Incident CMS/SMA notification overdue check (42 CFR §460.136) ────
+// Runs daily at 6:00 AM (alongside DocumentationComplianceJob).
+// Finds incidents with cms_notification_required=true whose regulatory_deadline
+// (occurred_at + 72h) has passed and cms_notification_sent_at is still null.
+// Creates one critical alert per overdue incident (deduplication by incident_id in metadata).
+Schedule::job(IncidentNotificationOverdueJob::class, 'compliance')->dailyAt('06:00')
+    ->name('incident-notification-overdue')
+    ->withoutOverlapping();
+
+// ─── W4-6: Significant change IDT reassessment overdue check (42 CFR §460.104(b)) ──
+// Runs daily at 7:00 AM. Finds pending SignificantChangeEvents whose
+// idt_review_due_date has passed. Creates one warning alert per overdue event
+// (deduplication by significant_change_event_id in metadata).
+Schedule::job(SignificantChangeOverdueJob::class, 'compliance')->dailyAt('07:00')
+    ->name('significant-change-overdue')
     ->withoutOverlapping();
 
 // ─── Phase 10A: Participant site transfer completion ──────────────────────────

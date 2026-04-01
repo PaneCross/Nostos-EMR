@@ -222,7 +222,9 @@ class PermissionService
                 'label' => 'QA / Compliance',
                 'icon'  => 'clipboard',
                 'items' => [
-                    ['label' => 'Grievances', 'module' => 'grievances', 'href' => '/grievances'],
+                    ['label' => 'Grievances',    'module' => 'grievances',    'href' => '/grievances'],
+                    // W4-6: QAPI project board (42 CFR §460.136–§460.140)
+                    ['label' => 'QAPI Projects', 'module' => 'qapi_projects', 'href' => '/qapi/projects'],
                 ],
             ],
             [

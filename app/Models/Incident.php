@@ -30,7 +30,7 @@ class Incident extends Model
 
     // ── Constants ─────────────────────────────────────────────────────────────
 
-    /** All valid incident_type values. */
+    /** All valid incident_type values (W4-6 adds 'unexpected_death'). */
     public const TYPES = [
         'fall',
         'medication_error',
@@ -42,6 +42,7 @@ class Incident extends Model
         'infection',
         'abuse_neglect',
         'complaint',
+        'unexpected_death',
         'other',
     ];
 
@@ -57,6 +58,7 @@ class Incident extends Model
         'infection'         => 'Infection',
         'abuse_neglect'     => 'Abuse / Neglect',
         'complaint'         => 'Grievance / Complaint',
+        'unexpected_death'  => 'Unexpected Death',
         'other'             => 'Other',
     ];
 
@@ -72,7 +74,23 @@ class Incident extends Model
         'hospitalization',
         'er_visit',
         'abuse_neglect',
+        'unexpected_death',
     ];
+
+    /**
+     * Incident types that require CMS and SMA notification within 72 hours.
+     * W4-6: IncidentService auto-sets cms_notification_required=true for these.
+     * Source: 42 CFR §460.136.
+     */
+    public const CMS_NOTIFICATION_TYPES = [
+        'abuse_neglect',
+        'hospitalization',
+        'er_visit',
+        'unexpected_death',
+    ];
+
+    /** Hours after occurred_at within which CMS/SMA must be notified. */
+    public const CMS_NOTIFICATION_DEADLINE_HOURS = 72;
 
     /** All valid workflow status values. */
     public const STATUSES = ['open', 'under_review', 'rca_in_progress', 'closed'];
@@ -106,18 +124,28 @@ class Incident extends Model
         'rca_completed_by_user_id',
         'cms_reportable',
         'cms_reported_at',
+        // W4-6 CMS/SMA notification tracking (auto-set by IncidentService — never from UI)
+        'cms_notification_required',
+        'cms_notification_sent_at',
+        'sma_notification_sent_at',
+        'notification_notes',
+        'regulatory_deadline',
         'status',
     ];
 
     protected $casts = [
-        'occurred_at'       => 'datetime',
-        'reported_at'       => 'datetime',
-        'cms_reported_at'   => 'datetime',
-        'injuries_sustained'=> 'boolean',
-        'rca_required'      => 'boolean',
-        'rca_completed'     => 'boolean',
-        'cms_reportable'    => 'boolean',
-        'witnesses'         => 'array',
+        'occurred_at'                => 'datetime',
+        'reported_at'                => 'datetime',
+        'cms_reported_at'            => 'datetime',
+        'cms_notification_sent_at'   => 'datetime',
+        'sma_notification_sent_at'   => 'datetime',
+        'regulatory_deadline'        => 'datetime',
+        'injuries_sustained'         => 'boolean',
+        'rca_required'               => 'boolean',
+        'rca_completed'              => 'boolean',
+        'cms_reportable'             => 'boolean',
+        'cms_notification_required'  => 'boolean',
+        'witnesses'                  => 'array',
     ];
 
     // ── Relationships ─────────────────────────────────────────────────────────
@@ -181,6 +209,27 @@ class Incident extends Model
         return self::TYPE_LABELS[$this->incident_type] ?? $this->incident_type;
     }
 
+    /** True when this incident requires CMS/SMA notification per 42 CFR §460.136. */
+    public function requiresCmsNotification(): bool
+    {
+        return in_array($this->incident_type, self::CMS_NOTIFICATION_TYPES, true);
+    }
+
+    /**
+     * True when CMS notification is required but overdue (past regulatory_deadline
+     * and neither cms_notification_sent_at nor sma_notification_sent_at is set).
+     */
+    public function isCmsNotificationOverdue(): bool
+    {
+        if (! $this->cms_notification_required) {
+            return false;
+        }
+        if ($this->cms_notification_sent_at !== null) {
+            return false;
+        }
+        return $this->regulatory_deadline !== null && $this->regulatory_deadline->isPast();
+    }
+
     // ── Scopes ────────────────────────────────────────────────────────────────
 
     /** Filter by tenant. */
@@ -205,5 +254,17 @@ class Incident extends Model
     public function scopeHospitalizations(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->whereIn('incident_type', ['hospitalization', 'er_visit']);
+    }
+
+    /**
+     * Incidents with cms_notification_required=true that are past their regulatory
+     * deadline but have not yet had cms_notification_sent_at recorded.
+     * Used by QA dashboard KPI and IncidentNotificationOverdueJob.
+     */
+    public function scopeCmsNotificationOverdue(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where('cms_notification_required', true)
+            ->whereNull('cms_notification_sent_at')
+            ->where('regulatory_deadline', '<', now());
     }
 }

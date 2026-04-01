@@ -1,13 +1,15 @@
 // ─── IdtDashboard ──────────────────────────────────────────────────────────────
 // Real-data dashboard for the IDT / Care Coordination department.
 // Rendered from Dashboard/Index.tsx when department === 'idt'.
-// Fetches 5 widget endpoints in parallel on mount:
+// Fetches 6 widget endpoints in parallel on mount:
 //   GET /dashboards/idt/meetings          — today's IDT meetings with Start Meeting links
 //   GET /dashboards/idt/overdue-sdrs      — escalated SDRs grouped by department
 //   GET /dashboards/idt/care-plans        — care plans due for review within 30 days
 //   GET /dashboards/idt/alerts            — last 24h cross-department alert feed
 //   GET /dashboards/idt/idt-review-overdue — participants overdue for 6-month IDT reassessment
 //                                            42 CFR §460.104(c): reassessment every 6 months
+//   GET /dashboards/idt/significant-changes — pending significant change IDT reassessments
+//                                             42 CFR §460.104(b): 30-day window after significant change
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useEffect, useState } from 'react';
@@ -82,6 +84,21 @@ interface IdtOverdueItem {
     href: string;
 }
 
+// W4-6: Significant Change Event pending IDT reassessment (42 CFR §460.104(b))
+// IDT must reassess within 30 days of significant change in health status.
+interface SigChangeItem {
+    id: number;
+    participant: { id: number; name: string; mrn: string | null } | null;
+    site: string | null;
+    trigger_type: string;
+    trigger_type_label: string;
+    trigger_date: string;
+    trigger_source: string;
+    idt_review_due_date: string;
+    days_until_due: number;
+    urgency: 'overdue' | 'soon' | 'ok';
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 interface Props { departmentLabel: string; role: string }
@@ -96,6 +113,8 @@ export default function IdtDashboard({ departmentLabel, role }: Props) {
     const [alerts, setAlerts]           = useState<{ alerts: AlertItem[]; critical_count: number } | null>(null);
     // 42 CFR §460.104(c): IDT must reassess each participant at least every 6 months
     const [idtOverdue, setIdtOverdue]   = useState<{ participants: IdtOverdueItem[]; overdue_count: number } | null>(null);
+    // W4-6: 42 CFR §460.104(b): significant change IDT reassessment within 30 days
+    const [sigChanges, setSigChanges]   = useState<{ events: SigChangeItem[]; total_count: number; overdue_count: number } | null>(null);
 
     useEffect(() => {
         Promise.all([
@@ -104,12 +123,14 @@ export default function IdtDashboard({ departmentLabel, role }: Props) {
             axios.get('/dashboards/idt/care-plans'),
             axios.get('/dashboards/idt/alerts'),
             axios.get('/dashboards/idt/idt-review-overdue'),
-        ]).then(([meet, sdr, cp, alert, overdue]) => {
+            axios.get('/dashboards/idt/significant-changes'),
+        ]).then(([meet, sdr, cp, alert, overdue, sigChange]) => {
             setMeetings(meet.data);
             setSdrs(sdr.data);
             setCarePlans(cp.data);
             setAlerts(alert.data);
             setIdtOverdue(overdue.data);
+            setSigChanges(sigChange.data);
         }).finally(() => setLoading(false));
     }, []);
 
@@ -155,6 +176,23 @@ export default function IdtDashboard({ departmentLabel, role }: Props) {
         badge: p.days_overdue !== null ? `${p.days_overdue}d overdue` : 'No review on record',
         badgeColor: 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
         sublabel: `MRN: ${p.mrn ?? '-'} | ${p.site ?? 'No site'} | Last reviewed: ${p.last_reviewed_at ?? 'Never'}`,
+    }));
+
+    // Build ActionItems for Significant Change Reviews — 42 CFR §460.104(b)
+    const sigChangeItems: ActionItem[] = (sigChanges?.events ?? []).map(e => ({
+        label: e.participant?.name ?? '-',
+        href: e.participant ? `/participants/${e.participant.id}` : '/idt',
+        badge: e.urgency === 'overdue'
+            ? `${Math.abs(e.days_until_due)}d overdue`
+            : e.urgency === 'soon'
+            ? `${e.days_until_due}d remaining`
+            : `${e.days_until_due}d`,
+        badgeColor: e.urgency === 'overdue'
+            ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300'
+            : e.urgency === 'soon'
+            ? 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300'
+            : 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300',
+        sublabel: `${e.trigger_type_label} | Trigger: ${e.trigger_date} | ${e.site ?? 'No site'}`,
     }));
 
     // Build ActionItems for Alerts (24h)
@@ -216,6 +254,16 @@ export default function IdtDashboard({ departmentLabel, role }: Props) {
                 items={idtOverdueItems}
                 emptyMessage="All participants are within their 6-month reassessment window"
                 viewAllHref="/participants"
+                loading={loading}
+            />
+
+            {/* W4-6: 42 CFR §460.104(b): IDT must reassess within 30 days of significant change */}
+            <ActionWidget
+                title="Significant Change Reviews Due"
+                description="Participants with a recent significant change in health status (hospitalization, fall with injury, functional decline) requiring IDT reassessment within 30 days. 42 CFR §460.104(b)."
+                items={sigChangeItems}
+                emptyMessage="No pending significant change IDT reassessments"
+                viewAllHref="/idt"
                 loading={loading}
             />
 

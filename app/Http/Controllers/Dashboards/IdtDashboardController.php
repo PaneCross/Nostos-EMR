@@ -6,11 +6,12 @@
 // IDT has cross-department visibility into SDRs and alerts.
 //
 // Routes (GET, all under /dashboards/idt/):
-//   meetings          — today's IDT meetings with Start Meeting links
-//   overdue-sdrs      — escalated SDRs grouped by originating department
-//   care-plans        — care plans with review_due_date within 30 days
-//   alerts            — last 24h alerts across all departments, all severities
-//   idt-review-overdue — participants overdue for 6-month IDT reassessment (W4-5)
+//   meetings               — today's IDT meetings with Start Meeting links
+//   overdue-sdrs           — escalated SDRs grouped by originating department
+//   care-plans             — care plans with review_due_date within 30 days
+//   alerts                 — last 24h alerts across all departments, all severities
+//   idt-review-overdue     — participants overdue for 6-month IDT reassessment (W4-5)
+//   significant-changes    — open significant change events with IDT review deadlines (W4-6)
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace App\Http\Controllers\Dashboards;
@@ -21,6 +22,7 @@ use App\Models\CarePlan;
 use App\Models\IdtMeeting;
 use App\Models\Participant;
 use App\Models\Sdr;
+use App\Models\SignificantChangeEvent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 
@@ -250,6 +252,53 @@ class IdtDashboardController extends Controller
         return response()->json([
             'participants'   => $overdue,
             'overdue_count'  => $overdue->count(),
+        ]);
+    }
+
+    /**
+     * GET /dashboards/idt/significant-changes
+     * Open significant change events requiring IDT reassessment.
+     * 42 CFR §460.104(b): IDT must reassess within 30 days.
+     * Returns events sorted by urgency (overdue first, then by due date ascending).
+     */
+    public function significantChanges(): JsonResponse
+    {
+        $this->requireDept();
+        $tenantId = Auth::user()->tenant_id;
+
+        $events = SignificantChangeEvent::forTenant($tenantId)
+            ->pending()
+            ->with(['participant:id,first_name,last_name,mrn,site_id', 'participant.site:id,name'])
+            ->orderByRaw("CASE WHEN idt_review_due_date < NOW() THEN 0 ELSE 1 END") // overdue first
+            ->orderBy('idt_review_due_date')
+            ->limit(25)
+            ->get()
+            ->map(fn (SignificantChangeEvent $e) => [
+                'id'                   => $e->id,
+                'participant'          => $e->participant ? [
+                    'id'   => $e->participant->id,
+                    'name' => $e->participant->first_name . ' ' . $e->participant->last_name,
+                    'mrn'  => $e->participant->mrn,
+                    'site' => $e->participant->site?->name,
+                ] : null,
+                'trigger_type'         => $e->trigger_type,
+                'trigger_type_label'   => $e->triggerTypeLabel(),
+                'trigger_date'         => $e->trigger_date->toDateString(),
+                'idt_review_due_date'  => $e->idt_review_due_date->toDateString(),
+                'is_overdue'           => $e->isOverdue(),
+                'days_until_due'       => $e->daysUntilDue(),
+                // Color coding: red = overdue, amber = due within 7 days, green = more time
+                'urgency'              => $e->isOverdue() ? 'overdue'
+                    : ($e->daysUntilDue() <= 7 ? 'soon' : 'ok'),
+                'href'                 => $e->participant
+                    ? "/participants/{$e->participant->id}?tab=significant-changes"
+                    : '/participants',
+            ]);
+
+        return response()->json([
+            'events'         => $events,
+            'total_count'    => $events->count(),
+            'overdue_count'  => $events->where('is_overdue', true)->count(),
         ]);
     }
 }

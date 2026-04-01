@@ -9,7 +9,7 @@
 //   GET /qa/compliance/overdue-assessments    → overdueAssessments() (JSON)
 //   GET /qa/reports/export                    → exportCsv()  (CSV download)
 //
-// The dashboard page pre-loads KPI values server-side (8 KPIs as of W4-5).
+// The dashboard page pre-loads KPI values server-side (11 KPIs as of W4-6).
 // Compliance tabs lazy-load their detail lists via dedicated JSON endpoints.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -19,6 +19,7 @@ use App\Models\BaaRecord;
 use App\Models\DisenrollmentRecord;
 use App\Models\Incident;
 use App\Models\Participant;
+use App\Models\QapiProject;
 use App\Models\SraRecord;
 use App\Services\QaMetricsService;
 use Illuminate\Http\JsonResponse;
@@ -61,6 +62,14 @@ class QaDashboardController extends Controller
             'pending_cms_disenrollment_count' => DisenrollmentRecord::forTenant($tenantId)
                 ->pendingCmsNotification()
                 ->count(),
+            // W4-6: Incident CMS notification overdue (42 CFR §460.136)
+            // Incidents past 72h regulatory deadline with no cms_notification_sent_at.
+            'cms_notification_overdue_count'  => Incident::forTenant($tenantId)
+                ->cmsNotificationOverdue()
+                ->count(),
+            // W4-6: QAPI active project count (42 CFR §460.136–§460.140)
+            // CMS requires ≥2 active QI projects at all times.
+            'active_qapi_count'               => QapiProject::forTenant($tenantId)->active()->count(),
         ];
 
         // Open incidents for the incident queue table (full load — typically <50)

@@ -7,6 +7,7 @@
 //   - Looks up participant by MRN
 //   - Creates EncounterLog (service_type='other', notes=facility name)
 //   - Creates alert for social_work + idt ('Participant hospitalized', severity=warning)
+//   - W4-6: Creates SignificantChangeEvent (42 CFR §460.104(b) 30-day IDT reassessment)
 //   - Marks integration_log as processed
 //
 // A03 (Discharge):
@@ -35,7 +36,9 @@ use App\Models\EncounterLog;
 use App\Models\IntegrationLog;
 use App\Models\Participant;
 use App\Models\Sdr;
+use App\Models\SignificantChangeEvent;
 use App\Services\AlertService;
+use Illuminate\Support\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -133,6 +136,22 @@ class ProcessHl7AdtJob implements ShouldQueue
             'severity'            => 'warning',
             'target_departments'  => ['social_work', 'idt'],
             'created_by_system'   => true,
+        ]);
+
+        // W4-6 / GAP-10: Hospitalization triggers 30-day IDT reassessment requirement.
+        // 42 CFR §460.104(b): IDT must reassess within 30 days of significant change in status.
+        $admissionDate = now()->toDateString();
+        SignificantChangeEvent::create([
+            'tenant_id'                    => $this->tenantId,
+            'participant_id'               => $participant->id,
+            'trigger_type'                 => 'hospitalization',
+            'trigger_date'                 => $admissionDate,
+            'trigger_source'               => 'adt_connector',
+            'source_integration_log_id'    => $logEntry->id,
+            'idt_review_due_date'           => Carbon::parse($admissionDate)
+                ->addDays(SignificantChangeEvent::IDT_REVIEW_DUE_DAYS)
+                ->toDateString(),
+            'status'                       => 'pending',
         ]);
 
         AuditLog::record(
