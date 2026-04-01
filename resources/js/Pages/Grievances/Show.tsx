@@ -95,6 +95,8 @@ export default function GrievancesShow() {
     const [escalationStaff, setEscalationStaff] = useState<EscalationStaff[]>([]);
     const [staffLoading, setStaffLoading]     = useState(false);
 
+    const isClosed = ['resolved', 'withdrawn'].includes(grievance.status);
+
     // Load escalation staff when the escalate panel would be shown (QA admin, not closed)
     useEffect(() => {
         if (!isQaAdmin || isClosed) return;
@@ -105,8 +107,6 @@ export default function GrievancesShow() {
             .catch(() => {}) // non-blocking — escalation still works without staff list
             .finally(() => setStaffLoading(false));
     }, [isQaAdmin, isClosed, grievance.status]);
-
-    const isClosed = ['resolved', 'withdrawn'].includes(grievance.status);
 
     const action = async (endpoint: string, data: object) => {
         setLoading(true); setError(null);
