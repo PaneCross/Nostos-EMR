@@ -19,7 +19,7 @@ import { Head, Link, router, usePage } from '@inertiajs/react'
 import AppShell from '@/Layouts/AppShell'
 import PhoneInput from '@/Components/PhoneInput'
 import axios from 'axios'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts'
@@ -30,6 +30,8 @@ import {
   DocumentTextIcon,
   PaperClipIcon,
   ClockIcon,
+  CameraIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/outline'
 
 // ─── Phase 2 Types ────────────────────────────────────────────────────────────
@@ -430,7 +432,39 @@ function ParticipantHeader({ participant, activeFlags, canDelete, canEdit, onTab
   onTabChange:  (tab: string) => void
   onEdit:       () => void
 }) {
-  const [deleting, setDeleting] = useState(false)
+  const [deleting, setDeleting]           = useState(false)
+  const [photoPath, setPhotoPath]         = useState<string | null>(participant.photo_path)
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const photoInputRef                     = useRef<HTMLInputElement>(null)
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPhotoUploading(true)
+    const formData = new FormData()
+    formData.append('photo', file)
+    try {
+      const res = await axios.post(`/participants/${participant.id}/photo`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      setPhotoPath(res.data.photo_path)
+    } catch {
+      alert('Photo upload failed. Max 4 MB, jpg/png/webp only.')
+    } finally {
+      setPhotoUploading(false)
+      if (photoInputRef.current) photoInputRef.current.value = ''
+    }
+  }
+
+  const handlePhotoDelete = async () => {
+    if (!confirm('Remove participant photo?')) return
+    try {
+      await axios.delete(`/participants/${participant.id}/photo`)
+      setPhotoPath(null)
+    } catch {
+      alert('Failed to remove photo.')
+    }
+  }
 
   const handleDelete = () => {
     if (!confirm(`Deactivate ${participant.mrn}? This cannot be undone from the UI.`)) return
@@ -441,17 +475,53 @@ function ParticipantHeader({ participant, activeFlags, canDelete, canEdit, onTab
   return (
     <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 sticky top-0 z-20 shadow-sm">
       <div className="flex items-start gap-4">
-        {participant.photo_path ? (
-          <img
-            src={`/storage/${participant.photo_path}`}
-            alt={`${participant.first_name} ${participant.last_name}`}
-            className="w-14 h-14 rounded-full object-cover flex-shrink-0 border-2 border-gray-200 dark:border-slate-600"
-          />
-        ) : (
-          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
-            {participant.first_name[0]}{participant.last_name[0]}
-          </div>
-        )}
+        {/* Avatar with camera overlay for photo upload */}
+        <div className="relative flex-shrink-0 group">
+          {photoPath ? (
+            <img
+              src={`/storage/${photoPath}`}
+              alt={`${participant.first_name} ${participant.last_name}`}
+              className="w-14 h-14 rounded-full object-cover border-2 border-gray-200 dark:border-slate-600"
+            />
+          ) : (
+            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xl font-bold">
+              {participant.first_name[0]}{participant.last_name[0]}
+            </div>
+          )}
+          {canEdit && (
+            <>
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                disabled={photoUploading}
+                className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer disabled:cursor-wait"
+                title="Upload photo"
+              >
+                {photoUploading
+                  ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : <CameraIcon className="w-5 h-5 text-white" />
+                }
+              </button>
+              {photoPath && (
+                <button
+                  type="button"
+                  onClick={handlePhotoDelete}
+                  className="absolute -top-1 -right-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Remove photo"
+                >
+                  <XCircleIcon className="w-5 h-5 text-red-500 bg-white dark:bg-slate-800 rounded-full" />
+                </button>
+              )}
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handlePhotoUpload}
+              />
+            </>
+          )}
+        </div>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">

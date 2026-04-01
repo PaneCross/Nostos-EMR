@@ -243,6 +243,10 @@ Route::middleware('auth')->group(function () {
     Route::match(['PUT', 'PATCH'], '/participants/{participant}', [ParticipantController::class, 'update'])->name('participants.update');
     Route::delete('/participants/{participant}', [ParticipantController::class, 'destroy'])->name('participants.destroy');
 
+    // Participant Photo
+    Route::post('/participants/{participant}/photo',   [ParticipantController::class, 'uploadPhoto'])->name('participants.photo.upload');
+    Route::delete('/participants/{participant}/photo', [ParticipantController::class, 'deletePhoto'])->name('participants.photo.delete');
+
     // Participant Flags
     Route::get('/participants/{participant}/flags',              [ParticipantFlagController::class, 'index'])->name('participants.flags.index');
     Route::post('/participants/{participant}/flags',             [ParticipantFlagController::class, 'store'])->name('participants.flags.store');

@@ -37,7 +37,9 @@ use App\Models\Participant;
 use App\Models\ParticipantAddress;
 use App\Models\Site;
 use App\Services\NoteTemplateService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -311,6 +313,74 @@ class ParticipantController extends Controller
         );
 
         return response()->json($results);
+    }
+
+    // ─── Photo Upload ──────────────────────────────────────────────────────────
+
+    /**
+     * Upload a participant profile photo.
+     * Accepts jpg/jpeg/png/webp up to 4 MB. Replaces any existing photo.
+     * Stored at storage/app/public/participants/{id}/photo.{ext} (served via /storage/).
+     * Requires canEdit permission (enrollment dept or admin role).
+     */
+    public function uploadPhoto(Request $request, Participant $participant): JsonResponse
+    {
+        $user = $request->user();
+        $this->authorizeForTenant($participant, $user);
+
+        $request->validate([
+            'photo' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+        ]);
+
+        // Delete existing photo file if present
+        if ($participant->photo_path) {
+            Storage::disk('public')->delete($participant->photo_path);
+        }
+
+        $ext      = $request->file('photo')->extension();
+        $path     = $request->file('photo')->storeAs(
+            "participants/{$participant->id}",
+            "photo.{$ext}",
+            'public'
+        );
+
+        $participant->update(['photo_path' => $path]);
+
+        AuditLog::record(
+            action:       'participant.photo.uploaded',
+            tenantId:     $participant->tenant_id,
+            userId:       $user->id,
+            resourceType: 'participant',
+            resourceId:   $participant->id,
+            description:  "Photo uploaded for participant {$participant->mrn}",
+        );
+
+        return response()->json(['photo_path' => $path]);
+    }
+
+    /**
+     * Delete the participant's profile photo from disk and clear the DB field.
+     */
+    public function deletePhoto(Request $request, Participant $participant): JsonResponse
+    {
+        $user = $request->user();
+        $this->authorizeForTenant($participant, $user);
+
+        if ($participant->photo_path) {
+            Storage::disk('public')->delete($participant->photo_path);
+            $participant->update(['photo_path' => null]);
+
+            AuditLog::record(
+                action:       'participant.photo.deleted',
+                tenantId:     $participant->tenant_id,
+                userId:       $user->id,
+                resourceType: 'participant',
+                resourceId:   $participant->id,
+                description:  "Photo removed for participant {$participant->mrn}",
+            );
+        }
+
+        return response()->json(['photo_path' => null]);
     }
 
     // ─── Helpers ───────────────────────────────────────────────────────────────
