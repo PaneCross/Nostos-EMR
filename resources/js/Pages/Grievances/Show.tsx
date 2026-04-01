@@ -257,7 +257,10 @@ export default function GrievancesShow() {
                         {/* Mark under review */}
                         {grievance.status === 'open' && (
                             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
-                                <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">Start Investigation</h3>
+                                <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Start Investigation</h3>
+                                <p className="text-xs text-gray-500 dark:text-slate-400 mb-3">
+                                    Move this grievance into active investigation. Once under review, you can resolve or escalate it.
+                                </p>
                                 <button
                                     onClick={() => action('start-review', {})}
                                     disabled={loading}
@@ -268,8 +271,8 @@ export default function GrievancesShow() {
                             </div>
                         )}
 
-                        {/* Escalate */}
-                        {['open', 'under_review'].includes(grievance.status) && (
+                        {/* Escalate — only valid from under_review (open → escalated is not a permitted transition) */}
+                        {grievance.status === 'under_review' && (
                             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
                                 <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">Escalate</h3>
                                 <textarea

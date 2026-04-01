@@ -128,8 +128,11 @@ class GrievanceService
         $allowed = self::VALID_TRANSITIONS[$grievance->status] ?? [];
 
         if (!in_array($newStatus, $allowed, true)) {
+            $hint = ($newStatus === 'escalated' && $grievance->status === 'open')
+                ? ' Grievances must be marked Under Review before they can be escalated.'
+                : '';
             throw new LogicException(
-                "Cannot transition grievance from '{$grievance->status}' to '{$newStatus}'."
+                "Cannot transition grievance from '{$grievance->status}' to '{$newStatus}'." . $hint
             );
         }
 
