@@ -2219,14 +2219,15 @@ function VitalsTab({ participantId, initialVitals, completedTransfers }: {
                 <td className={`px-3 py-2 text-xs font-mono ${bmiColor(v.bmi)}`}>
                   {v.bmi != null ? v.bmi : '-'}
                 </td>
-                {/* Blood glucose with timing label — QW-02 */}
+                {/* Blood glucose — value on first line, timing label below so column
+                    width is driven by the 3-digit number, not the label text */}
                 <td className="px-3 py-2 text-xs text-gray-700 dark:text-slate-300">
                   {v.blood_glucose != null ? (
-                    <span>
-                      {v.blood_glucose}
+                    <span className="flex flex-col leading-tight">
+                      <span>{v.blood_glucose}</span>
                       {v.blood_glucose_timing && (
-                        <span className="ml-1 text-gray-400 dark:text-slate-500">
-                          ({GLUCOSE_TIMING_LABELS[v.blood_glucose_timing] ?? v.blood_glucose_timing})
+                        <span className="text-gray-400 dark:text-slate-500 text-[10px]">
+                          {GLUCOSE_TIMING_LABELS[v.blood_glucose_timing] ?? v.blood_glucose_timing}
                         </span>
                       )}
                     </span>

@@ -224,6 +224,13 @@ class DemoEnvironmentSeeder extends Seeder
         $this->command->info('  Seeding W4-2 security & compliance demo data...');
         $this->call(W42DataSeeder::class);
 
+        // ─── Participant Photos ────────────────────────────────────────────────
+        // Downloads pravatar.cc placeholder images for the first 15 enrolled
+        // participants so the photo upload feature is visually testable.
+        $this->command->info('');
+        $this->command->info('  Seeding participant placeholder photos...');
+        $this->call(ParticipantPhotoSeeder::class);
+
         $this->command->info('');
         $this->command->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         $this->command->info('  Demo environment ready!');
