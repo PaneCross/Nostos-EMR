@@ -47,13 +47,17 @@ class Immunization extends Model
         'administered_date', 'administered_by_user_id', 'administered_at_location',
         'lot_number', 'manufacturer', 'dose_number',
         'next_dose_due', 'refused', 'refusal_reason',
+        // W4-4 QW-11: VIS documentation (42 USC 300aa-26 + CMS PACE guidelines)
+        'vis_given', 'vis_publication_date',
     ];
 
     protected $casts = [
-        'administered_date' => 'date',
-        'next_dose_due'     => 'date',
-        'refused'           => 'boolean',
-        'dose_number'       => 'integer',
+        'administered_date'   => 'date',
+        'next_dose_due'       => 'date',
+        'refused'             => 'boolean',
+        'dose_number'         => 'integer',
+        'vis_given'           => 'boolean',
+        'vis_publication_date' => 'date:Y-m-d',
     ];
 
     // ── Relationships ─────────────────────────────────────────────────────────

@@ -69,6 +69,9 @@ class ImmunizationController extends Controller
             'next_dose_due'            => ['nullable', 'date', 'after:administered_date'],
             'refused'                  => ['boolean'],
             'refusal_reason'           => ['nullable', 'required_if:refused,true', 'string', 'max:500'],
+            // W4-4 QW-11: VIS documentation (required by 42 USC 300aa-26)
+            'vis_given'                => ['boolean'],
+            'vis_publication_date'     => ['nullable', 'date', 'before_or_equal:today'],
         ]);
 
         $immunization = Immunization::create(array_merge($validated, [

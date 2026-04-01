@@ -22,8 +22,8 @@ class StoreAssessmentRequest extends FormRequest
     {
         return [
             'assessment_type'   => ['required', 'in:' . implode(',', Assessment::TYPES)],
-            'department'        => ['required', 'string', 'max:30'],
-            'responses'         => ['required', 'array'],
+            'department'        => ['nullable', 'string', 'max:30'],
+            'responses'         => ['nullable', 'array'],
             'score'             => ['nullable', 'integer', 'min:0', 'max:200'],
             'completed_at'      => ['required', 'date', 'before_or_equal:now'],
             'next_due_date'     => ['nullable', 'date', 'after:today'],

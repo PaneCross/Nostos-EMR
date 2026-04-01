@@ -160,18 +160,22 @@ interface ClinicalNote {
 }
 
 interface Vital {
-  id:                number
-  recorded_at:       string
-  bp_systolic:       number | null
-  bp_diastolic:      number | null
-  pulse:             number | null
-  temperature_f:     number | null
-  respiratory_rate:  number | null
-  o2_saturation:     number | null
-  weight_lbs:        number | null
-  pain_score:        number | null
-  notes:             string | null
-  recorded_by:       { id: number; first_name: string; last_name: string } | null
+  id:                    number
+  recorded_at:           string
+  bp_systolic:           number | null
+  bp_diastolic:          number | null
+  pulse:                 number | null
+  temperature_f:         number | null
+  respiratory_rate:      number | null
+  o2_saturation:         number | null
+  weight_lbs:            number | null
+  height_in:             number | null
+  pain_score:            number | null
+  blood_glucose:         number | null
+  blood_glucose_timing:  string | null
+  bmi:                   number | null
+  notes:                 string | null
+  recorded_by:           { id: number; first_name: string; last_name: string } | null
 }
 
 interface Assessment {
@@ -348,6 +352,9 @@ const ASSESSMENT_LABELS: Record<string, string> = {
   pain_scale:            'Pain Scale',
   annual_reassessment:   'Annual Reassessment',
   custom:                'Custom',
+  braden_scale:          'Braden Scale (Pressure Injury Risk)',
+  moca_cognitive:        'MoCA (Cognitive Assessment)',
+  oral_health:           'Oral Health Screening (OHAT)',
 }
 
 const ALLERGY_TYPE_LABELS: Record<string, string> = {
@@ -1882,23 +1889,43 @@ function VitalsTab({ participantId, initialVitals, completedTransfers }: {
     o2_saturation:    { label: 'O₂ Saturation',     lines: [{ key: 'o2_saturation', color: '#7c3aed', name: 'O₂ Sat' }],   unit: '%',    domain: [80, 100] },
     weight_lbs:       { label: 'Weight',            lines: [{ key: 'weight_lbs', color: '#64748b', name: 'Weight' }],       unit: 'lbs' },
     pain_score:       { label: 'Pain Score',        lines: [{ key: 'pain_score', color: '#be123c', name: 'Pain' }],         unit: '/10',  domain: [0, 10] },
+    blood_glucose:    { label: 'Blood Glucose',     lines: [{ key: 'blood_glucose', color: '#0891b2', name: 'Glucose' }],  unit: 'mg/dL', domain: [40, 400] },
   }
 
   // Table column headers — those with a chartKey become clickable buttons
   const TABLE_HEADERS: { label: string; chartKey?: string }[] = [
     { label: 'Date / Time' },
-    { label: 'BP',     chartKey: 'bp' },
-    { label: 'Pulse',  chartKey: 'pulse' },
-    { label: 'Temp',   chartKey: 'temperature_f' },
-    { label: 'RR',     chartKey: 'respiratory_rate' },
-    { label: 'O₂%',    chartKey: 'o2_saturation' },
-    { label: 'Weight', chartKey: 'weight_lbs' },
-    { label: 'Pain',   chartKey: 'pain_score' },
+    { label: 'BP',      chartKey: 'bp' },
+    { label: 'Pulse',   chartKey: 'pulse' },
+    { label: 'Temp',    chartKey: 'temperature_f' },
+    { label: 'RR',      chartKey: 'respiratory_rate' },
+    { label: 'O₂%',     chartKey: 'o2_saturation' },
+    { label: 'Weight',  chartKey: 'weight_lbs' },
+    { label: 'BMI' },
+    { label: 'Glucose', chartKey: 'blood_glucose' },
+    { label: 'Pain',    chartKey: 'pain_score' },
   ]
 
   const blankForm = {
     bp_systolic: '', bp_diastolic: '', pulse: '', temperature_f: '',
-    respiratory_rate: '', o2_saturation: '', weight_lbs: '', pain_score: '', notes: '',
+    respiratory_rate: '', o2_saturation: '', weight_lbs: '', height_in: '',
+    pain_score: '', blood_glucose: '', blood_glucose_timing: '', notes: '',
+  }
+
+  // BMI color coding: <18.5 amber, 18.5–24.9 green, 25–29.9 amber, ≥30 red
+  const bmiColor = (bmi: number | null): string => {
+    if (bmi === null) return 'text-gray-500 dark:text-slate-400'
+    if (bmi < 18.5) return 'text-amber-600 dark:text-amber-400 font-semibold'
+    if (bmi < 25)   return 'text-green-600 dark:text-green-400'
+    if (bmi < 30)   return 'text-amber-600 dark:text-amber-400 font-semibold'
+    return 'text-red-600 dark:text-red-400 font-semibold'
+  }
+
+  const GLUCOSE_TIMING_LABELS: Record<string, string> = {
+    fasting:      'Fasting',
+    post_meal_2h: '2h Post-meal',
+    random:       'Random',
+    pre_meal:     'Pre-meal',
   }
   const [form, setForm] = useState(blankForm)
 
@@ -1916,14 +1943,16 @@ function VitalsTab({ participantId, initialVitals, completedTransfers }: {
     o2_saturation:    v.o2_saturation,
     weight_lbs:       v.weight_lbs,
     pain_score:       v.pain_score,
+    blood_glucose:    v.blood_glucose,
   }))
 
   const handleRecord = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
     try {
+      const stringFields = new Set(['notes', 'blood_glucose_timing'])
       const payload = Object.fromEntries(
-        Object.entries(form).map(([k, v]) => [k, v === '' ? null : (k === 'notes' ? v : Number(v))])
+        Object.entries(form).map(([k, v]) => [k, v === '' ? null : (stringFields.has(k) ? v : Number(v))])
       )
       const { data } = await axios.post(`/participants/${participantId}/vitals`, payload)
       setVitals(v => [data, ...v])
@@ -1969,6 +1998,8 @@ function VitalsTab({ participantId, initialVitals, completedTransfers }: {
             ['respiratory_rate','Resp Rate',    '/min', '1'],
             ['o2_saturation',   'O₂ Sat',       '%',    '1'],
             ['weight_lbs',      'Weight',       'lbs',  '0.1'],
+            ['height_in',       'Height',       'in',   '0.1'],
+            ['blood_glucose',   'Blood Glucose','mg/dL','1'],
             ['pain_score',      'Pain',         '0–10', '1'],
           ] as [string, string, string, string][]).map(([field, label, unit, step]) => (
             <div key={field}>
@@ -1976,12 +2007,27 @@ function VitalsTab({ participantId, initialVitals, completedTransfers }: {
               <input
                 type="number"
                 step={step}
-                value={form[field as keyof typeof form]}
+                value={form[field as keyof typeof form] as string}
                 onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
                 className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
               />
             </div>
           ))}
+          {/* Blood glucose timing — contextual selector (QW-02) */}
+          <div>
+            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Glucose Timing</label>
+            <select
+              value={form.blood_glucose_timing}
+              onChange={e => setForm(f => ({ ...f, blood_glucose_timing: e.target.value }))}
+              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
+            >
+              <option value="">-- select --</option>
+              <option value="fasting">Fasting</option>
+              <option value="pre_meal">Pre-meal</option>
+              <option value="post_meal_2h">2h Post-meal</option>
+              <option value="random">Random</option>
+            </select>
+          </div>
           <div className="col-span-4">
             <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Notes (optional)</label>
             <input
@@ -2082,7 +2128,7 @@ function VitalsTab({ participantId, initialVitals, completedTransfers }: {
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
             {vitals.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-6 text-center text-gray-400 dark:text-slate-500 text-sm">No vitals recorded.</td></tr>
+              <tr><td colSpan={10} className="px-4 py-6 text-center text-gray-400 dark:text-slate-500 text-sm">No vitals recorded.</td></tr>
             )}
             {vitals.slice(0, 20).map(v => (
               <tr key={v.id} className="bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700/50">
@@ -2099,6 +2145,23 @@ function VitalsTab({ participantId, initialVitals, completedTransfers }: {
                   {v.o2_saturation != null ? `${v.o2_saturation}%` : '-'}
                 </td>
                 <td className="px-3 py-2 text-xs text-gray-700 dark:text-slate-300">{v.weight_lbs != null ? `${v.weight_lbs} lbs` : '-'}</td>
+                {/* BMI — QW-01: color-coded by clinical category */}
+                <td className={`px-3 py-2 text-xs font-mono ${bmiColor(v.bmi)}`}>
+                  {v.bmi != null ? v.bmi : '-'}
+                </td>
+                {/* Blood glucose with timing label — QW-02 */}
+                <td className="px-3 py-2 text-xs text-gray-700 dark:text-slate-300">
+                  {v.blood_glucose != null ? (
+                    <span>
+                      {v.blood_glucose}
+                      {v.blood_glucose_timing && (
+                        <span className="ml-1 text-gray-400 dark:text-slate-500">
+                          ({GLUCOSE_TIMING_LABELS[v.blood_glucose_timing] ?? v.blood_glucose_timing})
+                        </span>
+                      )}
+                    </span>
+                  ) : '-'}
+                </td>
                 <td className="px-3 py-2 text-xs text-gray-700 dark:text-slate-300">{v.pain_score ?? '-'}</td>
               </tr>
             ))}
@@ -2138,16 +2201,24 @@ function AssessmentsTab({ participantId }: { participantId: number }) {
     e.preventDefault()
     setSaving(true)
     try {
+      const structured = isStructuredType(form.assessment_type)
+      const finalScore = structured ? computedSubscaleScore(form.assessment_type) : (form.score === '' ? null : Number(form.score))
+      const responses  = structured
+        ? { ...subscales, education_bonus: educationBonus, notes: form.notes }
+        : { notes: form.notes }
+
       const { data } = await axios.post(`/participants/${participantId}/assessments`, {
         assessment_type: form.assessment_type,
-        score:           form.score === '' ? null : Number(form.score),
+        score:           finalScore,
         completed_at:    form.completed_at,
         next_due_date:   form.next_due_date || null,
-        responses:       { notes: form.notes },
+        responses,
       })
       setAssessments(a => [data, ...(a ?? [])])
       setShowForm(false)
       setForm(blankForm)
+      setSubscales({})
+      setEducationBonus(false)
     } catch {
       // form stays open
     } finally {
@@ -2161,8 +2232,89 @@ function AssessmentsTab({ participantId }: { participantId: number }) {
 
   const now = new Date()
 
+  // QW-05: due-date alert banners — overdue (red) and due-within-14-days (amber)
+  const overdueAssessments = assessments.filter(a => a.next_due_date && new Date(a.next_due_date.slice(0, 10)) < now)
+  const dueSoonAssessments = assessments.filter(a => {
+    if (!a.next_due_date) return false
+    const d = new Date(a.next_due_date.slice(0, 10))
+    return d >= now && d <= new Date(Date.now() + 14 * 86400000)
+  })
+
+  // For Braden/MoCA/OHAT: subscale totaling helpers
+  const BRADEN_SUBSCALES = [
+    { key: 'sensory_perception', label: 'Sensory Perception', max: 4 },
+    { key: 'moisture',           label: 'Moisture',           max: 4 },
+    { key: 'activity',           label: 'Activity',           max: 4 },
+    { key: 'mobility',           label: 'Mobility',           max: 4 },
+    { key: 'nutrition',          label: 'Nutrition',          max: 4 },
+    { key: 'friction_shear',     label: 'Friction & Shear',   max: 3 },
+  ]
+  const MOCA_SUBSCALES = [
+    { key: 'visuospatial',   label: 'Visuospatial / Executive', max: 5 },
+    { key: 'naming',         label: 'Naming',                   max: 3 },
+    { key: 'attention',      label: 'Attention',                max: 6 },
+    { key: 'language',       label: 'Language',                 max: 3 },
+    { key: 'abstraction',    label: 'Abstraction',              max: 2 },
+    { key: 'delayed_recall', label: 'Delayed Recall',           max: 5 },
+    { key: 'orientation',    label: 'Orientation',              max: 6 },
+  ]
+  const OHAT_SUBSCALES = [
+    { key: 'lips',         label: 'Lips',          max: 2 },
+    { key: 'tongue',       label: 'Tongue',        max: 2 },
+    { key: 'gums_tissues', label: 'Gums / Tissues',max: 2 },
+    { key: 'saliva',       label: 'Saliva',        max: 2 },
+    { key: 'natural_teeth',label: 'Natural Teeth', max: 2 },
+    { key: 'dentures',     label: 'Dentures',      max: 2 },
+    { key: 'oral_hygiene', label: 'Oral Hygiene',  max: 2 },
+    { key: 'dental_pain',  label: 'Dental Pain',   max: 2 },
+  ]
+
+  const isStructuredType = (t: string) => ['braden_scale', 'moca_cognitive', 'oral_health'].includes(t)
+
+  // subscale state for structured forms
+  const [subscales, setSubscales] = useState<Record<string, string>>({})
+  const [educationBonus, setEducationBonus] = useState(false)
+
+  const subscaleDefinitions = (type: string) =>
+    type === 'braden_scale' ? BRADEN_SUBSCALES :
+    type === 'moca_cognitive' ? MOCA_SUBSCALES :
+    type === 'oral_health' ? OHAT_SUBSCALES : []
+
+  const computedSubscaleScore = (type: string): number => {
+    const defs = subscaleDefinitions(type)
+    const total = defs.reduce((sum, s) => sum + (parseInt(subscales[s.key] ?? '0') || 0), 0)
+    if (type === 'moca_cognitive' && educationBonus) return Math.min(total + 1, 30)
+    return total
+  }
+
   return (
     <div>
+      {/* QW-05: Assessment due-date alert banners */}
+      {overdueAssessments.length > 0 && (
+        <div className="mb-4 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 rounded-lg px-4 py-3">
+          <p className="text-xs font-semibold text-red-700 dark:text-red-300 mb-1">Overdue Assessments ({overdueAssessments.length})</p>
+          <ul className="text-xs text-red-600 dark:text-red-400 space-y-0.5">
+            {overdueAssessments.map(a => (
+              <li key={a.id}>
+                {ASSESSMENT_LABELS[a.assessment_type] ?? a.assessment_type} - due {new Date(a.next_due_date!.slice(0, 10)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {dueSoonAssessments.length > 0 && (
+        <div className="mb-4 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-3">
+          <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-1">Due Within 14 Days ({dueSoonAssessments.length})</p>
+          <ul className="text-xs text-amber-600 dark:text-amber-400 space-y-0.5">
+            {dueSoonAssessments.map(a => (
+              <li key={a.id}>
+                {ASSESSMENT_LABELS[a.assessment_type] ?? a.assessment_type} - due {new Date(a.next_due_date!.slice(0, 10)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">Assessments ({assessments.length})</h3>
         <button
@@ -2193,15 +2345,43 @@ function AssessmentsTab({ participantId }: { participantId: number }) {
               ))}
             </select>
           </div>
-          <div>
-            <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Score (optional)</label>
-            <input
-              type="number"
-              value={form.score}
-              onChange={e => setForm(f => ({ ...f, score: e.target.value }))}
-              className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
-            />
-          </div>
+          {/* Score: auto-computed for structured types, manual for all others */}
+          {isStructuredType(form.assessment_type) ? (
+            <div className="col-span-2 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded p-3">
+              <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2">
+                Subscale Scores - Total: {computedSubscaleScore(form.assessment_type)}
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {subscaleDefinitions(form.assessment_type).map(s => (
+                  <div key={s.key}>
+                    <label className="text-xs text-gray-600 dark:text-slate-400">{s.label} (0-{s.max})</label>
+                    <input
+                      type="number" min={0} max={s.max}
+                      value={subscales[s.key] ?? ''}
+                      onChange={e => setSubscales(sc => ({ ...sc, [s.key]: e.target.value }))}
+                      className="w-full mt-0.5 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                ))}
+              </div>
+              {form.assessment_type === 'moca_cognitive' && (
+                <label className="flex items-center gap-2 mt-2 text-xs text-gray-600 dark:text-slate-400">
+                  <input type="checkbox" checked={educationBonus} onChange={e => setEducationBonus(e.target.checked)} />
+                  Add +1 education bonus (12 years or fewer of formal education)
+                </label>
+              )}
+            </div>
+          ) : (
+            <div>
+              <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Score (optional)</label>
+              <input
+                type="number"
+                value={form.score}
+                onChange={e => setForm(f => ({ ...f, score: e.target.value }))}
+                className="w-full mt-1 text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1.5 bg-white dark:bg-slate-800"
+              />
+            </div>
+          )}
           <div>
             <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Completed Date *</label>
             <input
@@ -5300,6 +5480,8 @@ interface ImmunizationRecord {
   next_dose_due:            string | null
   refused:                  boolean
   refusal_reason:           string | null
+  vis_given:                boolean
+  vis_publication_date:     string | null
   administered_by:          { id: number; first_name: string; last_name: string } | null
 }
 
@@ -5320,11 +5502,13 @@ function ImmunizationsTab({ participantId }: { participantId: number }) {
   const [loading, setLoading]             = useState(true)
   const [showForm, setShowForm]           = useState(false)
   const [saving, setSaving]               = useState(false)
-  const [form, setForm]                   = useState({
+  const blankImmForm = {
     vaccine_type: 'influenza', vaccine_name: '', administered_date: new Date().toISOString().slice(0, 10),
     lot_number: '', manufacturer: '', administered_at_location: '', dose_number: '',
     next_dose_due: '', refused: false, refusal_reason: '',
-  })
+    vis_given: false, vis_publication_date: '',
+  }
+  const [form, setForm]                   = useState(blankImmForm)
 
   useEffect(() => {
     axios.get(`/participants/${participantId}/immunizations`)
@@ -5339,7 +5523,7 @@ function ImmunizationsTab({ participantId }: { participantId: number }) {
       .then(r => {
         setImmunizations(prev => [r.data, ...prev])
         setShowForm(false)
-        setForm({ vaccine_type: 'influenza', vaccine_name: '', administered_date: new Date().toISOString().slice(0, 10), lot_number: '', manufacturer: '', administered_at_location: '', dose_number: '', next_dose_due: '', refused: false, refusal_reason: '' })
+        setForm(blankImmForm)
       })
       .finally(() => setSaving(false))
   }
@@ -5403,6 +5587,23 @@ function ImmunizationsTab({ participantId }: { participantId: number }) {
                 className="mt-1 block w-full border border-gray-300 dark:border-slate-600 rounded text-sm px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" />
             </div>
           )}
+          {/* VIS documentation — QW-11 (42 USC 300aa-26) */}
+          {!form.refused && (
+            <div className="border border-indigo-200 dark:border-indigo-800 rounded p-3 bg-indigo-50 dark:bg-indigo-950/40 space-y-2">
+              <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Vaccine Information Statement (VIS)</p>
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
+                <input type="checkbox" checked={form.vis_given} onChange={e => setForm(f => ({ ...f, vis_given: e.target.checked }))} />
+                VIS given to patient / representative
+              </label>
+              {form.vis_given && (
+                <div>
+                  <label className="text-xs font-medium text-gray-700 dark:text-slate-300">VIS Publication Date</label>
+                  <input type="date" value={form.vis_publication_date} onChange={e => setForm(f => ({ ...f, vis_publication_date: e.target.value }))}
+                    className="mt-1 block w-full border border-gray-300 dark:border-slate-600 rounded text-sm px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" />
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex gap-2 justify-end">
             <button type="button" onClick={() => setShowForm(false)} className="text-sm px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700">Cancel</button>
             <button type="submit" disabled={saving} className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 disabled:opacity-50">
@@ -5422,6 +5623,7 @@ function ImmunizationsTab({ participantId }: { participantId: number }) {
                 <th className="text-left py-2 font-medium">Date</th>
                 <th className="text-left py-2 font-medium">Lot / Mfr</th>
                 <th className="text-left py-2 font-medium">Status</th>
+                <th className="text-left py-2 font-medium">VIS</th>
                 <th className="text-left py-2 font-medium">Next Due</th>
               </tr>
             </thead>
@@ -5437,7 +5639,19 @@ function ImmunizationsTab({ participantId }: { participantId: number }) {
                       : <span className="px-1.5 py-0.5 rounded text-xs bg-green-100 dark:bg-green-900/60 text-green-800 dark:text-green-300">Administered</span>
                     }
                   </td>
-                  <td className="py-2 text-gray-500 dark:text-slate-400 text-xs">{imm.next_dose_due ? new Date(imm.next_dose_due).toLocaleDateString() : '-'}</td>
+                  {/* VIS column — QW-11 */}
+                  <td className="py-2 text-xs">
+                    {imm.refused ? (
+                      <span className="text-gray-400 dark:text-slate-500">N/A</span>
+                    ) : imm.vis_given ? (
+                      <span className="text-green-600 dark:text-green-400">
+                        Given{imm.vis_publication_date ? ` (${new Date(imm.vis_publication_date.slice(0, 10)).toLocaleDateString()})` : ''}
+                      </span>
+                    ) : (
+                      <span className="text-amber-600 dark:text-amber-400">Not documented</span>
+                    )}
+                  </td>
+                  <td className="py-2 text-gray-500 dark:text-slate-400 text-xs">{imm.next_dose_due ? new Date(imm.next_dose_due.slice(0, 10)).toLocaleDateString() : '-'}</td>
                 </tr>
               ))}
             </tbody>

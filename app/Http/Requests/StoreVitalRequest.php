@@ -30,8 +30,9 @@ class StoreVitalRequest extends FormRequest
             'weight_lbs'        => ['nullable', 'numeric', 'min:40', 'max:600'],
             'height_in'         => ['nullable', 'numeric', 'min:36', 'max:96'],
             'pain_score'        => ['nullable', 'integer', 'min:0', 'max:10'],
-            'blood_glucose'     => ['nullable', 'integer', 'min:20', 'max:600'],
-            'position'          => ['nullable', 'in:sitting,standing,lying'],
+            'blood_glucose'        => ['nullable', 'integer', 'min:20', 'max:600'],
+            'blood_glucose_timing' => ['nullable', 'in:fasting,post_meal_2h,random,pre_meal'],
+            'position'             => ['nullable', 'in:sitting,standing,lying'],
             'notes'             => ['nullable', 'string', 'max:1000'],
         ];
     }

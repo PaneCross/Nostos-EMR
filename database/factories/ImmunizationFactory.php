@@ -31,6 +31,9 @@ class ImmunizationFactory extends Factory
             'next_dose_due'             => $this->faker->optional(0.4)->dateTimeBetween('now', '+1 year')?->format('Y-m-d'),
             'refused'                   => false,
             'refusal_reason'            => null,
+            // W4-4 QW-11: VIS documentation fields
+            'vis_given'                 => $this->faker->boolean(70),
+            'vis_publication_date'      => $this->faker->optional(0.7)->dateTimeBetween('-2 years', 'now')?->format('Y-m-d'),
         ];
     }
 

@@ -81,16 +81,17 @@ class AssessmentTest extends TestCase
             ->assertJsonValidationErrors(['assessment_type']);
     }
 
-    public function test_create_assessment_requires_responses(): void
+    public function test_create_assessment_without_responses_succeeds(): void
     {
+        // W4-4: responses is nullable — assessments like Braden/MoCA/OHAT only
+        // store a total score, not subscale responses. Omitting responses is valid.
         $this->actingAs($this->user)
             ->postJson("/participants/{$this->participant->id}/assessments", [
                 'assessment_type' => 'phq9_depression',
                 'completed_at'    => now()->format('Y-m-d H:i:s'),
-                // responses omitted
+                // responses omitted intentionally — now nullable
             ])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['responses']);
+            ->assertCreated();
     }
 
     public function test_create_assessment_requires_completed_at(): void

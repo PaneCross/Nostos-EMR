@@ -22,6 +22,10 @@ class Assessment extends Model
         'initial_comprehensive', 'adl_functional', 'mmse_cognitive',
         'phq9_depression', 'gad7_anxiety', 'nutritional',
         'fall_risk_morse', 'pain_scale', 'annual_reassessment', 'custom',
+        // W4-4 additions
+        'braden_scale',   // Braden Scale for Predicting Pressure Sore Risk (6 subscales, 6–23)
+        'moca_cognitive', // Montreal Cognitive Assessment (30-point + 1 education bonus)
+        'oral_health',    // Oral Health Assessment Tool — OHAT (8 items, 0–16)
     ];
 
     // ── Score ranges by type (max score) ─────────────────────────────────────
@@ -31,6 +35,16 @@ class Assessment extends Model
         'mmse_cognitive'   => 30,
         'fall_risk_morse'  => 125,
         'pain_scale'       => 10,
+        'braden_scale'     => 23,  // 6 subscales × 1–4 each (min 6 = very high risk)
+        'moca_cognitive'   => 30,  // +1 bonus for ≤12 yr education (not reflected here)
+        'oral_health'      => 16,  // 8 items × 0–2
+    ];
+
+    // ── Alert thresholds — score at or below/above this value triggers a clinical alert ─
+    public const ALERT_THRESHOLD = [
+        'braden_scale'   => ['operator' => '<=', 'value' => 14], // moderate-to-very-high risk
+        'moca_cognitive' => ['operator' => '<',  'value' => 26], // <26 = mild cognitive impairment
+        'oral_health'    => ['operator' => '>',  'value' => 8],  // >8 = dental referral needed
     ];
 
     protected $fillable = [
@@ -138,6 +152,24 @@ class Assessment extends Model
                 $this->score <= 44 => 'Medium Risk',
                 default            => 'High Risk',
             },
+            'braden_scale' => match (true) {
+                $this->score <= 9  => 'Very High Risk',
+                $this->score <= 12 => 'High Risk',
+                $this->score <= 14 => 'Moderate Risk',
+                $this->score <= 18 => 'Mild Risk',
+                default            => 'No Risk',
+            },
+            'moca_cognitive' => match (true) {
+                $this->score >= 26 => 'Normal',
+                $this->score >= 18 => 'Mild Impairment',
+                $this->score >= 10 => 'Moderate Impairment',
+                default            => 'Severe Impairment',
+            },
+            'oral_health' => match (true) {
+                $this->score <= 2  => 'Healthy',
+                $this->score <= 8  => 'Changes Present',
+                default            => 'Unhealthy — Referral Needed',
+            },
             default => null,
         };
 
@@ -160,6 +192,9 @@ class Assessment extends Model
             'pain_scale'            => 'Pain Scale',
             'annual_reassessment'   => 'Annual Reassessment',
             'custom'                => 'Custom Assessment',
+            'braden_scale'          => 'Braden Scale (Pressure Injury Risk)',
+            'moca_cognitive'        => 'MoCA (Cognitive Assessment)',
+            'oral_health'           => 'Oral Health Screening (OHAT)',
             default                 => ucwords(str_replace('_', ' ', $this->assessment_type)),
         };
     }

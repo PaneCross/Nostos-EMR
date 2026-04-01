@@ -11,11 +11,14 @@ use App\Http\Requests\StoreAssessmentRequest;
 use App\Models\Assessment;
 use App\Models\AuditLog;
 use App\Models\Participant;
+use App\Services\AlertService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AssessmentController extends Controller
 {
+    public function __construct(private AlertService $alertService) {}
+
     private function authorizeForTenant(Participant $participant, $user): void
     {
         abort_if($participant->tenant_id !== $user->tenant_id, 403);
@@ -52,6 +55,7 @@ class AssessmentController extends Controller
             'tenant_id'           => $user->tenant_id,
             'authored_by_user_id' => $user->id,
             'department'          => $user->department,
+            'responses'           => $request->input('responses', []),
         ]));
 
         AuditLog::record(
@@ -65,7 +69,50 @@ class AssessmentController extends Controller
             newValues: ['assessment_id' => $assessment->id, 'type' => $assessment->assessment_type, 'score' => $assessment->score],
         );
 
+        // W4-4: Create clinical alert when a scored assessment crosses a threshold.
+        $this->maybeCreateAssessmentAlert($assessment, $participant, $user->tenant_id);
+
         return response()->json($assessment->load('author:id,first_name,last_name'), 201);
+    }
+
+    /**
+     * Create a warning alert when an assessment score crosses the clinical threshold.
+     * Braden ≤14 (moderate-to-very-high pressure injury risk),
+     * MoCA <26 (possible cognitive impairment),
+     * OHAT >8 (dental referral indicated).
+     */
+    private function maybeCreateAssessmentAlert(Assessment $assessment, Participant $participant, int $tenantId): void
+    {
+        $threshold = Assessment::ALERT_THRESHOLD[$assessment->assessment_type] ?? null;
+        if ($threshold === null || $assessment->score === null) {
+            return;
+        }
+
+        $triggered = match ($threshold['operator']) {
+            '<='    => $assessment->score <= $threshold['value'],
+            '<'     => $assessment->score <  $threshold['value'],
+            '>='    => $assessment->score >= $threshold['value'],
+            '>'     => $assessment->score >  $threshold['value'],
+            default => false,
+        };
+
+        if (! $triggered) {
+            return;
+        }
+
+        $label = $assessment->typeLabel();
+        $this->alertService->create([
+            'tenant_id'          => $tenantId,
+            'participant_id'     => $participant->id,
+            'alert_type'         => "assessment_{$assessment->assessment_type}_threshold",
+            'severity'           => 'warning',
+            'title'              => "{$label} Alert",
+            'message'            => "{$label} score {$assessment->score} for {$participant->first_name} {$participant->last_name}: {$assessment->scoredLabel()}",
+            'target_departments' => ['primary_care', 'idt'],
+            'source_module'      => 'assessments',
+            'metadata'           => ['assessment_id' => $assessment->id, 'score' => $assessment->score],
+            'created_by_system'  => true,
+        ]);
     }
 
     /**

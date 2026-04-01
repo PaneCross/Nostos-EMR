@@ -26,9 +26,14 @@ class Vital extends Model
         'bp_systolic', 'bp_diastolic',
         'pulse', 'respiratory_rate', 'temperature_f', 'o2_saturation',
         'weight_lbs', 'height_in',
-        'pain_score', 'blood_glucose',
+        'pain_score', 'blood_glucose', 'blood_glucose_timing',
         'position', 'notes',
     ];
+
+    // ── Computed attributes ───────────────────────────────────────────────────
+
+    // BMI is appended to every Vital response (null when height or weight absent)
+    protected $appends = ['bmi'];
 
     protected $casts = [
         'recorded_at'   => 'datetime',
@@ -72,6 +77,21 @@ class Vital extends Model
     }
 
     // ── Business Logic ────────────────────────────────────────────────────────
+
+    /**
+     * Compute BMI from weight_lbs and height_in.
+     * Formula: weight_kg / height_m². Returns null when either field is absent.
+     * QW-01 — surfaced on Vitals tab, Dietary dashboard, and Facesheet.
+     */
+    public function getBmiAttribute(): ?float
+    {
+        if (!$this->weight_lbs || !$this->height_in) {
+            return null;
+        }
+        $weight_kg = $this->weight_lbs * 0.453592;
+        $height_m  = $this->height_in * 0.0254;
+        return round($weight_kg / ($height_m ** 2), 1);
+    }
 
     /**
      * Returns an array of field names that fall outside clinical normal ranges.

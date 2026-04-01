@@ -118,8 +118,9 @@ class VitalController extends Controller
                 ROUND(AVG(bp_diastolic))   AS bp_diastolic,
                 ROUND(AVG(pulse))          AS pulse,
                 ROUND(AVG(o2_saturation))  AS o2_saturation,
-                ROUND(AVG(weight_lbs)::numeric, 1)  AS weight_lbs,
-                ROUND(AVG(pain_score)::numeric, 1)   AS pain_score
+                ROUND(AVG(weight_lbs)::numeric, 1)    AS weight_lbs,
+                ROUND(AVG(pain_score)::numeric, 1)    AS pain_score,
+                ROUND(AVG(blood_glucose)::numeric, 0) AS blood_glucose
              FROM emr_vitals
              WHERE participant_id = ? AND recorded_at >= ?
              GROUP BY date_trunc('day', recorded_at)

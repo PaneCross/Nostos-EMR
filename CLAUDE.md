@@ -86,7 +86,7 @@ Wave 4 (Phases W4-0 through W4-9): IN PROGRESS
   W4-1  Grievance & Consent Module:        [x] COMPLETE — 2026-03-31 (+ User Designations system)
   W4-2  Encryption at Rest + BAA/SRA:      [x] COMPLETE — 2026-03-31 (BLOCKER-01 + BLOCKER-03 resolved)
   W4-3  Demographics + Participant Fields:  [x] COMPLETE — 2026-04-01
-  W4-4  Quick Wins — Vitals & Assessments: [ ] NOT STARTED
+  W4-4  Quick Wins — Vitals & Assessments: [x] COMPLETE — 2026-04-01
   W4-5  Care Plan + IDT Compliance:        [ ] NOT STARTED
   W4-6  Incident + Regulatory Tracking:    [ ] NOT STARTED
   W4-7  CPOE — Lightweight Order Entry:    [ ] NOT STARTED
@@ -445,7 +445,7 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 - Known technical debt log: [x] COMPLETE — categorized by priority in HANDOFF.md
 - Environment setup verified from scratch: [ ] Not yet verified by independent developer
 
-## MIGRATIONS RUN (85 total, in order, all batch 1)
+## MIGRATIONS RUN (88 total, in order, all batch 1)
 1.  0001_01_01_000000_create_users_table
 2.  0001_01_01_000001_create_cache_table
 3.  0001_01_01_000002_create_jobs_table
@@ -531,6 +531,9 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 83. 2025_02_01_000002_create_emr_sra_records_table
 84. 2025_02_02_000001_widen_encrypted_phi_columns
 85. 2025_03_01_000001_add_demographics_to_participants
+86. 2025_03_03_000001_add_blood_glucose_timing_to_emr_vitals
+87. 2025_03_03_000002_add_vis_fields_to_emr_immunizations
+88. 2025_03_03_000003_add_new_assessment_types
 
 ## MODELS (60)
 AdlRecord, AdlThreshold, Alert, Allergy, ApiToken, Appointment, Assessment, AuditLog,
@@ -686,6 +689,10 @@ Idt/Meetings, Scheduling/DayCenter, Reports/Index, ItAdmin/SystemSettings
 - [W4-3] legal_representative_contact_id FK: references emr_participant_contacts with nullOnDelete. The contact must exist in emr_participant_contacts (validation: `exists:emr_participant_contacts,id`). No cross-participant enforcement at DB level — rely on controller/test-level validation.
 - [W4-3] ParticipantFactory.legal_representative_contact_id defaults to null; contact FK linking must be done post-creation in seeders (after contacts are created for the participant). The W42DataSeeder pattern shows how to update a participant after creating its contacts.
 - [W4-3] Photo display: photo_path is stored as a relative path (e.g., "participants/photo.jpg") — render as `/storage/{photo_path}` in TSX. Falls back to initials avatar when null. Shows in sticky header (48px), directory listing (32px), and facesheet print header.
+- [W4-4] `emr_assessments.responses` is NOT NULL (JSONB). `StoreAssessmentRequest` makes `responses` nullable; `AssessmentController::store()` always passes `$request->input('responses', [])` to ensure a non-null default. Tests for Braden/MoCA/OHAT send only `score` (no subscale responses) — this is valid by design.
+- [W4-4] `Assessment::ALERT_THRESHOLD` map: Braden `<= 14` (moderate-high pressure injury risk), MoCA `< 26` (possible cognitive impairment), OHAT `> 8` (dental referral indicated). Alert type key pattern: `assessment_{assessment_type}_threshold`.
+- [W4-4] `Event::fake()` in test setUp() MUST be called AFTER all Eloquent model fixture creation (Tenant/Site/User/Participant). `Event::fake()` intercepts ALL Laravel events including Eloquent `creating` model events — if called before `Participant::factory()->create()`, the MRN-generating `creating` hook is never fired and `mrn` is null (DB NOT NULL constraint → test failure). See `AssessmentToolTest::setUp()` for the correct pattern.
+- [W4-4] `Immunization::$casts`: `vis_publication_date => 'date:Y-m-d'` (not `'date'`). The plain `'date'` cast serializes to ISO timestamp format on JSON output; `'date:Y-m-d'` forces `2024-08-01` format. Same applies to any date-only cast that must not include time component in API responses.
 - [W4-3] Dev build box removed from AppShell.tsx sidebar footer. PHASE_LABEL constant and the entire blue indicator div removed.
 - [W4-1/W4-2] Grievance nav access: ALL 14 departments can file and view grievances per 42 CFR §460.120 (PACE must accept grievances from any source). PermissionSeeder grants `$cr()` (create+read+export) to all non-QA depts; `$full()` to qa_compliance and it_admin. The GrievanceController::authorizeQaAdmin() guard independently enforces that only qa_compliance/it_admin can update/resolve/escalate/submit-to-CMS at the HTTP level. Admin-role users in other depts get full DB-level permissions via the forEach auto-elevation, but the HTTP guard still blocks them — two independent enforcement layers.
 - [W4-1/W4-2] "Submit to CMS" (flag-as-reportable + mark-as-submitted) buttons in Grievances/Show.tsx are wrapped in `{isQaAdmin && (` — visible only to qa_compliance and it_admin departments. This gate is in addition to the server-side GrievanceController::authorizeQaAdmin() check.
@@ -899,6 +906,7 @@ rsync -av --exclude=vendor --exclude=node_modules --exclude=public/build --exclu
 - [2026-03-31] W4-0 — 1181 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). Wave 4 baseline confirmed. Fixed 3 pre-existing test issues: QaMetricsServiceTest hospitalization boundary (subMonth→subMonths(2)), ComingSoonBannerTest clinical/orders test updated for live page (W3-8), DashboardActionabilityTest enrollment referral created_at (subDays(2) on Tuesday fell before week start → use startOfWeek+1h).
 - [2026-03-31] W4-1 — 1218 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). Grievance & Consent Module complete. BLOCKER-02 resolved.
 - [2026-03-31] W4-1 User Designations add-on — 1232 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). User Designations system complete. Migrations 80–81. 14 new tests (UserDesignationTest).
+- [2026-04-01] W4-4 — 1302 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). BMI auto-calc, blood glucose timing, VIS fields on immunizations, Braden/MoCA/OHAT assessment types + alert thresholds, assessment due-date endpoint.
 - [2026-03-31] W4-2 + Grievance permissions + Timestamp fix — 1263 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). Migration 84 (column widening for encrypted PHI). 28 new tests (EncryptionTest 10 + BaaTrackerTest 18). Grievances nav opened to all 14 depts. Grievance datetime toIso8601String() fix. SecurityComplianceController JSON returns. Build clean.
 - [2026-03-26] W3-2 — 1091 passing, 0 failing. Build clean. Adds NavRoutingTest (13 tests) + DayCenterAttendanceTest (12 tests) + Day Center attendance module + Reports page + System Settings page. Bugs fixed: scopeForSite null type hint, payer_id column DNE, pace_contract column DNE (mapped to cms_contract_id), ComingSoonBannerTest stale assertions for 3 now-live pages + /idt/minutes redirect target.
 - [2026-03-27] W3-4 — 1137 passing, 0 failing. Build clean. Adds FacesheetTest (6 tests) + ParticipantTabRoutingTest (22 tests). Show.tsx: print CSS fixed (visibility approach — position:fixed caused blank print), two-row tab layout (CLINICAL blue / ADMIN slate), switchTab() for URL sync via window.history.replaceState, valid tab list updated with immunizations/procedures/sdoh (Phase 11B), ParticipantHeader onTabChange prop + Care Plan/Schedule header buttons fixed, advance directive DNR/POLST/No Directive badges in sticky header flags row, CarePlanTab save error state (catch block no longer silent), editability guard on Edit button (hidden for active/archived plans). Bugs fixed: cross-tenant returns 403 not 404 (authorizeForTenant uses abort_if(..., 403)), PHPUnit @dataProvider converted to #[DataProvider] attribute.
@@ -1395,6 +1403,57 @@ Based on the audit above, Phase 9B (Encounter Data & Billing Infrastructure) sho
 ---
 
 ## SESSION LOG
+
+### 2026-04-01 — W4-4 Complete — Quick Wins: Vitals, Assessments, Immunizations
+
+Implemented W4-4 (QW-01, QW-02, QW-05, QW-07, QW-11). 39 new tests, 0 failures.
+
+**QW-01 — BMI auto-calculation on Vitals (app/Models/Vital.php):**
+- Added `$appends = ['bmi']` and `getBmiAttribute(): ?float` computed property.
+- Formula: `weight_lbs × 0.453592 / (height_in × 0.0254)²`, rounded to 1 decimal.
+- Returns null if either field is missing. Serialized into every vitals API response.
+
+**QW-02 — Blood glucose timing field (migration 86 + Vital model):**
+- Migration 86: `blood_glucose_timing` VARCHAR(20) nullable, PostgreSQL CHECK constraint (`before_meal`, `after_meal`, `fasting`, `random`, `bedtime`).
+- `Vital::$fillable` and `StoreVitalRequest` updated. `VitalsTab` in Show.tsx includes timing select alongside the existing glucose field.
+
+**QW-05 — Assessment due-date endpoint:**
+- `GET /participants/{participant}/assessments/due` in `AssessmentController::due()`.
+- Returns `{overdue: [...], due_soon: [...]}` using model scopes `overdue()` and `dueSoon(14)`.
+- Used by dashboard alerts and Assessments tab status badges.
+
+**QW-07 — Participant photo in clinical header:**
+- `photo_path` stored as relative path; rendered as `/storage/{photo_path}` in Show.tsx sticky header.
+- Falls back to initials avatar when null. (Completed in W4-3 — tracked here for QW completeness.)
+
+**QW-11 — VIS fields on Immunizations (migration 87 + Immunization model):**
+- Migration 87: `vis_given` BOOLEAN DEFAULT false, `vis_publication_date` DATE nullable.
+- `Immunization::$fillable` + `$casts` updated (`vis_given` → boolean, `vis_publication_date` → `'date:Y-m-d'`).
+- `StoreImmunizationRequest` validates: `vis_given` nullable boolean, `vis_publication_date` nullable date `before_or_equal:today`.
+
+**New assessment types + alert thresholds (migration 88 + Assessment model):**
+- Migration 88: drops and re-adds `assessment_type` CHECK constraint to add `braden_scale`, `moca_cognitive`, `oral_health`.
+- `Assessment::TYPES` expanded; `Assessment::ALERT_THRESHOLD` map added:
+  - `braden_scale`: `<= 14` → pressure injury risk warning
+  - `moca_cognitive`: `< 26` → possible cognitive impairment warning
+  - `oral_health` (OHAT): `> 8` → dental referral indicated warning
+- `Assessment::typeLabel()` and `Assessment::scoredLabel()` handle new types.
+- `AssessmentController::maybeCreateAssessmentAlert()` creates warning alerts via AlertService when threshold crossed.
+
+**Bugs fixed:**
+1. `Event::fake()` in `AssessmentToolTest::setUp()` was called BEFORE DB fixtures, intercepting Participant `creating` event → null MRN. Fixed by moving `Event::fake()` after all factory calls.
+2. `StoreAssessmentRequest`: `responses` changed `required` → `nullable`; `department` changed `required` → `nullable` (set server-side from `$user->department`).
+3. `AssessmentController::store()`: Added `'responses' => $request->input('responses', [])` to ensure NOT NULL JSONB column always gets a value.
+4. `Immunization::$casts`: `vis_publication_date` changed from `'date'` to `'date:Y-m-d'` — plain `date` cast serializes to ISO timestamp in JSON; `date:Y-m-d` forces short date format.
+5. `AssessmentTest::test_create_assessment_requires_responses` → renamed `test_create_assessment_without_responses_succeeds` and flipped assertion to `assertCreated()` (responses is now optional by design).
+
+**Test files:**
+- `tests/Feature/VitalsEnhancementTest.php` — 6 tests (BMI computation, glucose timing)
+- `tests/Feature/ImmunizationVisTest.php` — 4 tests (VIS fields, date format, future date rejection)
+- `tests/Feature/AssessmentToolTest.php` — 10 tests (new types stored, alert thresholds, model helpers)
+- `tests/Feature/AssessmentTest.php` — 1 test updated (responses now optional)
+
+**Result:** 1302 tests, 0 failures. Build clean. Migrations 86–88 confirmed.
 
 ### 2026-03-31 — W4-1 User Designations Add-On (appended to W4-1 session)
 
