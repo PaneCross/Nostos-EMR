@@ -26,10 +26,7 @@ import GlobalSearch from '@/Components/GlobalSearch';
 import NotificationBell from '@/Components/NotificationBell';
 import ThemeToggle from '@/Components/ThemeToggle';
 
-// ─── Development phase indicator (TEMPORARY) ─────────────────────────────────
-// Update this string at the start of each phase. Remove the entire indicator
-// component from Sidebar before final production handoff.
-const PHASE_LABEL = 'Phase 12B';
+
 
 // ─── Department label map ─────────────────────────────────────────────────────
 // Used by the "Dashboard View" selector. Mirrors User::DEPARTMENT_LABELS on the backend.
@@ -281,13 +278,6 @@ function Sidebar({ collapsed, navGroups, currentPath }: {
             {/* ── User footer ────────────────────────────────────────────────── */}
             <div className="border-t border-slate-800 p-3 space-y-2">
 
-                {/* ── TEMPORARY phase indicator (remove before production) ─── */}
-                {!collapsed && (
-                    <div className="px-3 py-1.5 rounded-lg bg-blue-900/40 border border-blue-800/60">
-                        <p className="text-[10px] font-medium text-blue-300 uppercase tracking-widest">Dev Build</p>
-                        <p className="text-xs text-blue-200 font-semibold mt-0.5">{PHASE_LABEL}</p>
-                    </div>
-                )}
 
                 {/* ── Dashboard View selector (super-admin only, not while impersonating) ──
                     Only affects which module cards render on Dashboard/Index.tsx.

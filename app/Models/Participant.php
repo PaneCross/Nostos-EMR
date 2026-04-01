@@ -51,6 +51,10 @@ class Participant extends Model
         // Phase 11B: advance directive structured fields
         'advance_directive_status', 'advance_directive_type',
         'advance_directive_reviewed_at', 'advance_directive_reviewed_by_user_id',
+        // W4-3: demographics expansion (race/ethnicity, marital, legal rep, SDOH)
+        'race', 'ethnicity', 'race_detail',
+        'marital_status', 'legal_representative_type', 'legal_representative_contact_id',
+        'religion', 'veteran_status', 'education_level',
     ];
 
     protected $casts = [

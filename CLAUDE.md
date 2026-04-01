@@ -85,7 +85,7 @@ Wave 4 (Phases W4-0 through W4-9): IN PROGRESS
   W4-0  CLAUDE.md Wave 4 Update:          [x] COMPLETE — 2026-03-31
   W4-1  Grievance & Consent Module:        [x] COMPLETE — 2026-03-31 (+ User Designations system)
   W4-2  Encryption at Rest + BAA/SRA:      [x] COMPLETE — 2026-03-31 (BLOCKER-01 + BLOCKER-03 resolved)
-  W4-3  Demographics + Participant Fields:  [ ] NOT STARTED
+  W4-3  Demographics + Participant Fields:  [x] COMPLETE — 2026-04-01
   W4-4  Quick Wins — Vitals & Assessments: [ ] NOT STARTED
   W4-5  Care Plan + IDT Compliance:        [ ] NOT STARTED
   W4-6  Incident + Regulatory Tracking:    [ ] NOT STARTED
@@ -193,8 +193,9 @@ Full context for Wave 4 build. Status tags indicate which W4 phase addresses eac
   Common CMS survey deficiency finding.
 - GAP-06 [W4-5]: No participant acknowledgment fields on care plans.
   42 CFR §460.104(d) requires participant/representative signature on plan.
-- GAP-07 [W4-3]: No race/ethnicity fields on participant demographics.
-  Affects HEDIS equity reporting and CMS submission requirements (OMB standards).
+- GAP-07 [W4-3]: RESOLVED — Race/ethnicity (OMB two-question format), marital status,
+  veteran status, education level, religion, legal rep FK all added in migration 85.
+  Photo display implemented in header + directory. ParticipantDemographicsTest (19 tests).
 - GAP-08 [W4-6]: No CMS/SMA (State Medicaid Agency) notification tracking on
   incidents. 42 CFR §460.136 requires notifying CMS and SMA of significant
   adverse events within specified timeframes.
@@ -444,7 +445,7 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 - Known technical debt log: [x] COMPLETE — categorized by priority in HANDOFF.md
 - Environment setup verified from scratch: [ ] Not yet verified by independent developer
 
-## MIGRATIONS RUN (83 total, in order, all batch 1)
+## MIGRATIONS RUN (85 total, in order, all batch 1)
 1.  0001_01_01_000000_create_users_table
 2.  0001_01_01_000001_create_cache_table
 3.  0001_01_01_000002_create_jobs_table
@@ -528,6 +529,8 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 81. 2025_01_05_000002_add_escalated_to_user_id_to_emr_grievances
 82. 2025_02_01_000001_create_emr_baa_records_table
 83. 2025_02_01_000002_create_emr_sra_records_table
+84. 2025_02_02_000001_widen_encrypted_phi_columns
+85. 2025_03_01_000001_add_demographics_to_participants
 
 ## MODELS (60)
 AdlRecord, AdlThreshold, Alert, Allergy, ApiToken, Appointment, Assessment, AuditLog,
@@ -672,10 +675,21 @@ Idt/Meetings, Scheduling/DayCenter, Reports/Index, ItAdmin/SystemSettings
 - [W4-1 Designations] GrievanceService::checkOverdue() and open() now look up the active compliance_officer designation holder before creating alerts; includes name in alert message and compliance_officer_id in metadata JSONB. This is an additive enhancement to existing workflows — no breaking changes.
 - [W4-1 Designations] GET /grievances/escalation-staff is a static route. MUST be declared before /{grievance} in routes/web.php — otherwise "escalation-staff" matches as a Grievance model binding ID and causes a PostgreSQL bigint parse error. Currently in correct order.
 - [W4-2] Participant model has 'encrypted' cast on ssn_last_four, medicare_id, medicaid_id. InsuranceCoverage has 'encrypted' on member_id, bin_pcn. Laravel AES-256-CBC via APP_KEY. If APP_KEY is rotated, all encrypted columns become unreadable — re-seed or run a migration script to re-encrypt. Test APP_KEY in phpunit.xml differs from .env (standard practice).
-- [W4-2] BaaRecord.isExpiringSoon() uses Carbon 3 signed diffInDays (positive means future). The check is `$date->isFuture() && $date->diffInDays(now()) <= 60`. isPast() guards the expired case above it so no negative values reach this branch.
+- [W4-2] BaaRecord.isExpiringSoon() uses Carbon 3 signed diffInDays. Carbon 3 BUG: `$futureDate->diffInDays(now())` returns an unexpected negative or wrong value for future dates, causing false positives. CORRECT pattern: `$date->isFuture() && now()->diffInDays($date) <= self::EXPIRING_SOON_DAYS`. Call diffInDays FROM now() TO the future date — not the reverse. This is a Carbon 3 behavior change; always use `now()->diffInDays($futureDate)` for "days remaining" calculations.
 - [W4-2] SraRecord.isOverdue(): returns false when next_sra_due is null (in_progress SRAs have no due date yet). Only completed SRAs with a set next_sra_due date can be overdue. "No completed SRA at all" = overdue is enforced in QaDashboardController::buildCompliancePosture() (`$latestSra ? $latestSra->isOverdue() : true`).
 - [W4-2] SecurityComplianceController uses requireItAdmin() guard (same pattern as ItAdminController). All 5 endpoints (index, baaStore, baaUpdate, sraStore, sraUpdate) abort(403) for non-IT-admin departments.
 - [W4-2] encryption_status checks in SecurityComplianceController::buildEncryptionStatus() are runtime-computed from config() + model cast introspection. The field_encryption check uses `(new Participant())->getCasts()['medicare_id'] === 'encrypted'` — will automatically change from 'pass' to 'warn' if the cast is ever removed.
+- [W4-2] SecurityComplianceController CRUD endpoints (baaStore/baaUpdate/sraStore/sraUpdate) MUST return JsonResponse (not `back()->with(...)`). The React frontend uses `axios.post/put` which sends `Accept: application/json` and expects 201/200 JSON. Returning `back()` gives a 302 redirect and axios throws. Pattern: `return response()->json(['message' => '...', 'baa' => $baa->toApiArray()], 201)`.
+- [W4-2] Migration 84 (2025_02_02_000001_widen_encrypted_phi_columns): widens emr_participants.ssn_last_four (was varchar(4)), medicare_id/medicaid_id (was varchar(20)) and emr_insurance_coverages.member_id/bin_pcn (was varchar(50)) all to TEXT. AES-256-CBC ciphertext is ~180-220 chars — original column widths truncate and corrupt all encrypted values. Run this migration BEFORE enabling the 'encrypted' casts. Rolling back with casts still in place corrupts data.
+- [W4-2] PHI field encryption column widening is a prerequisite for ParticipantFactory (and any factory that creates Participants) to work in tests. Without migration 84, every test that calls Participant::factory()->create() will fail with SQLSTATE[22001] string-data-right-truncated.
+- [W4-3] Demographics fields (race/ethnicity/marital_status/veteran_status/education_level) use string columns with PostgreSQL CHECK constraints (not ENUM type). All nullable — 'declined' is a valid data value for race/ethnicity, not missing data.
+- [W4-3] legal_representative_contact_id FK: references emr_participant_contacts with nullOnDelete. The contact must exist in emr_participant_contacts (validation: `exists:emr_participant_contacts,id`). No cross-participant enforcement at DB level — rely on controller/test-level validation.
+- [W4-3] ParticipantFactory.legal_representative_contact_id defaults to null; contact FK linking must be done post-creation in seeders (after contacts are created for the participant). The W42DataSeeder pattern shows how to update a participant after creating its contacts.
+- [W4-3] Photo display: photo_path is stored as a relative path (e.g., "participants/photo.jpg") — render as `/storage/{photo_path}` in TSX. Falls back to initials avatar when null. Shows in sticky header (48px), directory listing (32px), and facesheet print header.
+- [W4-3] Dev build box removed from AppShell.tsx sidebar footer. PHASE_LABEL constant and the entire blue indicator div removed.
+- [W4-1/W4-2] Grievance nav access: ALL 14 departments can file and view grievances per 42 CFR §460.120 (PACE must accept grievances from any source). PermissionSeeder grants `$cr()` (create+read+export) to all non-QA depts; `$full()` to qa_compliance and it_admin. The GrievanceController::authorizeQaAdmin() guard independently enforces that only qa_compliance/it_admin can update/resolve/escalate/submit-to-CMS at the HTTP level. Admin-role users in other depts get full DB-level permissions via the forEach auto-elevation, but the HTTP guard still blocks them — two independent enforcement layers.
+- [W4-1/W4-2] "Submit to CMS" (flag-as-reportable + mark-as-submitted) buttons in Grievances/Show.tsx are wrapped in `{isQaAdmin && (` — visible only to qa_compliance and it_admin departments. This gate is in addition to the server-side GrievanceController::authorizeQaAdmin() check.
+- [W4-2] Grievance model datetime fields (filed_at, cms_reported_at, participant_notified_at, created_at) MUST use `toIso8601String()` in toApiArray(), NOT `toDateTimeString()`. `toDateTimeString()` outputs "2026-03-31 21:58:00" with NO timezone offset. JavaScript's `new Date()` parses a string without timezone as LOCAL time — a user in UTC-7 would see 9:58pm local stored as 4:58am UTC displayed as 4:58am "next day". `toIso8601String()` outputs "2026-03-31T21:58:00+00:00" which JavaScript correctly parses as UTC and `toLocaleString()` converts to the user's local timezone. RULE: any datetime that will be displayed in a React component must use `toIso8601String()` on the PHP side.
 - [W3-4] Care plan save silently failed: original catch block was `catch { /* ignore */ }`. Fixed to capture error and display it via saveError state in CarePlanTab. Plan must be draft or under_review — approved plans are read-only (Edit button hidden, plan.status check added).
 - [W3-4] Tab URL sync: tabs are pure client-side state. switchTab() calls window.history.replaceState to update ?tab= param without Inertia reload. Server ignores the ?tab param entirely — always renders Participants/Show component.
 - [Phase 5A] ConflictDetectionService uses half-open interval comparison: existing.start < new.end AND existing.end > new.start. This means adjacent appointments (end = next start) do NOT conflict — correct PACE scheduling behavior (back-to-back appointments are allowed).
@@ -885,6 +899,7 @@ rsync -av --exclude=vendor --exclude=node_modules --exclude=public/build --exclu
 - [2026-03-31] W4-0 — 1181 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). Wave 4 baseline confirmed. Fixed 3 pre-existing test issues: QaMetricsServiceTest hospitalization boundary (subMonth→subMonths(2)), ComingSoonBannerTest clinical/orders test updated for live page (W3-8), DashboardActionabilityTest enrollment referral created_at (subDays(2) on Tuesday fell before week start → use startOfWeek+1h).
 - [2026-03-31] W4-1 — 1218 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). Grievance & Consent Module complete. BLOCKER-02 resolved.
 - [2026-03-31] W4-1 User Designations add-on — 1232 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). User Designations system complete. Migrations 80–81. 14 new tests (UserDesignationTest).
+- [2026-03-31] W4-2 + Grievance permissions + Timestamp fix — 1263 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). Migration 84 (column widening for encrypted PHI). 28 new tests (EncryptionTest 10 + BaaTrackerTest 18). Grievances nav opened to all 14 depts. Grievance datetime toIso8601String() fix. SecurityComplianceController JSON returns. Build clean.
 - [2026-03-26] W3-2 — 1091 passing, 0 failing. Build clean. Adds NavRoutingTest (13 tests) + DayCenterAttendanceTest (12 tests) + Day Center attendance module + Reports page + System Settings page. Bugs fixed: scopeForSite null type hint, payer_id column DNE, pace_contract column DNE (mapped to cms_contract_id), ComingSoonBannerTest stale assertions for 3 now-live pages + /idt/minutes redirect target.
 - [2026-03-27] W3-4 — 1137 passing, 0 failing. Build clean. Adds FacesheetTest (6 tests) + ParticipantTabRoutingTest (22 tests). Show.tsx: print CSS fixed (visibility approach — position:fixed caused blank print), two-row tab layout (CLINICAL blue / ADMIN slate), switchTab() for URL sync via window.history.replaceState, valid tab list updated with immunizations/procedures/sdoh (Phase 11B), ParticipantHeader onTabChange prop + Care Plan/Schedule header buttons fixed, advance directive DNR/POLST/No Directive badges in sticky header flags row, CarePlanTab save error state (catch block no longer silent), editability guard on Edit button (hidden for active/archived plans). Bugs fixed: cross-tenant returns 403 not 404 (authorizeForTenant uses abort_if(..., 403)), PHPUnit @dataProvider converted to #[DataProvider] attribute.
 - [2026-03-27] W3-5 — 1155 passing, 0 failing. Build clean. Adds ChatSearchTest (10 tests) + ChatNotificationTest (8 tests). Migration 77: metadata JSONB on emr_alerts. Bugs fixed: DM search was calling /it-admin/users (403 for non-IT-admin) → replaced with /chat/users/search endpoint; urgent messages never created alerts (code comment but no implementation) → fixed.
@@ -1411,6 +1426,34 @@ Built a User Designations system — accountability sub-roles for targeted alert
 **Test file:** `tests/Feature/UserDesignationTest.php` — 14 tests covering full CRUD, model scopes, endpoint access control, cross-tenant isolation, escalation FK storage, alert creation, and IT Admin users page prop.
 
 **Result:** 1232 tests, 0 failures. Build clean. Migrations 80–81 confirmed.
+
+### 2026-03-31 — W4-2 Post-Commit: Grievance Permissions + Timestamp Fix + Column Widening
+
+Three bug fixes committed alongside the W4-2 deliverables (single commit `d0dd2c7`).
+
+**Migration 84 — widen_encrypted_phi_columns (critical fix):**
+- Root cause: `Participant` model had 'encrypted' casts on `ssn_last_four` (varchar(4)), `medicare_id` (varchar(20)), `medicaid_id` (varchar(20)). `InsuranceCoverage` had 'encrypted' on `member_id` (varchar(50)), `bin_pcn` (varchar(50)). AES-256-CBC ciphertext is ~180-220 chars — ALL encrypted writes were failing with SQLSTATE[22001] (string data, right truncated), causing 731 ParaTest failures.
+- Fix: Migration 84 (`2025_02_02_000001_widen_encrypted_phi_columns`) uses `DB::statement('ALTER TABLE ... ALTER COLUMN ... TYPE TEXT')` to widen all 5 columns to TEXT. `down()` restores to VARCHAR(255) with a comment warning not to run while casts are active.
+
+**BaaRecord::isExpiringSoon() Carbon 3 bug fix:**
+- Root cause: `$this->baa_expiration_date->diffInDays(now())` in Carbon 3 returns an unexpected negative/wrong value for future dates, causing `<= 60` to be true for BAAs expiring 2 years from now (false positive).
+- Fix: Changed to `now()->diffInDays($this->baa_expiration_date) <= self::EXPIRING_SOON_DAYS`. Carbon 3: always call diffInDays FROM now() TO the future date to get the correct positive "days remaining" value.
+
+**SecurityComplianceController — store/update return type fix:**
+- Root cause: baaStore/baaUpdate/sraStore/sraUpdate all returned `back()->with('success', '...')` (Inertia redirect = 302). The React frontend uses `axios.post/put` which sends `Accept: application/json` and expects JSON 201/200, not a redirect.
+- Fix: Changed all 4 method return types from `RedirectResponse` to `JsonResponse`. Pattern: `return response()->json(['message' => '...', 'baa' => $baa->toApiArray()], 201)`.
+
+**Grievance permissions — all 14 departments:**
+- Root cause: `grievances` module was missing from `PermissionSeeder::MODULES` constant entirely. Without it, the forEach loops that build permission matrices never reached grievances — so even qa_compliance couldn't see the nav link.
+- Fix: Added `'grievances' => 'Grievances'` to MODULES. Added `$qaBase['grievances'] = $full()` (QA gets full CRUD). Added `$deptBase['grievances'] = $cr()` (all 13 other clinical/admin departments get create+read+export). `$itAdmin` auto-gets `$full()` via forEach. Per 42 CFR §460.120, PACE must accept grievances from participants, families, caregivers, and staff — all staff departments must be able to file grievances.
+- CMS submit gating confirmed: Grievances/Show.tsx wraps flag-as-reportable and mark-as-submitted in `{isQaAdmin && (` — QA + IT admin only. GrievanceController::authorizeQaAdmin() enforces this at the HTTP level independently. Two-layer enforcement.
+
+**Grievance datetime timestamp fix:**
+- Root cause: `Grievance::toApiArray()` used `toDateTimeString()` for `filed_at`, `cms_reported_at`, `participant_notified_at`, `created_at`. `toDateTimeString()` output: "2026-03-31 21:58:00" (no timezone). JavaScript's `new Date()` treats a string without timezone as LOCAL time → user in UTC-7 sees 9:58pm stored as "tomorrow 4:58am".
+- Fix: Changed all 4 fields to `toIso8601String()`. Output: "2026-03-31T21:58:00+00:00" → JavaScript correctly parses as UTC → `toLocaleString()` converts to user's local timezone → displays as "9:58pm" in user's timezone.
+- RULE: any PHP Carbon datetime field that will be displayed in React MUST use `toIso8601String()` (not `toDateTimeString()`, not `format('Y-m-d H:i:s')`).
+
+**Test results:** 1263 tests, 0 failures. Build clean. Commit `d0dd2c7` pushed.
 
 ### 2026-03-31 — W4-2 Complete — Encryption at Rest + BAA/SRA Tracker (BLOCKERs 01+03)
 

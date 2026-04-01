@@ -19,6 +19,7 @@ interface Participant {
   dob:               string
   enrollment_status: string
   is_active:         boolean
+  photo_path:        string | null
   site:              { id: number; name: string }
   active_flags:      Flag[]
 }
@@ -206,12 +207,27 @@ export default function ParticipantIndex({ participants, sites, filters, canCrea
                 >
                   <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700 dark:text-slate-300">{ppt.mrn}</td>
                   <td className="px-4 py-3">
-                    <div className="font-medium text-gray-900 dark:text-slate-100">
-                      {ppt.last_name}, {ppt.first_name}
+                    <div className="flex items-center gap-2">
+                      {ppt.photo_path ? (
+                        <img
+                          src={`/storage/${ppt.photo_path}`}
+                          alt=""
+                          className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-gray-200 dark:border-slate-600"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                          {ppt.first_name[0]}{ppt.last_name[0]}
+                        </div>
+                      )}
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-slate-100">
+                          {ppt.last_name}, {ppt.first_name}
+                        </div>
+                        {ppt.preferred_name && (
+                          <div className="text-xs text-gray-400 dark:text-slate-500">"{ppt.preferred_name}"</div>
+                        )}
+                      </div>
                     </div>
-                    {ppt.preferred_name && (
-                      <div className="text-xs text-gray-400 dark:text-slate-500">"{ppt.preferred_name}"</div>
-                    )}
                   </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
                     <div>{new Date(ppt.dob).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</div>

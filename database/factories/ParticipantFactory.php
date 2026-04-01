@@ -83,6 +83,49 @@ class ParticipantFactory extends Factory
             'photo_path'              => null,
             'is_active'               => true,
             'created_by_user_id'      => null,
+            // W4-3: Demographics — realistic PACE population distributions
+            'race'             => $this->faker->randomElement([
+                'white', 'white', 'white', 'white',                        // ~40%
+                'black_african_american', 'black_african_american',         // ~20%
+                'asian', 'asian',                                           // ~20%
+                'american_indian_alaska_native',                            // ~5%
+                'native_hawaiian_pacific_islander',                         // ~5%
+                'multiracial',                                              // ~5%
+                'other',                                                    // ~3%
+                'declined',                                                 // ~2%
+            ]),
+            'ethnicity'        => $this->faker->randomElement([
+                'not_hispanic_latino', 'not_hispanic_latino', 'not_hispanic_latino', // ~75%
+                'hispanic_latino',                                                    // ~20%
+                'declined',                                                           // ~3%
+                'unknown',                                                            // ~2%
+            ]),
+            'race_detail'      => null,
+            'marital_status'   => $this->faker->randomElement([
+                'widowed', 'widowed', 'widowed',    // ~40% for PACE age group
+                'married', 'married',               // ~30%
+                'divorced',                         // ~15%
+                'single',                           // ~10%
+                'separated',                        // ~4%
+                'unknown',                          // ~1%
+            ]),
+            'legal_representative_type'       => $this->faker->boolean(60)
+                ? $this->faker->randomElement(['legal_guardian', 'durable_poa', 'healthcare_proxy', 'other'])
+                : null,
+            'legal_representative_contact_id' => null, // linked post-creation in seeders
+            'religion'         => $this->faker->boolean(50)
+                ? $this->faker->randomElement(['Catholic', 'Protestant', 'Baptist', 'Methodist', 'Jewish', 'Buddhist', 'Muslim', 'None', 'Other'])
+                : null,
+            'veteran_status'   => $this->faker->randomElement([
+                'not_veteran', 'not_veteran', 'not_veteran', 'not_veteran', // ~70%
+                'veteran_active',                                            // ~10%
+                'veteran_inactive',                                          // ~10%
+                'unknown',                                                   // ~10%
+            ]),
+            'education_level'  => $this->faker->randomElement([
+                'less_than_high_school', 'high_school_ged', 'high_school_ged',
+                'some_college', 'associates', 'bachelors', 'graduate', 'unknown',
+            ]),
         ];
     }
 

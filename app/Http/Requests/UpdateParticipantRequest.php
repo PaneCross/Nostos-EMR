@@ -25,6 +25,16 @@ class UpdateParticipantRequest extends FormRequest
             'advance_directive_status' => ['nullable', 'in:has_directive,declined_directive,incapacitated_no_directive,unknown'],
             'advance_directive_type'   => ['nullable', 'in:dnr,polst,living_will,healthcare_proxy,combined'],
             'advance_directive_reviewed_at' => ['nullable', 'date'],
+            // W4-3: Demographics — all depts may update (SDOH, enrollment, clinical use)
+            'race'             => ['nullable', 'in:white,black_african_american,asian,american_indian_alaska_native,native_hawaiian_pacific_islander,multiracial,other,unknown,declined'],
+            'ethnicity'        => ['nullable', 'in:hispanic_latino,not_hispanic_latino,unknown,declined'],
+            'race_detail'      => ['nullable', 'string', 'max:255'],
+            'marital_status'   => ['nullable', 'in:single,married,domestic_partner,divorced,widowed,separated,unknown'],
+            'legal_representative_type'       => ['nullable', 'in:self,legal_guardian,durable_poa,healthcare_proxy,court_appointed,other'],
+            'legal_representative_contact_id' => ['nullable', 'integer', 'exists:emr_participant_contacts,id'],
+            'religion'         => ['nullable', 'string', 'max:100'],
+            'veteran_status'   => ['nullable', 'in:not_veteran,veteran_active,veteran_inactive,unknown'],
+            'education_level'  => ['nullable', 'in:less_than_high_school,high_school_ged,some_college,associates,bachelors,graduate,unknown'],
         ];
 
         $enrollmentFields = [

@@ -118,6 +118,17 @@ interface Participant {
   advance_directive_status:             'has_directive' | 'declined_directive' | 'incapacitated_no_directive' | 'unknown' | null
   advance_directive_type:               'dnr' | 'polst' | 'living_will' | 'healthcare_proxy' | 'combined' | null
   advance_directive_reviewed_at:        string | null
+  // W4-3: Demographics expansion
+  photo_path:                           string | null
+  race:                                 string | null
+  ethnicity:                            string | null
+  race_detail:                          string | null
+  marital_status:                       string | null
+  legal_representative_type:            string | null
+  legal_representative_contact_id:      number | null
+  religion:                             string | null
+  veteran_status:                       string | null
+  education_level:                      string | null
   site:                                 { id: number; name: string }
   tenant:                               { id: number; name: string }
   created_by:                           { id: number; first_name: string; last_name: string } | null
@@ -405,9 +416,17 @@ function ParticipantHeader({ participant, activeFlags, canDelete, onTabChange }:
   return (
     <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 sticky top-0 z-20 shadow-sm">
       <div className="flex items-start gap-4">
-        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
-          {participant.first_name[0]}{participant.last_name[0]}
-        </div>
+        {participant.photo_path ? (
+          <img
+            src={`/storage/${participant.photo_path}`}
+            alt={`${participant.first_name} ${participant.last_name}`}
+            className="w-14 h-14 rounded-full object-cover flex-shrink-0 border-2 border-gray-200 dark:border-slate-600"
+          />
+        ) : (
+          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
+            {participant.first_name[0]}{participant.last_name[0]}
+          </div>
+        )}
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -527,6 +546,101 @@ function LifeThreateningBanner({ count, onViewAllergies }: {
 
 // ─── Overview Tab — PACE Facesheet ────────────────────────────────────────────
 // Full clinical facesheet layout with print-to-PDF support.
+// ─── Additional Demographics Section (collapsible, W4-3) ─────────────────────
+// Shows veteran status, religion, education level, and legal representative.
+// Collapsed by default — expands on click. Hidden during print to keep facesheet concise.
+function AdditionalDemographicsSection({ participant, contacts }: { participant: Participant; contacts: Contact[] }) {
+  const [open, setOpen] = React.useState(false)
+
+  const legalRepContact = contacts.find(c => c.id === participant.legal_representative_contact_id)
+
+  const VETERAN_LABELS: Record<string, string> = {
+    veteran_active:   'Veteran (Active Benefits)',
+    veteran_inactive: 'Veteran (Inactive)',
+    not_veteran:      'Not a Veteran',
+    unknown:          'Unknown',
+  }
+  const EDU_LABELS: Record<string, string> = {
+    less_than_high_school: 'Less than High School',
+    high_school_ged:       'High School / GED',
+    some_college:          'Some College',
+    associates:            'Associate Degree',
+    bachelors:             "Bachelor's Degree",
+    graduate:              'Graduate Degree',
+    unknown:               'Unknown',
+  }
+  const LEGAL_REP_LABELS: Record<string, string> = {
+    self:              'Self',
+    legal_guardian:    'Legal Guardian',
+    durable_poa:       'Durable POA',
+    healthcare_proxy:  'Healthcare Proxy',
+    court_appointed:   'Court-Appointed',
+    other:             'Other',
+  }
+
+  return (
+    <section id="facesheet-no-print">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1 border-b border-gray-100 dark:border-slate-700/50 pb-0.5 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+      >
+        <span>Additional Demographics</span>
+        <ChevronIcon open={open} />
+      </button>
+      {open && (
+        <div className="space-y-1 text-[12px]">
+          {participant.veteran_status && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-gray-500 dark:text-slate-400 shrink-0">Veteran:</span>
+              <span className={`font-medium ${participant.veteran_status.startsWith('veteran') ? 'text-blue-700 dark:text-blue-300' : 'text-gray-800 dark:text-slate-200'}`}>
+                {VETERAN_LABELS[participant.veteran_status] ?? participant.veteran_status}
+              </span>
+            </div>
+          )}
+          {participant.education_level && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-gray-500 dark:text-slate-400 shrink-0">Education:</span>
+              <span className="text-gray-800 dark:text-slate-200">{EDU_LABELS[participant.education_level] ?? participant.education_level}</span>
+            </div>
+          )}
+          {participant.religion && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-gray-500 dark:text-slate-400 shrink-0">Religion:</span>
+              <span className="text-gray-800 dark:text-slate-200">{participant.religion}</span>
+            </div>
+          )}
+          {participant.legal_representative_type && (
+            <div className="flex items-start gap-1.5">
+              <span className="text-gray-500 dark:text-slate-400 shrink-0">Legal Rep:</span>
+              <div>
+                <span className="text-gray-800 dark:text-slate-200">{LEGAL_REP_LABELS[participant.legal_representative_type] ?? participant.legal_representative_type}</span>
+                {legalRepContact && (
+                  <span className="text-gray-500 dark:text-slate-400 ml-1">
+                    ({legalRepContact.first_name} {legalRepContact.last_name})
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+// Small inline chevron icon for the collapsible section toggle
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`}
+      fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+    </svg>
+  )
+}
+
 interface OverviewTabProps {
   participant:  Participant
   addresses:    Address[]
@@ -615,9 +729,18 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
 
         {/* ── Header ────────────────────────────────────────────────────────── */}
         <div className="bg-slate-800 text-white px-4 py-2 rounded-t-lg flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-medium text-slate-300 uppercase tracking-widest">{participant.tenant.name}</p>
-            <p className="text-base font-bold tracking-tight">PACE Participant Facesheet</p>
+          <div className="flex items-center gap-3">
+            {participant.photo_path && (
+              <img
+                src={`/storage/${participant.photo_path}`}
+                alt={`${participant.first_name} ${participant.last_name}`}
+                className="w-10 h-10 rounded-full object-cover border border-slate-600 shrink-0"
+              />
+            )}
+            <div>
+              <p className="text-[10px] font-medium text-slate-300 uppercase tracking-widest">{participant.tenant.name}</p>
+              <p className="text-base font-bold tracking-tight">PACE Participant Facesheet</p>
+            </div>
           </div>
           <div className="text-right text-[11px] text-slate-300">
             <p className="font-semibold text-white">CONFIDENTIAL · HIPAA PHI</p>
@@ -636,10 +759,19 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
             <span className="text-gray-500 dark:text-slate-400">DOB: <span className="font-semibold text-gray-800 dark:text-slate-200">{participant.dob ? new Date(participant.dob + 'T12:00:00').toLocaleDateString('en-US') : '-'}</span></span>
             <span className="text-gray-500 dark:text-slate-400">Age: <span className="font-semibold text-gray-800 dark:text-slate-200">{age(participant.dob)} yrs</span></span>
             <span className="text-gray-500 dark:text-slate-400">Gender: <span className="font-semibold text-gray-800 dark:text-slate-200">{participant.gender ?? '-'}</span></span>
+            {participant.marital_status && participant.marital_status !== 'unknown' && (
+              <span className="text-gray-500 dark:text-slate-400">Marital: <span className="font-semibold text-gray-800 dark:text-slate-200 capitalize">{participant.marital_status.replace('_', ' ')}</span></span>
+            )}
             <span className="text-gray-500 dark:text-slate-400">Language: <span className="font-semibold text-gray-800 dark:text-slate-200">
               {participant.primary_language}
               {participant.interpreter_needed && <span className="font-normal text-amber-700 dark:text-amber-300 ml-1">(Interp.{participant.interpreter_language ? ` ${participant.interpreter_language}` : ''})</span>}
             </span></span>
+            {participant.race && participant.race !== 'declined' && participant.race !== 'unknown' && (
+              <span className="text-gray-500 dark:text-slate-400">Race: <span className="font-semibold text-gray-800 dark:text-slate-200">{participant.race_detail ?? participant.race.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</span></span>
+            )}
+            {participant.ethnicity && participant.ethnicity !== 'declined' && participant.ethnicity !== 'unknown' && (
+              <span className="text-gray-500 dark:text-slate-400">Ethnicity: <span className="font-semibold text-gray-800 dark:text-slate-200">{participant.ethnicity === 'hispanic_latino' ? 'Hispanic/Latino' : 'Not Hispanic/Latino'}</span></span>
+            )}
           </div>
           {/* Row 2: identifiers + enrollment info */}
           <div className="flex flex-wrap items-baseline gap-x-6 gap-y-0.5">
@@ -853,6 +985,11 @@ function OverviewTab({ participant, addresses, contacts, flags, problems, allerg
                   )}
                 </div>
               </section>
+            )}
+
+            {/* Additional Demographics — collapsible (W4-3) */}
+            {(participant.veteran_status || participant.religion || participant.education_level || participant.legal_representative_type) && (
+              <AdditionalDemographicsSection participant={participant} contacts={contacts} />
             )}
 
             {/* Insurance */}
