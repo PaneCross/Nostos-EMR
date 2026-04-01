@@ -281,6 +281,24 @@ export default function GrievancesShow() {
                         {grievance.status === 'under_review' && (
                             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
                                 <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-3">Resolve Grievance</h3>
+
+                                {/* CMS review reminder for high-risk categories not yet flagged.
+                                    Non-blocking — QA can still resolve, but must consciously
+                                    acknowledge the determination. Mirrors GrievanceService warning alert. */}
+                                {!grievance.cms_reportable && ['discrimination', 'staff_conduct', 'quality_of_care'].includes(grievance.category) && (
+                                    <div className="mb-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2">
+                                        <ExclamationTriangleIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-xs font-semibold text-amber-800 dark:text-amber-200">CMS Reportability Review Required</p>
+                                            <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                                                This grievance category ({grievance.category_label}) requires a CMS reportability
+                                                assessment before resolution (42 CFR §460.120). You may still resolve, but a
+                                                QA review alert will be generated automatically.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
                                 <textarea
                                     value={resolution.resolution_text}
                                     onChange={e => setResolution(r => ({ ...r, resolution_text: e.target.value }))}

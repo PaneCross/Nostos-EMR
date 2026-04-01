@@ -84,6 +84,22 @@ class GrievanceService
                 . "Category: {$grievance->category}. Priority: {$grievance->priority}.",
         );
 
+        // Auto-flag discrimination grievances as CMS-reportable at creation.
+        // 42 CFR §460.112 requires reporting civil rights / non-discrimination violations.
+        // QA review is still required — this prevents the flag from being missed entirely.
+        if (in_array($grievance->category, Grievance::CMS_AUTO_FLAG_CATEGORIES, true)) {
+            $grievance->update(['cms_reportable' => true]);
+            AuditLog::record(
+                action:       'grievance.cms_reportable_set',
+                tenantId:     $participant->tenant_id,
+                userId:       $actor->id,
+                resourceType: 'grievance',
+                resourceId:   $grievance->id,
+                description:  "{$grievance->referenceNumber()} auto-flagged as CMS reportable on creation (category: {$grievance->category}, 42 CFR §460.112).",
+                newValues:    ['cms_reportable' => true],
+            );
+        }
+
         // Urgent grievances require immediate notification to QA + IT Admin
         // per CMS §460.120(c) — 72-hour resolution clock starts now.
         // If a compliance_officer designation holder exists, name them in the alert.
@@ -171,6 +187,31 @@ class GrievanceService
         // CMS surveys require a named reviewer in the escalation chain.
         if ($newStatus === 'escalated') {
             $this->createEscalationAlert($grievance, $data, $actor);
+        }
+
+        // Accountability net: when resolving a high-risk-category grievance without
+        // ever setting cms_reportable=true, fire a warning to qa_compliance.
+        // This does NOT block resolution — it creates an auditable paper trail so
+        // QA can confirm the determination was deliberate, not an oversight.
+        // Applies to: discrimination, staff_conduct, quality_of_care (CMS_REVIEW_REQUIRED_CATEGORIES).
+        if ($newStatus === 'resolved'
+            && in_array($grievance->category, Grievance::CMS_REVIEW_REQUIRED_CATEGORIES, true)
+            && ! $grievance->cms_reportable
+        ) {
+            Alert::create([
+                'tenant_id'          => $grievance->tenant_id,
+                'alert_type'         => 'grievance_cms_review_needed',
+                'title'              => "CMS Reportability Review: {$grievance->referenceNumber()}",
+                'message'            => "{$grievance->referenceNumber()} (category: {$grievance->categoryLabel()}) was resolved without "
+                    . "a CMS reportability determination. QA must confirm this is intentional per 42 CFR §460.120.",
+                'severity'           => 'warning',
+                'source_module'      => 'grievances',
+                'target_departments' => json_encode(['qa_compliance']),
+                'metadata'           => json_encode([
+                    'grievance_id' => $grievance->id,
+                    'category'     => $grievance->category,
+                ]),
+            ]);
         }
     }
 

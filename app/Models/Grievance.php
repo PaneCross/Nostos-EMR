@@ -77,6 +77,24 @@ class Grievance extends Model
     /** Urgent grievances: resolve within 72 hours (CMS expectation) */
     public const URGENT_RESOLUTION_HOURS = 72;
 
+    /**
+     * Categories that are always CMS-reportable on their face.
+     * Grievances in these categories are auto-flagged cms_reportable=true
+     * at creation — no manual assessment required.
+     * Source: 42 CFR §460.112 (non-discrimination) and CMS PACE survey guidance.
+     */
+    public const CMS_AUTO_FLAG_CATEGORIES = ['discrimination'];
+
+    /**
+     * Categories that require QA to actively assess CMS reportability before
+     * the grievance is resolved. Resolving one of these without ever flagging
+     * cms_reportable fires a warning alert to qa_compliance as an accountability net.
+     * This does NOT block resolution — it creates a paper trail.
+     */
+    public const CMS_REVIEW_REQUIRED_CATEGORIES = [
+        'discrimination', 'staff_conduct', 'quality_of_care',
+    ];
+
     // ── Fillable ──────────────────────────────────────────────────────────────
 
     protected $fillable = [
