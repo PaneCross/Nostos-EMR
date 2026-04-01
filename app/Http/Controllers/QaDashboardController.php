@@ -15,7 +15,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BaaRecord;
 use App\Models\Incident;
+use App\Models\Participant;
+use App\Models\SraRecord;
 use App\Services\QaMetricsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -62,10 +65,12 @@ class QaDashboardController extends Controller
             ->get();
 
         return Inertia::render('Qa/Dashboard', [
-            'kpis'          => $kpis,
-            'openIncidents' => $openIncidents,
-            'incidentTypes' => Incident::TYPE_LABELS,
-            'statuses'      => Incident::STATUS_LABELS,
+            'kpis'               => $kpis,
+            'openIncidents'      => $openIncidents,
+            'incidentTypes'      => Incident::TYPE_LABELS,
+            'statuses'           => Incident::STATUS_LABELS,
+            // W4-2: HIPAA security posture visible to QA / Compliance team
+            'compliance_posture' => $this->buildCompliancePosture($tenantId),
         ]);
     }
 
@@ -123,6 +128,47 @@ class QaDashboardController extends Controller
                 'days_overdue'    => abs((int) now()->diffInDays($a->next_due_date)),
             ])
         );
+    }
+
+    // ── Compliance posture (W4-2) ─────────────────────────────────────────────
+
+    /**
+     * Build a compact HIPAA security posture summary for the QA Dashboard.
+     * Surfaces expired/expiring BAAs, SRA currency, and encryption config
+     * so QA / Compliance staff can spot-check HIPAA posture without navigating
+     * to the full Security & Compliance page (/it-admin/security).
+     *
+     * No PHI is included — all fields are counts or boolean flags.
+     */
+    private function buildCompliancePosture(int $tenantId): array
+    {
+        // BAA coverage — HIPAA 45 CFR §164.308(b)(1)
+        $expiredBaaCount   = BaaRecord::forTenant($tenantId)->expired()->count();
+        $expiringSoonCount = BaaRecord::forTenant($tenantId)->expiringSoon()->count();
+
+        // SRA currency — HIPAA 45 CFR §164.308(a)(1): annual update required
+        $latestSra  = SraRecord::forTenant($tenantId)
+            ->completed()
+            ->orderBy('sra_date', 'desc')
+            ->first();
+        // No completed SRA on record = overdue by definition
+        $sraOverdue = $latestSra ? $latestSra->isOverdue() : true;
+
+        // Encryption at rest — HIPAA 45 CFR §164.312(a)(2)(iv)
+        $sessionEncrypted = config('session.encrypt', false) === true;
+        $dbSslMode        = config('database.connections.pgsql.sslmode', 'prefer');
+        $casts            = (new Participant())->getCasts();
+        $fieldEncrypted   = isset($casts['medicare_id']) && $casts['medicare_id'] === 'encrypted';
+
+        return [
+            'expired_baa_count'   => $expiredBaaCount,
+            'expiring_soon_count' => $expiringSoonCount,
+            'sra_overdue'         => $sraOverdue,
+            'session_encrypted'   => $sessionEncrypted,
+            'db_ssl_enforced'     => $dbSslMode === 'require',
+            'field_encryption'    => $fieldEncrypted,
+            'latest_sra_date'     => $latestSra?->sra_date?->toDateString(),
+        ];
     }
 
     // ── CSV Export ────────────────────────────────────────────────────────────

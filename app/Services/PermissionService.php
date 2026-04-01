@@ -229,10 +229,12 @@ class PermissionService
                 'label' => 'Administration',
                 'icon'  => 'settings',
                 'items' => [
-                    ['label' => 'Users',            'module' => 'user_management',     'href' => '/it-admin/users'],
-                    ['label' => 'Locations',        'module' => 'locations',           'href' => '/admin/locations'],
-                    ['label' => 'System Settings',  'module' => 'system_settings',     'href' => '/admin/settings'],
-                    ['label' => 'Chat',             'module' => 'chat',                'href' => '/chat'],
+                    ['label' => 'Users',                 'module' => 'user_management',    'href' => '/it-admin/users'],
+                    ['label' => 'Locations',             'module' => 'locations',          'href' => '/admin/locations'],
+                    ['label' => 'System Settings',       'module' => 'system_settings',    'href' => '/admin/settings'],
+                    // W4-2: HIPAA BAA tracking + SRA records + encryption status (BLOCKERs 01+03)
+                    ['label' => 'Security & Compliance', 'module' => 'security_compliance','href' => '/it-admin/security'],
+                    ['label' => 'Chat',                  'module' => 'chat',               'href' => '/chat'],
                 ],
             ],
             // ── Phase 10B: Executive / Leadership ─────────────────────────────

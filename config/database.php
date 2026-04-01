@@ -94,7 +94,9 @@ return [
             'prefix' => '',
             'prefix_indexes' => true,
             'search_path' => 'public',
-            'sslmode' => 'prefer',
+            // W4-2: env-driven sslmode — use DB_SSLMODE=require in production (HIPAA §164.312(e)(1)).
+            // Default 'prefer' is safe for local Sail dev (no SSL configured on Docker PostgreSQL).
+            'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 
         'sqlsrv' => [

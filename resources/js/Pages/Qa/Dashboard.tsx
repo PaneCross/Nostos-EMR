@@ -80,11 +80,87 @@ interface OverdueAssessment {
     days_overdue:     number;
 }
 
+// W4-2: HIPAA security posture summary passed from QaDashboardController
+interface CompliancePosture {
+    expired_baa_count:   number;
+    expiring_soon_count: number;
+    sra_overdue:         boolean;
+    session_encrypted:   boolean;
+    db_ssl_enforced:     boolean;
+    field_encryption:    boolean;
+    latest_sra_date:     string | null;
+}
+
 interface QaDashboardProps extends PageProps {
-    kpis:           Kpis;
-    openIncidents:  IncidentRow[];
-    incidentTypes:  Record<string, string>;
-    statuses:       Record<string, string>;
+    kpis:               Kpis;
+    openIncidents:      IncidentRow[];
+    incidentTypes:      Record<string, string>;
+    statuses:           Record<string, string>;
+    compliance_posture: CompliancePosture;
+}
+
+// ── Compliance Posture Widget (W4-2) ──────────────────────────────────────────
+// Compact HIPAA security posture row for QA staff. Surfaces expired/expiring
+// BAAs, SRA currency, and encryption config at a glance. Links to the full
+// Security & Compliance page for details.
+
+function CompliancePostureWidget({ posture }: { posture: CompliancePosture }) {
+    type ChipColor = 'green' | 'amber' | 'red';
+
+    const baaChip: { label: string; color: ChipColor } =
+        posture.expired_baa_count > 0
+            ? { label: `${posture.expired_baa_count} BAA${posture.expired_baa_count > 1 ? 's' : ''} Expired`, color: 'red' }
+            : posture.expiring_soon_count > 0
+            ? { label: `${posture.expiring_soon_count} BAA${posture.expiring_soon_count > 1 ? 's' : ''} Expiring Soon`, color: 'amber' }
+            : { label: 'BAA Coverage OK', color: 'green' };
+
+    const sraChip: { label: string; color: ChipColor } = posture.sra_overdue
+        ? { label: 'SRA Overdue', color: 'red' }
+        : {
+            label: posture.latest_sra_date
+                ? `SRA Current (${new Date(posture.latest_sra_date).toLocaleDateString()})`
+                : 'SRA Current',
+            color: 'green',
+          };
+
+    const encGaps = [
+        !posture.field_encryption  && 'Field Encryption',
+        !posture.session_encrypted && 'Session Encrypt',
+        !posture.db_ssl_enforced   && 'DB SSL',
+    ].filter(Boolean) as string[];
+
+    const encChip: { label: string; color: ChipColor } =
+        encGaps.length === 0
+            ? { label: 'Encryption Configured', color: 'green' }
+            : { label: `Encryption Gaps: ${encGaps.join(', ')}`, color: 'amber' };
+
+    const chipClasses: Record<ChipColor, string> = {
+        green: 'bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 ring-green-600/20 dark:ring-green-500/20',
+        amber: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 ring-amber-600/20 dark:ring-amber-500/20',
+        red:   'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 ring-red-600/20 dark:ring-red-500/20',
+    };
+
+    return (
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 px-5 py-3 mb-6 shadow-sm flex flex-wrap items-center gap-3">
+            <span className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide shrink-0">
+                Security Posture:
+            </span>
+            {[baaChip, sraChip, encChip].map((chip, i) => (
+                <span
+                    key={i}
+                    className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${chipClasses[chip.color]}`}
+                >
+                    {chip.label}
+                </span>
+            ))}
+            <a
+                href="/it-admin/security"
+                className="ml-auto text-xs text-blue-600 dark:text-blue-400 hover:underline shrink-0"
+            >
+                View Security Details
+            </a>
+        </div>
+    );
 }
 
 // ── Compliance tab options ─────────────────────────────────────────────────────
@@ -371,7 +447,7 @@ function GrievancesTab() {
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function QaDashboard() {
-    const { kpis, openIncidents, incidentTypes, statuses } = usePage<QaDashboardProps>().props;
+    const { kpis, openIncidents, incidentTypes, statuses, compliance_posture } = usePage<QaDashboardProps>().props;
 
     const [complianceTab, setComplianceTab] = useState<ComplianceTab>('incidents');
 
@@ -469,6 +545,9 @@ export default function QaDashboard() {
                     alert={kpis.missing_npp_count > 0}
                 />
             </div>
+
+            {/* ── Security Posture (W4-2) ──────────────────────────────────── */}
+            <CompliancePostureWidget posture={compliance_posture} />
 
             {/* ── Compliance tabs section ───────────────────────────────────── */}
             <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 shadow-sm">

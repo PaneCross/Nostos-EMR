@@ -262,7 +262,7 @@ class Grievance extends Model
             'participant_mrn'          => $this->participant?->mrn,
             'filed_by_name'            => $this->filed_by_name,
             'filed_by_type'            => $this->filed_by_type,
-            'filed_at'                 => $this->filed_at?->toDateTimeString(),
+            'filed_at'                 => $this->filed_at?->toIso8601String(),
             'category'                 => $this->category,
             'category_label'           => $this->categoryLabel(),
             'status'                   => $this->status,
@@ -272,8 +272,8 @@ class Grievance extends Model
                 ? $this->assignedTo->first_name . ' ' . $this->assignedTo->last_name
                 : null,
             'cms_reportable'           => $this->cms_reportable,
-            'cms_reported_at'          => $this->cms_reported_at?->toDateTimeString(),
-            'participant_notified_at'  => $this->participant_notified_at?->toDateTimeString(),
+            'cms_reported_at'          => $this->cms_reported_at?->toIso8601String(),
+            'participant_notified_at'  => $this->participant_notified_at?->toIso8601String(),
             'resolution_date'          => $this->resolution_date?->toDateString(),
             'is_urgent_overdue'        => $this->isUrgentOverdue(),
             'is_standard_overdue'      => $this->isStandardOverdue(),
@@ -282,7 +282,7 @@ class Grievance extends Model
             'escalated_to_name'        => $this->escalatedTo
                 ? $this->escalatedTo->first_name . ' ' . $this->escalatedTo->last_name
                 : null,
-            'created_at'               => $this->created_at?->toDateTimeString(),
+            'created_at'               => $this->created_at?->toIso8601String(),
         ];
     }
 }

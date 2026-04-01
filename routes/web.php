@@ -58,6 +58,7 @@ use App\Http\Controllers\FinanceDashboardController;
 use App\Http\Controllers\FhirController;
 use App\Http\Controllers\ConsentController;
 use App\Http\Controllers\GrievanceController;
+use App\Http\Controllers\SecurityComplianceController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\QaDashboardController;
 use App\Http\Controllers\ReferralController;
@@ -742,6 +743,12 @@ Route::middleware('auth')->group(function () {
         Route::post('/state-config',              [StateMedicaidConfigController::class, 'store'])->name('it-admin.state-config.store');
         Route::put('/state-config/{config}',      [StateMedicaidConfigController::class, 'update'])->name('it-admin.state-config.update');
         Route::delete('/state-config/{config}',   [StateMedicaidConfigController::class, 'destroy'])->name('it-admin.state-config.destroy');
+        // W4-2: Security & Compliance — BAA tracking + SRA records + encryption status (BLOCKERs 01+03)
+        Route::get('/security',                   [SecurityComplianceController::class, 'index'])->name('it-admin.security.index');
+        Route::post('/baa',                       [SecurityComplianceController::class, 'baaStore'])->name('it-admin.baa.store');
+        Route::put('/baa/{baa}',                  [SecurityComplianceController::class, 'baaUpdate'])->name('it-admin.baa.update');
+        Route::post('/sra',                       [SecurityComplianceController::class, 'sraStore'])->name('it-admin.sra.store');
+        Route::put('/sra/{sra}',                  [SecurityComplianceController::class, 'sraUpdate'])->name('it-admin.sra.update');
     });
 });
 

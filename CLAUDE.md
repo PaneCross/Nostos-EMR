@@ -84,7 +84,7 @@ Wave 3 (Phases W3-0 through W3-8): COMPLETE
 Wave 4 (Phases W4-0 through W4-9): IN PROGRESS
   W4-0  CLAUDE.md Wave 4 Update:          [x] COMPLETE — 2026-03-31
   W4-1  Grievance & Consent Module:        [x] COMPLETE — 2026-03-31 (+ User Designations system)
-  W4-2  Encryption at Rest + BAA/SRA:      [ ] NOT STARTED
+  W4-2  Encryption at Rest + BAA/SRA:      [x] COMPLETE — 2026-03-31 (BLOCKER-01 + BLOCKER-03 resolved)
   W4-3  Demographics + Participant Fields:  [ ] NOT STARTED
   W4-4  Quick Wins — Vitals & Assessments: [ ] NOT STARTED
   W4-5  Care Plan + IDT Compliance:        [ ] NOT STARTED
@@ -170,14 +170,16 @@ Wave 4 (Phases W4-0 through W4-9): IN PROGRESS
 Full context for Wave 4 build. Status tags indicate which W4 phase addresses each item.
 
 ### BLOCKERS (must resolve before real patient data)
-- BLOCKER-01 [W4-2]: Encryption at rest — no DB SSL configured, no field-level PHI
-  encryption, SESSION_ENCRYPT not configured. Violates HIPAA Security Rule
-  45 CFR §164.312(a)(2)(iv) and §164.312(e)(2)(ii).
+- BLOCKER-01 [W4-2]: RESOLVED — Field-level encryption (Participant + InsuranceCoverage
+  'encrypted' cast), DB sslmode env-driven (DB_SSLMODE), SESSION_ENCRYPT documented
+  in .env.example. Production still requires DB_SSLMODE=require + SESSION_ENCRYPT=true
+  in real .env — tracked in HANDOFF.md go-live checklist.
 - BLOCKER-02 [W4-1]: RESOLVED — Grievance workflow + NPP consent module complete.
   See W4-1 session log entry for full details.
-- BLOCKER-03 [W4-2]: No SRA (Security Risk Analysis) module, no BAA (Business
-  Associate Agreement) tracking in system. Required by 45 CFR §164.308(a)(1)
-  and §164.308(b)(1).
+- BLOCKER-03 [W4-2]: RESOLVED — BAA tracker (emr_baa_records) + SRA tracker
+  (emr_sra_records) built. SecurityComplianceController + ItAdmin/Security.tsx
+  (3-tab page). QA Dashboard compliance posture widget. W42DataSeeder seeds demo
+  data (AWS active, Mailgun expiring, clearinghouse pending, 1 completed SRA).
 - BLOCKER-04 [W4-7]: Clinical > Orders page shows care plan goals worklist, NOT a
   clinical order entry system. CPOE (Computerized Physician Order Entry) is
   expected for 42 CFR §460.100 (medical care plan) and survey compliance.
@@ -442,7 +444,7 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 - Known technical debt log: [x] COMPLETE — categorized by priority in HANDOFF.md
 - Environment setup verified from scratch: [ ] Not yet verified by independent developer
 
-## MIGRATIONS RUN (81 total, in order, all batch 1)
+## MIGRATIONS RUN (83 total, in order, all batch 1)
 1.  0001_01_01_000000_create_users_table
 2.  0001_01_01_000001_create_cache_table
 3.  0001_01_01_000002_create_jobs_table
@@ -524,16 +526,18 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 79. 2025_01_04_000002_create_emr_consent_records_table
 80. 2025_01_05_000001_add_designations_to_shared_users
 81. 2025_01_05_000002_add_escalated_to_user_id_to_emr_grievances
+82. 2025_02_01_000001_create_emr_baa_records_table
+83. 2025_02_01_000002_create_emr_sra_records_table
 
-## MODELS (58)
+## MODELS (60)
 AdlRecord, AdlThreshold, Alert, Allergy, ApiToken, Appointment, Assessment, AuditLog,
-Authorization, CapitationRecord, CarePlan, CarePlanGoal, ChatChannel, ChatMembership, ChatMessage,
+Authorization, BaaRecord, CapitationRecord, CarePlan, CarePlanGoal, ChatChannel, ChatMembership, ChatMessage,
 ClinicalNote, ConsentRecord, DayCenterAttendance, Document, DrugInteractionAlert, EdiBatch, EhiExport, EmarRecord, EncounterLog,
 Grievance, HccMapping, HosMSurvey, HpmsSubmission, Icd10Lookup, IdtMeeting, IdtParticipantReview, Immunization,
 Incident, InsuranceCoverage, IntegrationLog, Location, MedReconciliation, Medication, OtpCode,
 Participant, ParticipantAddress, ParticipantContact, ParticipantFlag, ParticipantRiskScore,
 ParticipantSiteTransfer, PdeRecord, Problem, Procedure, Referral, RolePermission, Sdr, Site,
-SocialDeterminant, StateMedicaidConfig, Tenant, TransportRequest, User, Vital
+SocialDeterminant, SraRecord, StateMedicaidConfig, Tenant, TransportRequest, User, Vital
 
 ## CONTROLLERS (60 root + Auth/ subdirectory + Dashboards/ subdirectory)
 AdlController, AlertController, AllergyController, AppointmentController,
@@ -546,7 +550,7 @@ ImpersonationController, IncidentController, IntegrationController, ItAdminContr
 LocationController, MedReconciliationController, MedicationController,
 ParticipantContactController, ParticipantController, ParticipantFlagController,
 PdeController, ProfileController, ProblemController, QaDashboardController, ReferralController,
-ReportsController, RevenueIntegrityController, RiskAdjustmentController, SdrController, SiteContextController,
+ReportsController, RevenueIntegrityController, RiskAdjustmentController, SdrController, SecurityComplianceController, SiteContextController,
 SocialDeterminantController, StateMedicaidConfigController, SuperAdminPanelController,
 SystemSettingsController, TransferAdminController, TransferController, ThemePreferenceController,
 TransportController, TransportRequestController, VitalController, WebhookController
@@ -578,7 +582,7 @@ Clinical/Orders, Clinical/Vitals, ComingSoon, Dashboard/Index, Enrollment/Index,
 Errors/403, Finance/Capitation, Grievances/Index, Grievances/Show, Finance/ComplianceChecklist, Finance/Dashboard, Finance/EdiBatch,
 Finance/Encounters, Finance/HosMSurvey, Finance/Hpms, Finance/Pde,
 Finance/RevenueIntegrity, Finance/RiskAdjustment, Idt/Dashboard, Idt/RunMeeting,
-ItAdmin/Audit, ItAdmin/Integrations, ItAdmin/StateConfig, ItAdmin/Users,
+ItAdmin/Audit, ItAdmin/Integrations, ItAdmin/Security, ItAdmin/StateConfig, ItAdmin/Users,
 Participants/Index, Participants/Show, Qa/Dashboard, Schedule/Index,
 Sdrs/Index, Transport/Dashboard, Transport/Manifest,
 Dashboard/Depts/PrimaryCareDashboard, Dashboard/Depts/TherapiesDashboard,
@@ -667,6 +671,11 @@ Idt/Meetings, Scheduling/DayCenter, Reports/Index, ItAdmin/SystemSettings
 - [W4-1 Designations] `escalated_to_user_id` FK on `emr_grievances` → `shared_users.id` with nullOnDelete(). Cross-tenant escalation assignees rejected with 422 in GrievanceController::escalate() (checks target user's tenant_id before validation).
 - [W4-1 Designations] GrievanceService::checkOverdue() and open() now look up the active compliance_officer designation holder before creating alerts; includes name in alert message and compliance_officer_id in metadata JSONB. This is an additive enhancement to existing workflows — no breaking changes.
 - [W4-1 Designations] GET /grievances/escalation-staff is a static route. MUST be declared before /{grievance} in routes/web.php — otherwise "escalation-staff" matches as a Grievance model binding ID and causes a PostgreSQL bigint parse error. Currently in correct order.
+- [W4-2] Participant model has 'encrypted' cast on ssn_last_four, medicare_id, medicaid_id. InsuranceCoverage has 'encrypted' on member_id, bin_pcn. Laravel AES-256-CBC via APP_KEY. If APP_KEY is rotated, all encrypted columns become unreadable — re-seed or run a migration script to re-encrypt. Test APP_KEY in phpunit.xml differs from .env (standard practice).
+- [W4-2] BaaRecord.isExpiringSoon() uses Carbon 3 signed diffInDays (positive means future). The check is `$date->isFuture() && $date->diffInDays(now()) <= 60`. isPast() guards the expired case above it so no negative values reach this branch.
+- [W4-2] SraRecord.isOverdue(): returns false when next_sra_due is null (in_progress SRAs have no due date yet). Only completed SRAs with a set next_sra_due date can be overdue. "No completed SRA at all" = overdue is enforced in QaDashboardController::buildCompliancePosture() (`$latestSra ? $latestSra->isOverdue() : true`).
+- [W4-2] SecurityComplianceController uses requireItAdmin() guard (same pattern as ItAdminController). All 5 endpoints (index, baaStore, baaUpdate, sraStore, sraUpdate) abort(403) for non-IT-admin departments.
+- [W4-2] encryption_status checks in SecurityComplianceController::buildEncryptionStatus() are runtime-computed from config() + model cast introspection. The field_encryption check uses `(new Participant())->getCasts()['medicare_id'] === 'encrypted'` — will automatically change from 'pass' to 'warn' if the cast is ever removed.
 - [W3-4] Care plan save silently failed: original catch block was `catch { /* ignore */ }`. Fixed to capture error and display it via saveError state in CarePlanTab. Plan must be draft or under_review — approved plans are read-only (Edit button hidden, plan.status check added).
 - [W3-4] Tab URL sync: tabs are pure client-side state. switchTab() calls window.history.replaceState to update ?tab= param without Inertia reload. Server ignores the ?tab param entirely — always renders Participants/Show component.
 - [Phase 5A] ConflictDetectionService uses half-open interval comparison: existing.start < new.end AND existing.end > new.start. This means adjacent appointments (end = next start) do NOT conflict — correct PACE scheduling behavior (back-to-back appointments are allowed).
@@ -1402,6 +1411,66 @@ Built a User Designations system — accountability sub-roles for targeted alert
 **Test file:** `tests/Feature/UserDesignationTest.php` — 14 tests covering full CRUD, model scopes, endpoint access control, cross-tenant isolation, escalation FK storage, alert creation, and IT Admin users page prop.
 
 **Result:** 1232 tests, 0 failures. Build clean. Migrations 80–81 confirmed.
+
+### 2026-03-31 — W4-2 Complete — Encryption at Rest + BAA/SRA Tracker (BLOCKERs 01+03)
+
+Resolved BLOCKER-01 (Encryption at rest) and BLOCKER-03 (SRA/BAA tracking). All 7 W4-2 deliverables complete.
+
+**Part A — .env.example documentation:**
+- Added `SESSION_ENCRYPT=false` with HIPAA §164.312 comment explaining production must be `true`.
+- Added `# DB_SSLMODE=prefer` block at end of file with production note (set to `require` + add sslcert/sslkey for TLS-enforced DB connections).
+
+**Part B — Field-level PHI encryption (Participant + InsuranceCoverage):**
+- `Participant.php`: `'encrypted'` cast on `ssn_last_four`, `medicare_id`, `medicaid_id`. AES-256-CBC via APP_KEY. Comment: W4-2 HIPAA §164.312(a)(2)(iv), APP_KEY rotation warning.
+- `InsuranceCoverage.php`: `'encrypted'` cast on `member_id`, `bin_pcn`.
+
+**Part C — config/database.php sslmode env-driven:**
+- `'sslmode' => env('DB_SSLMODE', 'prefer')` replaces hardcoded `'prefer'`. Default 'prefer' preserves local dev; production sets `DB_SSLMODE=require`.
+
+**Part D — BAA Tracker (emr_baa_records, migration 82):**
+- Schema: vendor_name, vendor_type (8 CHECK-constrained values), phi_accessed, baa_signed_date (nullable — pending BAAs), baa_expiration_date, status (5 values), contact fields, notes, softDeletes.
+- `BaaRecord` model: EXPIRING_SOON_DAYS=60 constant, `scopeForTenant()`, `scopeExpiringSoon()`, `scopeExpired()`, `isExpired()`, `isExpiringSoon()` (runtime date-based, not stale status column), `toApiArray()`.
+- `BaaRecordFactory`: `expired()`, `expiringSoon()`, `pending()` states.
+
+**Part E — SRA Tracker (emr_sra_records, migration 83):**
+- Schema: sra_date, conducted_by, scope_description, risk_level (4 CHECK-constrained), findings_summary, next_sra_due, status (3 values), reviewed_by_user_id (nullable FK), softDeletes.
+- `SraRecord` model: `scopeForTenant()`, `scopeCompleted()`, `isOverdue()` (next_sra_due !== null && isPast()), `toApiArray()`.
+- `SraRecordFactory`: `overdue()`, `inProgress()` states.
+
+**Part F — SecurityComplianceController (5 endpoints):**
+- `GET  /it-admin/security` → Inertia: baaRecords, sraRecords, encryption_status, posture chips. Guard: requireItAdmin() (dept=it_admin only).
+- `POST /it-admin/baa` → baaStore (201)
+- `PUT  /it-admin/baa/{baa}` → baaUpdate (200, tenant isolation check)
+- `POST /it-admin/sra` → sraStore (201)
+- `PUT  /it-admin/sra/{sra}` → sraUpdate (200, tenant isolation check)
+- `buildEncryptionStatus()` private: 4 runtime checks — session (config), db_ssl (sslmode), field_encryption (Participant cast introspection), storage (filesystem.default === 's3'). Returns `{checks: {check_key: {status, label, detail}}}`.
+
+**Part G — W42DataSeeder:**
+- 3 BAA records: AWS (active, cloud_provider, expires ~22 months), Mailgun (expiring_soon, expires in 45 days), Clearinghouse TBD (pending, no dates).
+- 1 SRA record: completed, moderate risk, next_sra_due +9 months, findings summary references BLOCKERs 01+03+05.
+- Added `$this->call(W42DataSeeder::class)` to DemoEnvironmentSeeder.
+
+**Part H — PermissionService + PermissionSeeder:**
+- `allNavGroups()` Administration group: added `['label' => 'Security & Compliance', 'module' => 'security_compliance', 'href' => '/it-admin/security']`.
+- `PermissionSeeder::MODULES`: added `'security_compliance'`. Auto-covered by `$itAdmin` forEach (full CRUD) and `$qaBase` forEach (read-only).
+
+**Part I — ItAdmin/Security.tsx (3-tab page):**
+- Tab 1: BAA Records — table with row coloring (red=expired, amber=expiring_soon), Add/Edit modal (all fields), axios POST/PUT, `router.reload({ only: ['baaRecords', 'posture'] })`.
+- Tab 2: SRA Records — card layout, expandable findings, Add/Edit modal, axios POST/PUT, `router.reload({ only: ['sraRecords', 'posture'] })`.
+- Tab 3: Encryption Status — 4-check checklist (session, db_ssl, field_encryption, storage), production go-live guidance box.
+- Posture chips header: 5 chips (expired BAA, expiring BAA, SRA status, session encrypt, field encrypt).
+- Helper components: StatusChip (6 colors), RiskChip (4 colors), StatusIcon (CheckCircle/ExclamationTriangle/XCircle).
+
+**Part J — QaDashboardController + Qa/Dashboard.tsx:**
+- `buildCompliancePosture()` private method: expired_baa_count, expiring_soon_count, sra_overdue (false when no SRA = overdue), session_encrypted, db_ssl_enforced, field_encryption, latest_sra_date.
+- `compliance_posture` added to Inertia render props.
+- `CompliancePosture` TypeScript interface + `CompliancePostureWidget` component added to Qa/Dashboard.tsx — compact chip row with "Security Posture:" label, BAA/SRA/Encryption chips, "View Security Details" link to /it-admin/security.
+
+**Tests:**
+- `EncryptionTest.php` (10 tests): raw SQL ciphertext assertions for medicare_id, ssn_last_four, medicaid_id, member_id, bin_pcn; Eloquent decrypt transparency; security page access control (it_admin only); encryption_status Inertia prop structure; field_encryption check = 'pass'.
+- `BaaTrackerTest.php` (18 tests): BAA/SRA CRUD, access control, cross-tenant isolation, isExpired/isExpiringSoon/isOverdue model helpers, QA dashboard compliance_posture structure, expired count isolation, no-SRA = overdue, current SRA = not overdue, field_encryption detection.
+
+**Result:** 28 new tests. Expected: 1260+ tests, 0 failures.
 
 ### 2026-03-31 — W4-1 Complete — Grievance & Consent Module (BLOCKER-02)
 

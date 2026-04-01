@@ -62,6 +62,13 @@ class Participant extends Model
         'nursing_facility_eligible'     => 'boolean',
         'is_active'                     => 'boolean',
         'advance_directive_reviewed_at' => 'date',
+        // W4-2 HIPAA §164.312(a)(2)(iv): PHI identifier fields encrypted at rest using APP_KEY.
+        // Laravel's 'encrypted' cast uses AES-256-CBC via Crypt::encryptString() on write
+        // and Crypt::decryptString() on read — transparent to all Eloquent callers.
+        // IMPORTANT: Rotating APP_KEY requires re-seeding (decrypt fails with wrong key).
+        'ssn_last_four'                 => 'encrypted',
+        'medicare_id'                   => 'encrypted',
+        'medicaid_id'                   => 'encrypted',
     ];
 
     // ─── Auto-generate MRN on creation ────────────────────────────────────────

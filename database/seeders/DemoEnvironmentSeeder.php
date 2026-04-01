@@ -217,6 +217,13 @@ class DemoEnvironmentSeeder extends Seeder
         $this->command->info('  Seeding W3-6 site transfer demo data...');
         $this->call(W3TransferSeeder::class);
 
+        // ─── W4-2: Security & Compliance Demo Data ────────────────────────────
+        // Seeds BAA records (AWS active, Mailgun expiring-soon, clearinghouse pending)
+        // and 1 completed SRA with realistic HIPAA findings narrative.
+        $this->command->info('');
+        $this->command->info('  Seeding W4-2 security & compliance demo data...');
+        $this->call(W42DataSeeder::class);
+
         $this->command->info('');
         $this->command->info('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         $this->command->info('  Demo environment ready!');

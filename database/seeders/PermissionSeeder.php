@@ -60,7 +60,9 @@ class PermissionSeeder extends Seeder
         'hos_m_surveys'            => 'HOS-M Surveys',
         'revenue_integrity'        => 'Revenue Integrity Dashboard',
 
-        // QA / Incidents
+        // QA / Incidents + Grievances
+        // grievances: all staff may file; QA Admin manages/escalates/submits to CMS
+        'grievances'               => 'Grievances',
         'incident_reports'         => 'Incident Reports',
         'quality_metrics'          => 'Quality Metrics',
 
@@ -70,6 +72,8 @@ class PermissionSeeder extends Seeder
 
         // Admin
         'system_settings'          => 'System Settings',
+        // W4-2: HIPAA BAA tracking + SRA records + encryption status (BLOCKERs 01+03)
+        'security_compliance'      => 'Security & Compliance',
 
         // Phase 10B — Executive + Nostos SA
         'executive_overview'       => 'Executive Overview',
@@ -144,13 +148,16 @@ class PermissionSeeder extends Seeder
             $itAdmin[$mod] = $full();
         }
 
-        // ─── QA / Compliance — everything read + incidents full ───────────────
+        // ─── QA / Compliance — everything read + incidents + grievances full ───
         $qaBase = [];
         foreach (self::MODULES as $mod => $_) {
             $qaBase[$mod] = $readX();
         }
         $qaBase['incident_reports'] = $full();
         $qaBase['quality_metrics']  = $full();
+        // QA owns the grievance workflow: manage, escalate, resolve, submit to CMS
+        // (42 CFR §460.120–§460.121 compliance officer responsibility)
+        $qaBase['grievances']       = $full();
 
         // ─── Finance — billing CRUD, enrollment/participants read ─────────────
         $financeBase = [];
@@ -172,6 +179,7 @@ class PermissionSeeder extends Seeder
         $financeBase['reports']            = $cr();
         $financeBase['audit_log']          = $read();
         $financeBase['chat']               = $full();
+        $financeBase['grievances']         = $cr();
 
         // ─── Transportation — transport matrix from Master Context ────────────
         $transBase = [];
@@ -194,6 +202,7 @@ class PermissionSeeder extends Seeder
         $transBase['reports']               = $cr();
         $transBase['courtesy_calls']        = $read();
         $transBase['audit_log']             = $read();
+        $transBase['grievances']            = $cr();
 
         // ─── Enrollment / Intake ──────────────────────────────────────────────
         $enrollBase = [];
@@ -207,6 +216,7 @@ class PermissionSeeder extends Seeder
         $enrollBase['reports']       = $cr();
         $enrollBase['audit_log']     = $read();
         $enrollBase['chat']          = $full();
+        $enrollBase['grievances']    = $cr();
         $enrollBase['transport_dashboard'] = $read();
         $enrollBase['cancellations'] = $full();
         $enrollBase['transport_addons'] = $full();
@@ -232,6 +242,7 @@ class PermissionSeeder extends Seeder
         $idtBase['chat']             = $full();
         $idtBase['reports']          = $cr();
         $idtBase['audit_log']        = $read();
+        $idtBase['grievances']       = $cr();
 
         // ─── Primary Care / Nursing ───────────────────────────────────────────
         $pcBase = [];
@@ -254,6 +265,8 @@ class PermissionSeeder extends Seeder
         $pcBase['chat']           = $full();
         $pcBase['reports']        = $cr();
         $pcBase['audit_log']      = $read();
+        // All staff may file grievances on behalf of participants (42 CFR §460.120)
+        $pcBase['grievances']     = $cr();
 
         // ─── Therapies ────────────────────────────────────────────────────────
         $therapiesBase = [];
@@ -274,6 +287,7 @@ class PermissionSeeder extends Seeder
         $therapiesBase['chat']           = $full();
         $therapiesBase['reports']        = $cr();
         $therapiesBase['audit_log']      = $read();
+        $therapiesBase['grievances']     = $cr();
 
         // ─── Social Work ──────────────────────────────────────────────────────
         $swBase = [];
@@ -294,6 +308,7 @@ class PermissionSeeder extends Seeder
         $swBase['reports']         = $cr();
         $swBase['audit_log']       = $read();
         $swBase['incident_reports'] = $cru();
+        $swBase['grievances']      = $cr();
 
         // ─── Behavioral Health ────────────────────────────────────────────────
         $bhBase = [];
@@ -313,6 +328,7 @@ class PermissionSeeder extends Seeder
         $bhBase['chat']            = $full();
         $bhBase['reports']         = $cr();
         $bhBase['audit_log']       = $read();
+        $bhBase['grievances']      = $cr();
 
         // ─── Dietary / Nutrition ──────────────────────────────────────────────
         $dietaryBase = [];
@@ -329,6 +345,7 @@ class PermissionSeeder extends Seeder
         $dietaryBase['chat']           = $full();
         $dietaryBase['reports']        = $cr();
         $dietaryBase['audit_log']      = $read();
+        $dietaryBase['grievances']     = $cr();
 
         // ─── Activities / Recreation ──────────────────────────────────────────
         $activitiesBase = [];
@@ -345,6 +362,7 @@ class PermissionSeeder extends Seeder
         $activitiesBase['chat']           = $full();
         $activitiesBase['reports']        = $cr();
         $activitiesBase['audit_log']      = $read();
+        $activitiesBase['grievances']     = $cr();
 
         // ─── Home Care ────────────────────────────────────────────────────────
         $homeCareBase = [];
@@ -364,6 +382,7 @@ class PermissionSeeder extends Seeder
         $homeCareBase['chat']           = $full();
         $homeCareBase['reports']        = $cr();
         $homeCareBase['audit_log']      = $read();
+        $homeCareBase['grievances']     = $cr();
 
         // ─── Pharmacy ─────────────────────────────────────────────────────────
         $pharmacyBase = [];
@@ -382,6 +401,7 @@ class PermissionSeeder extends Seeder
         $pharmacyBase['chat']           = $full();
         $pharmacyBase['reports']        = $cr();
         $pharmacyBase['audit_log']      = $read();
+        $pharmacyBase['grievances']     = $cr();
 
         // ─── Phase 10B: Executive — all modules read+export (no write) ──────────
         // Executives are cross-site, cross-department viewers within their tenant.

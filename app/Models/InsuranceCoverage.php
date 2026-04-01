@@ -19,6 +19,10 @@ class InsuranceCoverage extends Model
         'effective_date' => 'date',
         'term_date'      => 'date',
         'is_active'      => 'boolean',
+        // W4-2 HIPAA §164.312(a)(2)(iv): payer identifier fields encrypted at rest.
+        // member_id and bin_pcn link the participant to their payer records — PHI-adjacent.
+        'member_id'      => 'encrypted',
+        'bin_pcn'        => 'encrypted',
     ];
 
     public function participant(): BelongsTo
