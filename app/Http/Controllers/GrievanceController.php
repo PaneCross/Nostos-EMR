@@ -195,6 +195,9 @@ class GrievanceController extends Controller
             description:  "{$grievance->referenceNumber()} viewed.",
         );
 
+        $user      = Auth::user();
+        $isQaAdmin = in_array($user->department, ['qa_compliance', 'it_admin']) || $user->isSuperAdmin();
+
         // ── Activity timeline ─────────────────────────────────────────────────
         // Pull all meaningful audit events for this grievance, ordered oldest→newest.
         // For status_changed, new_values['status'] is set by the service for new
@@ -224,13 +227,25 @@ class GrievanceController extends Controller
             'withdrawn'    => 'Withdrawn',
         ];
 
+        // CMS compliance events are only shown to QA admins — they contain
+        // regulatory classification decisions not relevant to clinical staff.
+        $baseActions = [
+            'grievance.opened',
+            'grievance.status_changed',
+            'grievance.participant_notified',
+        ];
+        $cmsActions = [
+            'grievance.cms_reportable_set',
+            'grievance.cms_reportable_cleared',
+            'grievance.cms_reported',
+        ];
+        $activityActions = $isQaAdmin
+            ? array_merge($baseActions, $cmsActions)
+            : $baseActions;
+
         $activity = AuditLog::where('resource_type', 'grievance')
             ->where('resource_id', $grievance->id)
-            ->whereIn('action', [
-                'grievance.opened',
-                'grievance.status_changed',
-                'grievance.participant_notified',
-            ])
+            ->whereIn('action', $activityActions)
             ->with('user:id,first_name,last_name,department')
             ->orderBy('id', 'asc')
             ->get()
@@ -248,6 +263,15 @@ class GrievanceController extends Controller
                 } elseif ($log->action === 'grievance.opened') {
                     $label  = 'Grievance Filed';
                     $status = 'open';
+                } elseif ($log->action === 'grievance.cms_reportable_set') {
+                    $label  = 'Flagged as CMS Reportable';
+                    $status = 'cms_flagged';
+                } elseif ($log->action === 'grievance.cms_reportable_cleared') {
+                    $label  = 'CMS Reportable Flag Removed';
+                    $status = 'cms_cleared';
+                } elseif ($log->action === 'grievance.cms_reported') {
+                    $label  = 'Submitted to CMS';
+                    $status = 'cms_reported';
                 } else {
                     $label  = 'Participant Notified';
                     $status = 'notified';
@@ -270,9 +294,6 @@ class GrievanceController extends Controller
             })
             ->values()
             ->toArray();
-
-        $user      = Auth::user();
-        $isQaAdmin = in_array($user->department, ['qa_compliance', 'it_admin']) || $user->isSuperAdmin();
 
         return Inertia::render('Grievances/Show', [
             'grievance'   => array_merge($grievance->toApiArray(), [
@@ -397,6 +418,49 @@ class GrievanceController extends Controller
 
         try {
             $this->service->updateStatus($grievance, 'withdrawn', $data, Auth::user());
+        } catch (LogicException $e) {
+            return response()->json(['message' => $e->getMessage()], 409);
+        }
+
+        return response()->json(['grievance' => $grievance->fresh()->toApiArray()]);
+    }
+
+    /**
+     * Set or clear the CMS reportable flag (QA admin only).
+     * POST body: { reportable: true|false }
+     * Qualifying criteria: discrimination, abuse/neglect, serious safety events,
+     * disenrollment disputes per 42 CFR §460.120.
+     */
+    public function setCmsReportable(\Illuminate\Http\Request $request, Grievance $grievance): JsonResponse
+    {
+        $this->authorizeTenant($grievance);
+        $this->authorizeQaAdmin();
+
+        $reportable = (bool) $request->input('reportable', true);
+
+        // Once reported to CMS, the flag cannot be cleared
+        if (! $reportable && $grievance->cms_reported_at) {
+            return response()->json([
+                'message' => 'Cannot remove CMS reportable flag — this grievance has already been submitted to CMS.',
+            ], 409);
+        }
+
+        $this->service->setCmsReportable($grievance, $reportable, Auth::user());
+
+        return response()->json(['grievance' => $grievance->fresh()->toApiArray()]);
+    }
+
+    /**
+     * Record that the grievance has been submitted to CMS (QA admin only).
+     * Sets cms_reported_at. Irreversible once set.
+     */
+    public function markCmsReported(Grievance $grievance): JsonResponse
+    {
+        $this->authorizeTenant($grievance);
+        $this->authorizeQaAdmin();
+
+        try {
+            $this->service->markCmsReported($grievance, Auth::user());
         } catch (LogicException $e) {
             return response()->json(['message' => $e->getMessage()], 409);
         }

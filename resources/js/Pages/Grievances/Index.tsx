@@ -167,21 +167,23 @@ function GrievanceTable({ grievances, onRowClick }: { grievances: GrievanceRow[]
 
 interface NewGrievanceModalProps {
     categories: Record<string, string>;
+    isQaAdmin:  boolean;
     onClose: () => void;
 }
 
-function NewGrievanceModal({ categories, onClose }: NewGrievanceModalProps) {
+function NewGrievanceModal({ categories, isQaAdmin, onClose }: NewGrievanceModalProps) {
     const [search, setSearch]       = useState('');
     const [results, setResults]     = useState<ParticipantHit[]>([]);
     const [selected, setSelected]   = useState<ParticipantHit | null>(null);
     const [searching, setSearching] = useState(false);
     const [form, setForm]           = useState({
-        filed_by_name: '',
-        filed_by_type: 'participant',
-        category:      'quality_of_care',
-        description:   '',
-        priority:      'standard',
-        filed_at:      new Date().toISOString().slice(0, 10),
+        filed_by_name:  '',
+        filed_by_type:  'participant',
+        category:       'quality_of_care',
+        description:    '',
+        priority:       'standard',
+        filed_at:       new Date().toISOString().slice(0, 10),
+        cms_reportable: false,
     });
     const [submitting, setSubmitting] = useState(false);
     const [error, setError]           = useState<string | null>(null);
@@ -300,6 +302,31 @@ function NewGrievanceModal({ categories, onClose }: NewGrievanceModalProps) {
                         <textarea required rows={4} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Describe the grievance in detail…" className="w-full border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 resize-none" />
                     </div>
 
+                    {/* CMS Reportable — QA admin only. Most staff filing a grievance
+                        won't know at intake whether it meets CMS criteria, so this
+                        is hidden from non-QA roles. QA can also set it later on the
+                        detail page once they've reviewed the grievance. */}
+                    {isQaAdmin && (
+                        <div className="border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/20 rounded-lg p-3">
+                            <label className="flex items-start gap-2.5 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={form.cms_reportable}
+                                    onChange={e => setForm(f => ({ ...f, cms_reportable: e.target.checked }))}
+                                    className="mt-0.5 h-4 w-4 rounded border-orange-400 text-orange-600 focus:ring-orange-500"
+                                />
+                                <div>
+                                    <span className="text-sm font-medium text-orange-800 dark:text-orange-200">Flag as CMS Reportable</span>
+                                    <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">
+                                        Check if this involves discrimination, abuse/neglect/exploitation,
+                                        a serious safety event, or a disenrollment dispute (42 CFR §460.120).
+                                        You can also set this later from the grievance detail page.
+                                    </p>
+                                </div>
+                            </label>
+                        </div>
+                    )}
+
                     <div className="flex gap-3 pt-2">
                         <button type="button" onClick={onClose} className="flex-1 px-4 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700">
                             Cancel
@@ -381,7 +408,7 @@ export default function GrievancesIndex() {
                 <GrievanceTable grievances={currentRows} onRowClick={navigate} />
             </div>
 
-            {showModal && <NewGrievanceModal categories={categories} onClose={() => setShowModal(false)} />}
+            {showModal && <NewGrievanceModal categories={categories} isQaAdmin={isQaAdmin} onClose={() => setShowModal(false)} />}
         </AppShell>
     );
 }

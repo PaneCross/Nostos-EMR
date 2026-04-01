@@ -527,6 +527,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/{grievance}/resolve',          [GrievanceController::class, 'resolve'])->name('grievances.resolve');
         Route::post('/{grievance}/escalate',         [GrievanceController::class, 'escalate'])->name('grievances.escalate');
         Route::post('/{grievance}/withdraw',          [GrievanceController::class, 'withdraw'])->name('grievances.withdraw');
+        Route::post('/{grievance}/cms-reportable',    [GrievanceController::class, 'setCmsReportable'])->name('grievances.cms-reportable');
+        Route::post('/{grievance}/cms-reported',      [GrievanceController::class, 'markCmsReported'])->name('grievances.cms-reported');
         Route::post('/{grievance}/notify-participant',[GrievanceController::class, 'notifyParticipant'])->name('grievances.notify');
     });
 

@@ -254,6 +254,7 @@ class Grievance extends Model
                 ? $this->assignedTo->first_name . ' ' . $this->assignedTo->last_name
                 : null,
             'cms_reportable'           => $this->cms_reportable,
+            'cms_reported_at'          => $this->cms_reported_at?->toDateTimeString(),
             'participant_notified_at'  => $this->participant_notified_at?->toDateTimeString(),
             'resolution_date'          => $this->resolution_date?->toDateString(),
             'is_urgent_overdue'        => $this->isUrgentOverdue(),

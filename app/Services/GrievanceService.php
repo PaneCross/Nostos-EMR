@@ -220,6 +220,68 @@ class GrievanceService
     }
 
     /**
+     * Set or clear the CMS reportable flag on a grievance.
+     *
+     * CMS-reportable grievances must be tracked and reported to CMS under
+     * 42 CFR §460.120. Qualifying criteria include: discrimination/civil rights
+     * violations, abuse/neglect/exploitation allegations, serious safety events,
+     * and disenrollment disputes. QA admin makes this determination.
+     *
+     * Un-flagging also clears cms_reported_at since an unreported grievance
+     * cannot have an outstanding CMS submission timestamp.
+     */
+    public function setCmsReportable(Grievance $grievance, bool $reportable, User $actor): void
+    {
+        $grievance->update([
+            'cms_reportable'  => $reportable,
+            'cms_reported_at' => $reportable ? $grievance->cms_reported_at : null,
+        ]);
+
+        AuditLog::record(
+            action:       $reportable ? 'grievance.cms_reportable_set' : 'grievance.cms_reportable_cleared',
+            tenantId:     $grievance->tenant_id,
+            userId:       $actor->id,
+            resourceType: 'grievance',
+            resourceId:   $grievance->id,
+            description:  $reportable
+                ? "{$grievance->referenceNumber()} flagged as CMS reportable by {$actor->first_name} {$actor->last_name}."
+                : "{$grievance->referenceNumber()} CMS reportable flag removed by {$actor->first_name} {$actor->last_name}.",
+            newValues:    ['cms_reportable' => $reportable],
+        );
+    }
+
+    /**
+     * Record that the grievance has been submitted to CMS.
+     * Sets cms_reported_at timestamp. Only valid if cms_reportable is true.
+     * This action is irreversible — once reported to CMS, the timestamp stands.
+     *
+     * @throws LogicException if grievance is not flagged as CMS reportable
+     */
+    public function markCmsReported(Grievance $grievance, User $actor): void
+    {
+        if (! $grievance->cms_reportable) {
+            throw new LogicException('Grievance must be flagged as CMS reportable before marking as reported.');
+        }
+
+        if ($grievance->cms_reported_at) {
+            throw new LogicException('Grievance has already been marked as reported to CMS.');
+        }
+
+        $reportedAt = now();
+        $grievance->update(['cms_reported_at' => $reportedAt]);
+
+        AuditLog::record(
+            action:       'grievance.cms_reported',
+            tenantId:     $grievance->tenant_id,
+            userId:       $actor->id,
+            resourceType: 'grievance',
+            resourceId:   $grievance->id,
+            description:  "{$grievance->referenceNumber()} marked as submitted to CMS by {$actor->first_name} {$actor->last_name}.",
+            newValues:    ['cms_reported_at' => $reportedAt->toIso8601String()],
+        );
+    }
+
+    /**
      * Record that the participant was notified of the grievance outcome.
      * CMS §460.120(d) requires participant notification of resolution.
      */

@@ -16,6 +16,7 @@ import {
     BellIcon,
     ArrowLeftIcon,
     ShieldCheckIcon,
+    FlagIcon,
 } from '@heroicons/react/24/outline';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -46,6 +47,7 @@ interface GrievanceDetail {
     participant_notified_at: string | null;
     notification_method:     string | null;
     cms_reportable:          boolean;
+    cms_reported_at:         string | null;
     is_urgent_overdue:       boolean;
 }
 
@@ -99,12 +101,16 @@ function StatusBadge({ status, label }: { status: string; label: string }) {
 // ── Activity timeline dot/color config ───────────────────────────────────────
 
 const ACTIVITY_CONFIG: Record<string, { dot: string; line: string; text: string }> = {
-    open:         { dot: 'bg-blue-500',   line: 'border-blue-200 dark:border-blue-800',   text: 'text-blue-700 dark:text-blue-300' },
-    under_review: { dot: 'bg-amber-500',  line: 'border-amber-200 dark:border-amber-800', text: 'text-amber-700 dark:text-amber-300' },
-    resolved:     { dot: 'bg-green-500',  line: 'border-green-200 dark:border-green-800', text: 'text-green-700 dark:text-green-300' },
-    escalated:    { dot: 'bg-red-500',    line: 'border-red-200 dark:border-red-800',     text: 'text-red-700 dark:text-red-300' },
-    withdrawn:    { dot: 'bg-gray-400',   line: 'border-gray-200 dark:border-slate-700',  text: 'text-gray-500 dark:text-slate-400' },
+    open:         { dot: 'bg-blue-500',   line: 'border-blue-200 dark:border-blue-800',     text: 'text-blue-700 dark:text-blue-300' },
+    under_review: { dot: 'bg-amber-500',  line: 'border-amber-200 dark:border-amber-800',   text: 'text-amber-700 dark:text-amber-300' },
+    resolved:     { dot: 'bg-green-500',  line: 'border-green-200 dark:border-green-800',   text: 'text-green-700 dark:text-green-300' },
+    escalated:    { dot: 'bg-red-500',    line: 'border-red-200 dark:border-red-800',       text: 'text-red-700 dark:text-red-300' },
+    withdrawn:    { dot: 'bg-gray-400',   line: 'border-gray-200 dark:border-slate-700',    text: 'text-gray-500 dark:text-slate-400' },
     notified:     { dot: 'bg-purple-500', line: 'border-purple-200 dark:border-purple-800', text: 'text-purple-700 dark:text-purple-300' },
+    // CMS compliance events — orange for flagged, indigo for submitted
+    cms_flagged:  { dot: 'bg-orange-500', line: 'border-orange-200 dark:border-orange-800', text: 'text-orange-700 dark:text-orange-300' },
+    cms_cleared:  { dot: 'bg-gray-400',   line: 'border-gray-200 dark:border-slate-700',    text: 'text-gray-500 dark:text-slate-400' },
+    cms_reported: { dot: 'bg-indigo-500', line: 'border-indigo-200 dark:border-indigo-800', text: 'text-indigo-700 dark:text-indigo-300' },
 };
 
 export default function GrievancesShow() {
@@ -389,6 +395,85 @@ export default function GrievancesShow() {
                             )}
                         </div>
                     </>)}
+
+                    {/* ── CMS Reportable — QA admin only ─────────────────────────────────
+                        Controls the cms_reportable flag and cms_reported_at timestamp.
+                        Visible at any grievance status — a resolved grievance may still
+                        need to be reported to CMS after the fact.
+                        Criteria per 42 CFR §460.120: discrimination, abuse/neglect,
+                        serious safety events, disenrollment disputes.
+                    ── */}
+                    {isQaAdmin && (
+                        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4">
+                            <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1 flex items-center gap-1.5">
+                                <FlagIcon className="w-4 h-4" /> CMS Reporting
+                            </h3>
+
+                            {/* State: not yet flagged */}
+                            {!grievance.cms_reportable && (
+                                <>
+                                    <p className="text-xs text-gray-500 dark:text-slate-400 mb-3">
+                                        Flag this grievance as CMS-reportable if it involves any of the following:
+                                        discrimination or civil rights violations, abuse, neglect, or exploitation,
+                                        a serious safety event or adverse outcome, or a disenrollment dispute
+                                        (42 CFR §460.120).
+                                    </p>
+                                    <button
+                                        onClick={() => action('cms-reportable', { reportable: true })}
+                                        disabled={loading}
+                                        className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+                                    >
+                                        Flag as CMS Reportable
+                                    </button>
+                                </>
+                            )}
+
+                            {/* State: flagged, not yet reported */}
+                            {grievance.cms_reportable && !grievance.cms_reported_at && (
+                                <>
+                                    <div className="flex items-center gap-1.5 mb-3">
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 text-xs font-semibold rounded">
+                                            <FlagIcon className="w-3 h-3" /> Flagged — CMS Reportable
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-gray-500 dark:text-slate-400 mb-3">
+                                        Once submitted to CMS via HPMS or direct report, record that here.
+                                        This timestamp is permanent and cannot be removed.
+                                    </p>
+                                    <button
+                                        onClick={() => action('cms-reported', {})}
+                                        disabled={loading}
+                                        className="w-full px-4 py-2 mb-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg disabled:opacity-50"
+                                    >
+                                        Mark as Submitted to CMS
+                                    </button>
+                                    <button
+                                        onClick={() => action('cms-reportable', { reportable: false })}
+                                        disabled={loading}
+                                        className="w-full px-3 py-1.5 text-xs border border-gray-300 dark:border-slate-600 rounded-lg text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700"
+                                    >
+                                        Remove Flag
+                                    </button>
+                                </>
+                            )}
+
+                            {/* State: flagged and reported — read-only */}
+                            {grievance.cms_reportable && grievance.cms_reported_at && (
+                                <div className="flex items-start gap-2 mt-1">
+                                    <CheckCircleIcon className="w-4 h-4 text-indigo-500 dark:text-indigo-400 shrink-0 mt-0.5" />
+                                    <div>
+                                        <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Submitted to CMS</p>
+                                        <p className="text-xs text-gray-500 dark:text-slate-400">
+                                            {new Date(grievance.cms_reported_at).toLocaleString([], {
+                                                month: 'short', day: 'numeric', year: 'numeric',
+                                                hour: '2-digit', minute: '2-digit',
+                                            })}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* ── Notify Participant — shown after resolution, outside isClosed gate ──
                         CMS §460.120(d) requires participants be notified of the outcome.
