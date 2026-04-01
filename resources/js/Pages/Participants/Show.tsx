@@ -2175,17 +2175,61 @@ function VitalsTab({ participantId, initialVitals, completedTransfers }: {
 // ─── Assessments Tab ──────────────────────────────────────────────────────────
 // Lazy-loaded. Shows scored structured assessments (PHQ-9, Morse, MMSE, etc.)
 // with overdue / due-soon indicators and a simple new-assessment form.
+// Subscale definitions are module-level constants (no re-creation on render)
+const BRADEN_SUBSCALES = [
+  { key: 'sensory_perception', label: 'Sensory Perception', max: 4 },
+  { key: 'moisture',           label: 'Moisture',           max: 4 },
+  { key: 'activity',           label: 'Activity',           max: 4 },
+  { key: 'mobility',           label: 'Mobility',           max: 4 },
+  { key: 'nutrition',          label: 'Nutrition',          max: 4 },
+  { key: 'friction_shear',     label: 'Friction & Shear',   max: 3 },
+]
+const MOCA_SUBSCALES = [
+  { key: 'visuospatial',   label: 'Visuospatial / Executive', max: 5 },
+  { key: 'naming',         label: 'Naming',                   max: 3 },
+  { key: 'attention',      label: 'Attention',                max: 6 },
+  { key: 'language',       label: 'Language',                 max: 3 },
+  { key: 'abstraction',    label: 'Abstraction',              max: 2 },
+  { key: 'delayed_recall', label: 'Delayed Recall',           max: 5 },
+  { key: 'orientation',    label: 'Orientation',              max: 6 },
+]
+const OHAT_SUBSCALES = [
+  { key: 'lips',         label: 'Lips',           max: 2 },
+  { key: 'tongue',       label: 'Tongue',         max: 2 },
+  { key: 'gums_tissues', label: 'Gums / Tissues', max: 2 },
+  { key: 'saliva',       label: 'Saliva',         max: 2 },
+  { key: 'natural_teeth',label: 'Natural Teeth',  max: 2 },
+  { key: 'dentures',     label: 'Dentures',       max: 2 },
+  { key: 'oral_hygiene', label: 'Oral Hygiene',   max: 2 },
+  { key: 'dental_pain',  label: 'Dental Pain',    max: 2 },
+]
+const isStructuredType = (t: string) => ['braden_scale', 'moca_cognitive', 'oral_health'].includes(t)
+const subscaleDefinitions = (type: string) =>
+  type === 'braden_scale'  ? BRADEN_SUBSCALES :
+  type === 'moca_cognitive' ? MOCA_SUBSCALES :
+  type === 'oral_health'   ? OHAT_SUBSCALES : []
+
 function AssessmentsTab({ participantId }: { participantId: number }) {
   const [assessments, setAssessments] = useState<Assessment[] | null>(null)
   const [loading, setLoading]         = useState(false)
   const [error, setError]             = useState<string | null>(null)
   const [showForm, setShowForm]       = useState(false)
   const [saving, setSaving]           = useState(false)
+  // Must be declared at top level — useState cannot be called after conditional returns
+  const [subscales, setSubscales]         = useState<Record<string, string>>({})
+  const [educationBonus, setEducationBonus] = useState(false)
 
   const blankForm = {
     assessment_type: 'phq9_depression', score: '', completed_at: today(), next_due_date: '', notes: '',
   }
   const [form, setForm] = useState(blankForm)
+
+  const computedSubscaleScore = (type: string): number => {
+    const defs = subscaleDefinitions(type)
+    const total = defs.reduce((sum, s) => sum + (parseInt(subscales[s.key] ?? '0') || 0), 0)
+    if (type === 'moca_cognitive' && educationBonus) return Math.min(total + 1, 30)
+    return total
+  }
 
   // Load once on first activation
   useEffect(() => {
@@ -2239,53 +2283,6 @@ function AssessmentsTab({ participantId }: { participantId: number }) {
     const d = new Date(a.next_due_date.slice(0, 10))
     return d >= now && d <= new Date(Date.now() + 14 * 86400000)
   })
-
-  // For Braden/MoCA/OHAT: subscale totaling helpers
-  const BRADEN_SUBSCALES = [
-    { key: 'sensory_perception', label: 'Sensory Perception', max: 4 },
-    { key: 'moisture',           label: 'Moisture',           max: 4 },
-    { key: 'activity',           label: 'Activity',           max: 4 },
-    { key: 'mobility',           label: 'Mobility',           max: 4 },
-    { key: 'nutrition',          label: 'Nutrition',          max: 4 },
-    { key: 'friction_shear',     label: 'Friction & Shear',   max: 3 },
-  ]
-  const MOCA_SUBSCALES = [
-    { key: 'visuospatial',   label: 'Visuospatial / Executive', max: 5 },
-    { key: 'naming',         label: 'Naming',                   max: 3 },
-    { key: 'attention',      label: 'Attention',                max: 6 },
-    { key: 'language',       label: 'Language',                 max: 3 },
-    { key: 'abstraction',    label: 'Abstraction',              max: 2 },
-    { key: 'delayed_recall', label: 'Delayed Recall',           max: 5 },
-    { key: 'orientation',    label: 'Orientation',              max: 6 },
-  ]
-  const OHAT_SUBSCALES = [
-    { key: 'lips',         label: 'Lips',          max: 2 },
-    { key: 'tongue',       label: 'Tongue',        max: 2 },
-    { key: 'gums_tissues', label: 'Gums / Tissues',max: 2 },
-    { key: 'saliva',       label: 'Saliva',        max: 2 },
-    { key: 'natural_teeth',label: 'Natural Teeth', max: 2 },
-    { key: 'dentures',     label: 'Dentures',      max: 2 },
-    { key: 'oral_hygiene', label: 'Oral Hygiene',  max: 2 },
-    { key: 'dental_pain',  label: 'Dental Pain',   max: 2 },
-  ]
-
-  const isStructuredType = (t: string) => ['braden_scale', 'moca_cognitive', 'oral_health'].includes(t)
-
-  // subscale state for structured forms
-  const [subscales, setSubscales] = useState<Record<string, string>>({})
-  const [educationBonus, setEducationBonus] = useState(false)
-
-  const subscaleDefinitions = (type: string) =>
-    type === 'braden_scale' ? BRADEN_SUBSCALES :
-    type === 'moca_cognitive' ? MOCA_SUBSCALES :
-    type === 'oral_health' ? OHAT_SUBSCALES : []
-
-  const computedSubscaleScore = (type: string): number => {
-    const defs = subscaleDefinitions(type)
-    const total = defs.reduce((sum, s) => sum + (parseInt(subscales[s.key] ?? '0') || 0), 0)
-    if (type === 'moca_cognitive' && educationBonus) return Math.min(total + 1, 30)
-    return total
-  }
 
   return (
     <div>
