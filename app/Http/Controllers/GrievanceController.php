@@ -192,7 +192,7 @@ class GrievanceController extends Controller
             userId:       Auth::id(),
             resourceType: 'grievance',
             resourceId:   $grievance->id,
-            description:  "Grievance #{$grievance->id} viewed.",
+            description:  "{$grievance->referenceNumber()} viewed.",
         );
 
         // ── Activity timeline ─────────────────────────────────────────────────

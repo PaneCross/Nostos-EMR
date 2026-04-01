@@ -26,6 +26,7 @@ import {
 
 interface GrievanceRow {
     id:                      number;
+    reference_number:        string;
     participant_id:          number;
     participant_name:        string | null;
     participant_mrn:         string | null;
@@ -117,7 +118,7 @@ function GrievanceTable({ grievances, onRowClick }: { grievances: GrievanceRow[]
             <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700 text-sm">
                 <thead className="bg-gray-50 dark:bg-slate-700/50">
                     <tr>
-                        {['Participant', 'Category', 'Filed By', 'Date Filed', 'Priority', 'Assigned', 'Status'].map(h => (
+                        {['Reference', 'Participant', 'Category', 'Filed By', 'Date Filed', 'Priority', 'Assigned', 'Status'].map(h => (
                             <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-slate-300 uppercase tracking-wide">{h}</th>
                         ))}
                     </tr>
@@ -133,6 +134,9 @@ function GrievanceTable({ grievances, onRowClick }: { grievances: GrievanceRow[]
                                     : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'
                             }`}
                         >
+                            <td className="px-4 py-3">
+                                <span className="font-mono text-xs font-semibold text-indigo-600 dark:text-indigo-400">{g.reference_number}</span>
+                            </td>
                             <td className="px-4 py-3">
                                 <span className="font-medium text-gray-900 dark:text-slate-100">{g.participant_name ?? '-'}</span>
                                 {g.participant_mrn && <span className="block text-xs text-gray-400 dark:text-slate-500 font-mono">{g.participant_mrn}</span>}

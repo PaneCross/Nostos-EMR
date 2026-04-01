@@ -22,6 +22,7 @@ import {
 
 interface GrievanceDetail {
     id:                      number;
+    reference_number:        string;
     participant_id:          number;
     participant_name:        string | null;
     participant_mrn:         string | null;
@@ -146,7 +147,7 @@ export default function GrievancesShow() {
 
     return (
         <AppShell>
-            <Head title={`Grievance #${grievance.id}`} />
+            <Head title={grievance.reference_number} />
 
             {/* Back link */}
             <button onClick={() => router.visit('/grievances')} className="flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 mb-4">
@@ -177,7 +178,7 @@ export default function GrievancesShow() {
                         <div className="flex items-start justify-between mb-4">
                             <div>
                                 <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">
-                                    Grievance #{grievance.id}
+                                    {grievance.reference_number}
                                 </h1>
                                 <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">{grievance.category_label}</p>
                             </div>

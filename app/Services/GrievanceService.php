@@ -80,7 +80,7 @@ class GrievanceService
             userId:       $actor->id,
             resourceType: 'grievance',
             resourceId:   $grievance->id,
-            description:  "Grievance #{$grievance->id} opened for participant #{$participant->id}. "
+            description:  "{$grievance->referenceNumber()} opened for participant #{$participant->id}. "
                 . "Category: {$grievance->category}. Priority: {$grievance->priority}.",
         );
 
@@ -206,8 +206,8 @@ class GrievanceService
         Alert::create([
             'tenant_id'          => $grievance->tenant_id,
             'alert_type'         => 'grievance_escalated',
-            'title'              => "Grievance #{$grievance->id} Escalated",
-            'message'            => "Grievance #{$grievance->id} has been escalated.{$assigneeLine} "
+            'title'              => "{$grievance->referenceNumber()} Escalated",
+            'message'            => "{$grievance->referenceNumber()} has been escalated.{$assigneeLine} "
                 . "Reason: {$grievance->escalation_reason}",
             'severity'           => 'critical',
             'source_module'      => 'grievances',
@@ -274,7 +274,7 @@ class GrievanceService
                 'tenant_id'          => $tenantId,
                 'alert_type'         => 'grievance_urgent_overdue',
                 'title'              => 'Urgent Grievance Overdue',
-                'message'            => "Urgent grievance #{$grievance->id} for participant #{$grievance->participant_id} "
+                'message'            => "Urgent grievance {$grievance->referenceNumber()} for participant #{$grievance->participant_id} "
                     . "has been open for {$hoursOverdue}h beyond the 72-hour CMS resolution requirement.{$officerNote}",
                 'severity'           => 'critical',
                 'source_module'      => 'grievances',
@@ -300,7 +300,7 @@ class GrievanceService
                 'tenant_id'          => $tenantId,
                 'alert_type'         => 'grievance_standard_overdue',
                 'title'              => 'Standard Grievance Overdue',
-                'message'            => "Grievance #{$grievance->id} for participant #{$grievance->participant_id} "
+                'message'            => "Grievance {$grievance->referenceNumber()} for participant #{$grievance->participant_id} "
                     . "has been open for {$daysOverdue} days beyond the 30-day resolution requirement.{$officerNote}",
                 'severity'           => 'warning',
                 'source_module'      => 'grievances',

@@ -217,6 +217,18 @@ class Grievance extends Model
     }
 
     /**
+     * Structured reference number for display and audit trails.
+     * Format: GRV-{YEAR}-{XXXX} e.g. GRV-2026-0012
+     * Year is taken from filed_at so the reference reflects when it was filed,
+     * not when the record was created in the database.
+     */
+    public function referenceNumber(): string
+    {
+        $year = ($this->filed_at ?? $this->created_at)->year;
+        return sprintf('GRV-%d-%04d', $year, $this->id);
+    }
+
+    /**
      * Serialize for API responses (list view).
      * Keeps PHI to a minimum — full details on show endpoint.
      */
@@ -224,6 +236,7 @@ class Grievance extends Model
     {
         return [
             'id'                       => $this->id,
+            'reference_number'         => $this->referenceNumber(),
             'participant_id'           => $this->participant_id,
             'participant_name'         => $this->participant
                 ? $this->participant->first_name . ' ' . $this->participant->last_name
