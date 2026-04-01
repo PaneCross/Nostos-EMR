@@ -82,7 +82,7 @@ Wave 4 (Phases W4-0 through W4-9): IN PROGRESS
   W4-2  Encryption at Rest + BAA/SRA:      [x] COMPLETE — 2026-03-31 (BLOCKER-01 + BLOCKER-03 resolved)
   W4-3  Demographics + Participant Fields:  [x] COMPLETE — 2026-04-01
   W4-4  Quick Wins — Vitals & Assessments: [x] COMPLETE — 2026-04-01
-  W4-5  Care Plan + IDT Compliance:        [ ] NOT STARTED
+  W4-5  Care Plan + IDT Compliance:        [x] COMPLETE — 2026-04-01
   W4-6  Incident + Regulatory Tracking:    [ ] NOT STARTED
   W4-7  CPOE — Lightweight Order Entry:    [ ] NOT STARTED
   W4-8  New Note Types + Assessments:      [ ] NOT STARTED
@@ -183,19 +183,21 @@ Full context for Wave 4 build. Status tags indicate which W4 phase addresses eac
   reconciliation. Required before billing go-live.
 
 ### HIGH GAPS
-- GAP-05 [W4-5]: No 6-month IDT review frequency tracking or overdue alert.
-  42 CFR §460.104(c) requires reassessment at least every 6 months.
-  Common CMS survey deficiency finding.
-- GAP-06 [W4-5]: No participant acknowledgment fields on care plans.
-  42 CFR §460.104(d) requires participant/representative signature on plan.
+- GAP-05 [W4-5]: RESOLVED — IDT review frequency tracking complete.
+  Participant::idtReviewOverdue(), IdtReviewFrequencyJob (daily), dashboard widget,
+  overdue badge in participant directory.
+- GAP-06 [W4-5]: RESOLVED — Care plan participant acknowledgment complete.
+  Migration 89: participation fields; CarePlanController::updateParticipation();
+  approve() returns participation_warning; CarePlanTab participation section.
 - GAP-07 [W4-3]: RESOLVED — Race/ethnicity (OMB two-question format), marital status,
   veteran status, education level, religion, legal rep FK all added in migration 85.
   Photo display implemented in header + directory. ParticipantDemographicsTest (19 tests).
 - GAP-08 [W4-6]: No CMS/SMA (State Medicaid Agency) notification tracking on
   incidents. 42 CFR §460.136 requires notifying CMS and SMA of significant
   adverse events within specified timeframes.
-- GAP-09 [W4-5]: No disenrollment transition plan documentation workflow.
-  42 CFR §460.116 requires a transition plan when a participant disenrolls.
+- GAP-09 [W4-5]: RESOLVED — Disenrollment transition plan complete.
+  Migration 90: emr_disenrollment_records; DisenrollmentRecord model;
+  EnrollmentService::disenroll() auto-creates record + SDRs; QA dashboard KPI.
 - GAP-10 [W4-6]: No significant change event tracking (30-day IDT reassessment rule).
   42 CFR §460.104(b) requires IDT reassessment within 30 days of significant
   change in health status (hospitalization, functional decline, etc.).
@@ -218,10 +220,10 @@ Full context for Wave 4 build. Status tags indicate which W4 phase addresses eac
 - QW-03 [W4-3]: Race/ethnicity on participant form (merged into W4-3 demographics)
 - QW-04 [W3-3]: Unsigned notes queue/dashboard widget (completed in Wave 3 W3-3)
 - QW-05 [W4-4]: Assessment due date alert banner on participant profile
-- QW-06 [W4-5]: IDT review overdue indicator on participant header/profile
+- QW-06 [W4-5]: RESOLVED — IDT review overdue badge in participant directory (amber chip)
 - QW-07 [W4-4]: Participant photo display in clinical sticky header
 - QW-08 [W4-3]: Marital status + legal representative fields (merged into W4-3)
-- QW-09 [W4-5]: Care plan participant acknowledgment field + signature date
+- QW-09 [W4-5]: RESOLVED — Care plan participation section + offered/response/date fields
 - QW-10 [W4-6]: Incident CMS/SMA notification tracking fields
 - QW-11 [W4-4]: VIS (Vaccine Information Statement) given field on immunizations
 - QW-12 [W4-6]: Significant change flag on ADT hospitalizations (A01/A03 events)
@@ -440,7 +442,7 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 - Known technical debt log: [x] COMPLETE — categorized by priority in HANDOFF.md
 - Environment setup verified from scratch: [ ] Not yet verified by independent developer
 
-## MIGRATIONS RUN (88 total, in order, all batch 1)
+## MIGRATIONS RUN (90 total, in order, all batch 1)
 1.  0001_01_01_000000_create_users_table
 2.  0001_01_01_000001_create_cache_table
 3.  0001_01_01_000002_create_jobs_table
@@ -529,11 +531,13 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 86. 2025_03_03_000001_add_blood_glucose_timing_to_emr_vitals
 87. 2025_03_03_000002_add_vis_fields_to_emr_immunizations
 88. 2025_03_03_000003_add_new_assessment_types
+89. 2025_04_01_000001_add_participation_fields_to_emr_care_plans
+90. 2025_04_01_000002_create_emr_disenrollment_records
 
 ## MODELS (60)
 AdlRecord, AdlThreshold, Alert, Allergy, ApiToken, Appointment, Assessment, AuditLog,
 Authorization, BaaRecord, CapitationRecord, CarePlan, CarePlanGoal, ChatChannel, ChatMembership, ChatMessage,
-ClinicalNote, ConsentRecord, DayCenterAttendance, Document, DrugInteractionAlert, EdiBatch, EhiExport, EmarRecord, EncounterLog,
+ClinicalNote, ConsentRecord, DayCenterAttendance, DisenrollmentRecord, Document, DrugInteractionAlert, EdiBatch, EhiExport, EmarRecord, EncounterLog,
 Grievance, HccMapping, HosMSurvey, HpmsSubmission, Icd10Lookup, IdtMeeting, IdtParticipantReview, Immunization,
 Incident, InsuranceCoverage, IntegrationLog, Location, MedReconciliation, Medication, OtpCode,
 Participant, ParticipantAddress, ParticipantContact, ParticipantFlag, ParticipantRiskScore,
@@ -544,7 +548,7 @@ SocialDeterminant, SraRecord, StateMedicaidConfig, Tenant, TransportRequest, Use
 AdlController, AlertController, AllergyController, AppointmentController,
 AssessmentController, BillingComplianceController, BillingEncounterController, CapitationController,
 CarePlanController, ChatController, ClinicalDashboardController, ClinicalNoteController, ClinicalOverviewController,
-ComingSoonController, ConsentController, Controller (base), DayCenterController, DashboardController, DocumentController, EdiBatchController,
+ComingSoonController, ConsentController, Controller (base), DayCenterController, DashboardController, DisenrollmentController, DocumentController, EdiBatchController,
 EhiExportController, FhirController, FinanceController, FinanceDashboardController,
 GrievanceController, HosMSurveyController, HpmsController, IdtMeetingController, ImmunizationController,
 ImpersonationController, IncidentController, IntegrationController, ItAdminController,
@@ -826,6 +830,11 @@ Rules (enforced going forward — audit ran 2026-03-14, all gaps patched):
 - [Phase 11B] EHI export token: 64-char hex (bin2hex(random_bytes(32))). Single-use (downloaded_at set on first download). 24h TTL (expires_at = now()+24h). Controller returns 410 Gone for expired exports.
 - [Phase 11B] FHIR R4 new endpoints: GET /fhir/R4/Immunization, GET /fhir/R4/Procedure, GET /fhir/R4/Observation/social-history. All require Bearer token auth with scope (immunization.read, procedure.read, observation.read). All audit-logged.
 - [Phase 11B] advance_directive columns on emr_participants: status/type/reviewed_at/reviewed_by_user_id. PostgreSQL CHECK constraints added via DB::statement(). Fields in UpdateParticipantRequest $base array (accessible to all departments including primary_care per 42 CFR 460.96).
+- [W4-5] DisenrollmentController::show() returns FLAT JSON (no 'record' wrapper key). Tests must assert `assertJsonStructure(['id', 'reason', ...])` NOT `assertJsonStructure(['record' => [...]])`. TestResponse::viewData() throws RuntimeException on Inertia responses — never use viewData() in tests against Inertia endpoints; check DB state or assertJsonPath() instead.
+- [W4-5] emr_disenrollment_records does NOT have follow_up_provider_name or follow_up_provider_contact columns. The transition plan text is in `transition_plan_text` (TEXT). Provider info is in `cms_notification_notes` or `notes` fields.
+- [W4-5] EnrollmentService::disenroll() SDR priority must be 'urgent' (NOT 'high'). Valid SDR priorities: routine/urgent/emergent. Also: `requesting_department` is NOT NULL on emr_sdrs — always set it when creating SDRs programmatically.
+- [W4-5] Participant::idtReviewOverdue() returns false for non-enrolled OR recently enrolled (< 180 days). Only returns true for enrolled > 180 days with no review, OR last review > 180 days ago. The 180-day threshold matches 42 CFR §460.104(c) 6-month rule.
+- [W4-5] IdtReviewFrequencyJob deduplication: only checks for `is_active=true` + `alert_type='idt_review_overdue'`. Running the job twice without resolving the alert creates only 1 alert. Once the alert is resolved (is_active=false) AND a new review is recorded, the next job run will NOT re-alert (overdue check passes). If alert is resolved but NO review recorded, next run re-creates the alert.
 
 ## DEMO CREDENTIALS (dev only)
 - Super Admin: superadmin@nostos.dev / DemoP@ce2025!
@@ -901,6 +910,7 @@ rsync -av --exclude=vendor --exclude=node_modules --exclude=public/build --exclu
 - [2026-03-31] W4-1 — 1218 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). Grievance & Consent Module complete. BLOCKER-02 resolved.
 - [2026-03-31] W4-1 User Designations add-on — 1232 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). User Designations system complete. Migrations 80–81. 14 new tests (UserDesignationTest).
 - [2026-04-01] W4-4 — 1302 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). BMI auto-calc, blood glucose timing, VIS fields on immunizations, Braden/MoCA/OHAT assessment types + alert thresholds, assessment due-date endpoint.
+- [2026-04-01] W4-5 — 1335 passing, 0 failing (16 deprecations, 158 PHPUnit deprecations — non-blocking). Care plan participation acknowledgment, IDT review frequency tracking, disenrollment transition plan.
 - [2026-03-31] W4-2 + Grievance permissions + Timestamp fix — 1263 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). Migration 84 (column widening for encrypted PHI). 28 new tests (EncryptionTest 10 + BaaTrackerTest 18). Grievances nav opened to all 14 depts. Grievance datetime toIso8601String() fix. SecurityComplianceController JSON returns. Build clean.
 - [2026-03-26] W3-2 — 1091 passing, 0 failing. Build clean. Adds NavRoutingTest (13 tests) + DayCenterAttendanceTest (12 tests) + Day Center attendance module + Reports page + System Settings page. Bugs fixed: scopeForSite null type hint, payer_id column DNE, pace_contract column DNE (mapped to cms_contract_id), ComingSoonBannerTest stale assertions for 3 now-live pages + /idt/minutes redirect target.
 - [2026-03-27] W3-4 — 1137 passing, 0 failing. Build clean. Adds FacesheetTest (6 tests) + ParticipantTabRoutingTest (22 tests). Show.tsx: print CSS fixed (visibility approach — position:fixed caused blank print), two-row tab layout (CLINICAL blue / ADMIN slate), switchTab() for URL sync via window.history.replaceState, valid tab list updated with immunizations/procedures/sdoh (Phase 11B), ParticipantHeader onTabChange prop + Care Plan/Schedule header buttons fixed, advance directive DNR/POLST/No Directive badges in sticky header flags row, CarePlanTab save error state (catch block no longer silent), editability guard on Edit button (hidden for active/archived plans). Bugs fixed: cross-tenant returns 403 not 404 (authorizeForTenant uses abort_if(..., 403)), PHPUnit @dataProvider converted to #[DataProvider] attribute.
@@ -1397,6 +1407,46 @@ Based on the audit above, Phase 9B (Encounter Data & Billing Infrastructure) sho
 ---
 
 ## SESSION LOG
+
+### 2026-04-01 — W4-5 Complete — Care Plan + IDT Compliance Fields (GAP-05, GAP-06, GAP-09)
+
+Implemented W4-5 compliance fields. 33 new tests, 0 failures. Migrations 89–90 confirmed.
+
+**GAP-06 / QW-09 — Care plan participant acknowledgment (42 CFR §460.104(d)):**
+- Migration 89: `participant_offered_participation` (bool), `participant_response` (accepted/declined/no_response CHECK), `offered_at` (timestamp), `offered_by_user_id` (nullable FK) on emr_care_plans.
+- `CarePlan::participationDocumented()`: returns true when offered + response not null.
+- `CarePlanController::updateParticipation()`: PATCH endpoint for recording participation. Validates offered, response, date; sets offered_by_user_id server-side.
+- `CarePlanController::approve()`: soft enforcement — returns `participation_warning: true/false`; plan still approves even without participation documented. QA/clinical staff see the warning.
+- Show.tsx CarePlanTab: participation section with offered toggle, response select, date, offered-by name.
+- Tests: CarePlanAcknowledgmentTest (8 tests — offered, declined, invalid value, cross-tenant 403, approve warning true/false, approve succeeds, show includes fields).
+
+**GAP-05 / QW-06 — IDT review frequency tracking (42 CFR §460.104(c)):**
+- `Participant::lastIdtReviewedAt()`: queries IdtParticipantReview for most recent `reviewed_at`.
+- `Participant::idtReviewOverdue()`: enrolled check first; enrolled > 180 days + no review = true; last review > 180 days = true; enrolled < 180 days with no review = false.
+- `IdtReviewFrequencyJob`: daily job across all tenants; dedup via `is_active=true` + `alert_type='idt_review_overdue'`; creates Alert with source_module='idt', target_departments=['idt'], created_by_system=true. Registered in routes/console.php.
+- `IdtDashboardController::idtReviewOverdue()`: GET /dashboards/idt/idt-review-overdue; returns participants + overdue_count. Requires idt dept or super_admin.
+- IdtDashboard.tsx: 5th widget with participant list and overdue count badge.
+- Participants/Index.tsx: `idt_review_overdue` badge in directory listing (amber chip).
+- Tests: IdtFrequencyTest (8 feature tests), IdtReviewFrequencyJobTest (7 unit tests).
+
+**GAP-09 — Disenrollment transition plan (42 CFR §460.116):**
+- Migration 90: `emr_disenrollment_records` — reason/effective_date/notes, transition_plan lifecycle (pending/in_progress/completed/not_required), CMS notification tracking (cms_notified_at/cms_notified_by/cms_notification_notes), providers_notified, softDeletes.
+- `DisenrollmentRecord` model: PLAN_* constants, TRANSITION_PLAN_DUE_DAYS=30, CMS_NOTIFICATION_OVERDUE_DAYS=7, `cmsNotificationPending()`, `transitionPlanOverdue()`, `scopePendingCmsNotification()`.
+- `EnrollmentService::disenroll()`: creates DisenrollmentRecord (PLAN_NOT_REQUIRED for deceased); creates social_work SDR for transition plan; creates enrollment SDR when cms_notification_required=true.
+- `DisenrollmentController`: GET show (flat JSON), PATCH update (transition plan + CMS tracking fields). Enrollment/QA/IT Admin can update.
+- Show.tsx DisenrollmentTab: shows status, due date, plan text form, CMS notification section. Accessible to enrollment/qa_compliance/it_admin/super_admin.
+- QaDashboardController: `pending_cms_disenrollment_count` KPI via `DisenrollmentRecord::pendingCmsNotification()`.
+- Qa/Dashboard.tsx: displays pending CMS disenrollment count KPI card.
+- Tests: DisenrollmentTransitionTest (9 tests).
+
+**Bugs found and fixed:**
+1. `EnrollmentService::disenroll()` social_work SDR: missing `requesting_department` (NOT NULL constraint). Added `'requesting_department' => 'enrollment'`.
+2. `EnrollmentService::disenroll()` SDR priority: `'high'` is not valid (constraint: routine/urgent/emergent). Changed to `'urgent'`.
+3. `DisenrollmentTransitionTest::test_disenrollment_show_returns_record_for_enrollment_staff`: asserted `['record' => [...]]` wrapper but controller returns flat JSON. Fixed assertion to `['id', 'reason', 'effective_date', 'transition_plan_status']`.
+4. `DisenrollmentTransitionTest::test_disenrollment_update_saves_transition_plan`: sent `follow_up_provider_name` (column doesn't exist in schema). Replaced with `transition_plan_status` + `notes` (columns that exist).
+5. `DisenrollmentTransitionTest::test_qa_dashboard_counts_pending_cms_notifications`: `$response->viewData('kpis')` throws RuntimeException on Inertia responses (not caught by `??`). Replaced with direct DB state verification.
+
+**Result:** 1335 tests, 0 failures. Commit e0099c9. Pushed to GitHub.
 
 ### 2026-04-01 — W4-4 Complete — Quick Wins: Vitals, Assessments, Immunizations
 
