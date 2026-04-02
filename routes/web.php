@@ -19,6 +19,7 @@ use App\Http\Controllers\BreakGlassController;
 use App\Http\Controllers\ImmunizationController;
 use App\Http\Controllers\ProcedureController;
 use App\Http\Controllers\WoundController;
+use App\Http\Controllers\LabResultController;
 use App\Http\Controllers\SocialDeterminantController;
 use App\Http\Controllers\DayCenterController;
 use App\Http\Controllers\ClinicalOrderController;
@@ -132,6 +133,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/orders',     [PrimaryCareDashboardController::class, 'orders'])->name('dashboards.primary-care.orders');
             // W5-1: Open wound records for nursing review (CMS QAPI Stage 3+ threshold)
             Route::get('/wounds',     [PrimaryCareDashboardController::class, 'wounds'])->name('dashboards.primary-care.wounds');
+            // W5-2: Unreviewed abnormal lab results for clinical attention
+            Route::get('/lab-results', [PrimaryCareDashboardController::class, 'labResults'])->name('dashboards.primary-care.lab_results');
         });
 
         Route::prefix('therapies')->group(function () {
@@ -411,6 +414,17 @@ Route::middleware('auth')->group(function () {
         Route::put('/{wound}',                   [WoundController::class, 'update'])->name('participants.wounds.update');
         Route::post('/{wound}/assess',           [WoundController::class, 'addAssessment'])->name('participants.wounds.assess');
         Route::post('/{wound}/close',            [WoundController::class, 'close'])->name('participants.wounds.close');
+    });
+
+    // ─── W5-2: Lab Results Viewer (nested under participant) ─────────────────
+    // Write (store): primary_care, home_care, therapies, it_admin.
+    // Review: primary_care, it_admin.
+    // Read: all authenticated users with participant access.
+    Route::prefix('participants/{participant}/lab-results')->group(function () {
+        Route::get('/',            [LabResultController::class, 'index'])->name('participants.lab_results.index');
+        Route::post('/',           [LabResultController::class, 'store'])->name('participants.lab_results.store');
+        Route::get('/{lab}',       [LabResultController::class, 'show'])->name('participants.lab_results.show');
+        Route::post('/{lab}/review', [LabResultController::class, 'review'])->name('participants.lab_results.review');
     });
 
     // ─── W5-1: Break-the-Glass Emergency Access (nested under participant) ────

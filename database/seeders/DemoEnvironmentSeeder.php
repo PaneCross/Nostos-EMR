@@ -248,6 +248,14 @@ class DemoEnvironmentSeeder extends Seeder
         $this->command->info('  Seeding W5-1 wound care and break-the-glass demo data...');
         $this->call(W51DataSeeder::class);
 
+        // ─── W5-2: Lab Results Viewer ─────────────────────────────────────────
+        // Seeds 5-8 lab results per enrolled participant with realistic CBC,
+        // CMP, HbA1c, lipid, TSH, INR, and vitamin D panel data.
+        // ~20% abnormal, ~5% critical-value, mix of reviewed/unreviewed.
+        $this->command->info('');
+        $this->command->info('  Seeding W5-2 lab results demo data...');
+        $this->call(W52DataSeeder::class);
+
         // ─── Participant Photos ────────────────────────────────────────────────
         // Downloads pravatar.cc placeholder images for the first 15 enrolled
         // participants so the photo upload feature is visually testable.

@@ -1,60 +1,102 @@
 <?php
 
 // ─── DiagnosticReportMapper ───────────────────────────────────────────────────
-// Maps a NostosEMR IntegrationLog (lab_results connector) to a FHIR R4
-// DiagnosticReport resource.
+// Maps a NostosEMR LabResult to a FHIR R4 DiagnosticReport resource.
 //
 // FHIR R4 spec: https://hl7.org/fhir/R4/diagnosticreport.html
 //
-// Source: emr_integration_log rows where connector_type='lab_results' and
-//         status='processed'. Lab results are treated as final once stored.
+// Source: emr_lab_results (with emr_lab_result_components).
+// W5-2: Updated to use structured lab result records instead of emr_integration_log.
 //
-// Expected raw_payload structure (from ProcessLabResultJob / LabResultConnector):
-//   patient_mrn    — MRN to resolve participant identity
-//   test_name      — Human-readable test name (e.g. "CBC with Differential")
-//   result_value   — Numeric or string result (e.g. "12.5")
-//   result_unit    — Unit of measure (e.g. "g/dL")
-//   abnormal_flag  — Boolean; true if result is outside reference range
-//   collected_at   — ISO datetime when specimen was collected
+// Components are mapped as contained FHIR Observation resources within the
+// DiagnosticReport (using the #local reference pattern for simplicity).
+// Each OBX-equivalent component becomes one Observation with a valueQuantity
+// or valueString depending on whether the value is numeric.
 //
-// Conclusion format: "{result_value} {result_unit} [ABNORMAL]"
-//
-// W4-9 — GAP-13: FHIR R4 DiagnosticReport resource.
+// W4-9 — GAP-13: FHIR R4 DiagnosticReport resource (originally from integration log).
+// W5-2 — Updated to pull from emr_lab_results + emr_lab_result_components.
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace App\Fhir\Mappers;
 
-use App\Models\IntegrationLog;
+use App\Models\LabResult;
+use App\Models\LabResultComponent;
 use Carbon\Carbon;
 
 class DiagnosticReportMapper
 {
     /**
-     * Map an IntegrationLog lab result to a FHIR R4 DiagnosticReport resource.
+     * Map a LabResult (with loaded components) to a FHIR R4 DiagnosticReport resource.
      *
-     * @param  IntegrationLog  $log            The processed lab result integration log entry
-     * @param  int             $participantId  Resolved participant ID (from MRN lookup)
+     * @param  LabResult  $lab  The structured lab result record (components must be loaded)
      */
-    public static function toFhir(IntegrationLog $log, int $participantId): array
+    public static function toFhir(LabResult $lab): array
     {
-        $payload  = $log->raw_payload ?? [];
-        $abnormal = (bool) ($payload['abnormal_flag'] ?? false);
+        $components   = $lab->relationLoaded('components') ? $lab->components : collect();
+        $contained    = [];
+        $resultRefs   = [];
 
-        // Conclusion: value + unit + ABNORMAL marker if flagged
-        $conclusionParts = array_filter([
-            $payload['result_value'] ?? null,
-            $payload['result_unit']  ?? null,
-            $abnormal ? 'ABNORMAL' : null,
-        ]);
-        $conclusion = $conclusionParts ? implode(' ', $conclusionParts) : null;
+        // ── Map each component as a contained FHIR Observation ────────────────
 
-        return [
+        foreach ($components as $idx => $comp) {
+            /** @var LabResultComponent $comp */
+            $obsId = "obs-{$idx}";
+
+            // Determine interpretation coding from abnormal_flag
+            $interpretation = self::interpretationCoding($comp->abnormal_flag);
+
+            // valueQuantity vs valueString: numeric values get Quantity; text gets String
+            $valueKey   = 'valueString';
+            $valueField = (string) $comp->value;
+
+            if (is_numeric($comp->value)) {
+                $valueKey   = 'valueQuantity';
+                $valueField = [
+                    'value' => (float) $comp->value,
+                    'unit'  => $comp->unit,
+                    'system'=> 'http://unitsofmeasure.org',
+                    'code'  => $comp->unit,
+                ];
+            }
+
+            $observation = [
+                'resourceType' => 'Observation',
+                'id'           => $obsId,
+                'status'       => 'final',
+                'code'         => [
+                    'coding' => array_filter([
+                        $comp->component_code ? [
+                            'system'  => 'http://loinc.org',
+                            'code'    => $comp->component_code,
+                            'display' => $comp->component_name,
+                        ] : null,
+                    ]),
+                    'text' => $comp->component_name,
+                ],
+                $valueKey => $valueField,
+            ];
+
+            if ($comp->reference_range) {
+                $observation['referenceRange'] = [
+                    ['text' => $comp->reference_range],
+                ];
+            }
+
+            if ($interpretation) {
+                $observation['interpretation'] = [$interpretation];
+            }
+
+            $contained[]  = $observation;
+            $resultRefs[] = ['reference' => "#{$obsId}"];
+        }
+
+        // ── Build DiagnosticReport ────────────────────────────────────────────
+
+        $report = [
             'resourceType' => 'DiagnosticReport',
-            'id'           => (string) $log->id,
+            'id'           => (string) $lab->id,
 
-            // All stored lab results are final — they are only written after
-            // ProcessLabResultJob completes successfully.
-            'status' => 'final',
+            'status' => self::mapStatus($lab->overall_status),
 
             // ── Category ──────────────────────────────────────────────────────
             'category' => [
@@ -69,29 +111,99 @@ class DiagnosticReportMapper
                 ],
             ],
 
-            // ── Code (test name) ──────────────────────────────────────────────
+            // ── Code (panel/test name) ─────────────────────────────────────────
             'code' => [
-                'coding' => [
-                    ['display' => $payload['test_name'] ?? 'Lab Result'],
-                ],
-                'text' => $payload['test_name'] ?? 'Lab Result',
+                'coding' => array_filter([
+                    $lab->test_code ? [
+                        'system'  => 'http://loinc.org',
+                        'code'    => $lab->test_code,
+                        'display' => $lab->test_name,
+                    ] : null,
+                    ['display' => $lab->test_name],
+                ]),
+                'text' => $lab->test_name,
             ],
 
             // ── Subject ───────────────────────────────────────────────────────
-            'subject' => ['reference' => "Patient/{$participantId}"],
+            'subject' => ['reference' => "Patient/{$lab->participant_id}"],
 
             // ── Effective date (specimen collection) ──────────────────────────
-            'effectiveDateTime' => isset($payload['collected_at'])
-                ? Carbon::parse($payload['collected_at'])->toIso8601String()
+            'effectiveDateTime' => $lab->collected_at
+                ? Carbon::parse($lab->collected_at)->toIso8601String()
                 : null,
 
-            // ── Issued date (when result was logged) ──────────────────────────
-            'issued' => $log->created_at
-                ? Carbon::parse($log->created_at)->toIso8601String()
+            // ── Issued date (when result was resulted / logged) ───────────────
+            'issued' => ($lab->resulted_at ?? $lab->created_at)
+                ? Carbon::parse($lab->resulted_at ?? $lab->created_at)->toIso8601String()
                 : null,
+
+            // ── Performer ─────────────────────────────────────────────────────
+            'performer' => array_filter([
+                $lab->performing_facility
+                    ? ['display' => $lab->performing_facility]
+                    : null,
+                $lab->ordering_provider_name
+                    ? ['display' => $lab->ordering_provider_name]
+                    : null,
+            ]),
+
+            // ── Result references (contained Observations) ────────────────────
+            'result' => $resultRefs,
+
+            // ── Contained resources ───────────────────────────────────────────
+            'contained' => $contained,
 
             // ── Conclusion ────────────────────────────────────────────────────
-            'conclusion' => $conclusion,
+            'conclusion' => $lab->abnormal_flag ? 'Abnormal result — clinical review required.' : null,
+        ];
+
+        return $report;
+    }
+
+    /**
+     * Map LabResult overall_status to FHIR DiagnosticReport status codes.
+     * FHIR spec: registered|partial|preliminary|final|amended|corrected|appended|cancelled|entered-in-error
+     */
+    private static function mapStatus(string $status): string
+    {
+        return match ($status) {
+            'final'       => 'final',
+            'preliminary' => 'preliminary',
+            'corrected'   => 'corrected',
+            'cancelled'   => 'cancelled',
+            default       => 'final',
+        };
+    }
+
+    /**
+     * Build a FHIR Observation interpretation coding from an abnormal_flag value.
+     * FHIR uses v3 ObservationInterpretation codes.
+     */
+    private static function interpretationCoding(?string $flag): ?array
+    {
+        if ($flag === null || $flag === 'normal') {
+            return null;
+        }
+
+        $map = [
+            'high'         => ['code' => 'H',  'display' => 'High'],
+            'low'          => ['code' => 'L',  'display' => 'Low'],
+            'critical_high'=> ['code' => 'HH', 'display' => 'Critical High'],
+            'critical_low' => ['code' => 'LL', 'display' => 'Critical Low'],
+            'abnormal'     => ['code' => 'A',  'display' => 'Abnormal'],
+        ];
+
+        $entry = $map[$flag] ?? ['code' => 'A', 'display' => 'Abnormal'];
+
+        return [
+            'coding' => [
+                [
+                    'system'  => 'http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation',
+                    'code'    => $entry['code'],
+                    'display' => $entry['display'],
+                ],
+            ],
+            'text' => $entry['display'],
         ];
     }
 }

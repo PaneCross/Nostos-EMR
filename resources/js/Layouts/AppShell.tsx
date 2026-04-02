@@ -630,7 +630,7 @@ function TopBar({ onToggleSidebar, onOpenSearch, theme, onThemeChange }: {
     }, [showHelp]);
 
     return (
-        <header className="h-14 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center px-4 gap-4 shrink-0 z-10">
+        <header className="h-14 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center px-4 gap-4 shrink-0 z-30">
             {/* Sidebar collapse/expand toggle */}
             <button
                 onClick={onToggleSidebar}

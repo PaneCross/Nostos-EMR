@@ -32,6 +32,7 @@ import {
   ClockIcon,
   CameraIcon,
   XCircleIcon,
+  ChevronDownIcon,
 } from '@heroicons/react/24/outline'
 
 // ─── Phase 2 Types ────────────────────────────────────────────────────────────
@@ -6541,14 +6542,17 @@ function ParticipantConsentsTab({ participantId }: { participantId: number }) {
 
 function DisenrollmentTab({
   participantId,
+  enrollmentStatus,
   userDept,
   userIsSuperAdmin,
 }: {
   participantId: number
+  enrollmentStatus: string
   userDept: string
   userIsSuperAdmin: boolean
 }) {
   const canEdit = userIsSuperAdmin || ['enrollment', 'qa_compliance', 'it_admin'].includes(userDept)
+  const canDisenroll = userIsSuperAdmin || ['enrollment', 'it_admin'].includes(userDept)
   const [record, setRecord]     = React.useState<any>(null)
   const [loaded, setLoaded]     = React.useState(false)
   const [loading, setLoading]   = React.useState(false)
@@ -6556,6 +6560,37 @@ function DisenrollmentTab({
   const [saving, setSaving]     = React.useState(false)
   const [error, setError]       = React.useState<string | null>(null)
   const [form, setForm]         = React.useState<any>({})
+
+  // ── Disenrollment initiation modal state ──────────────────────────────────
+  const [showDisenrollModal, setShowDisenrollModal] = React.useState(false)
+  const [disenrollForm, setDisenrollForm] = React.useState({
+    reason: '',
+    effective_date: '',
+    notes: '',
+    cms_notification_required: false,
+  })
+  const [disenrollSaving, setDisenrollSaving] = React.useState(false)
+  const [disenrollError, setDisenrollError]   = React.useState('')
+
+  const submitDisenrollment = async () => {
+    if (!disenrollForm.reason || !disenrollForm.effective_date) {
+      setDisenrollError('Reason and effective date are required.')
+      return
+    }
+    setDisenrollSaving(true)
+    setDisenrollError('')
+    try {
+      await import('axios').then(({ default: ax }) =>
+        ax.post(`/participants/${participantId}/disenroll`, disenrollForm)
+      )
+      setShowDisenrollModal(false)
+      setLoaded(false) // re-fetch the disenrollment record
+    } catch (err: any) {
+      setDisenrollError(err?.response?.data?.message ?? 'Disenrollment failed. Please try again.')
+    } finally {
+      setDisenrollSaving(false)
+    }
+  }
 
   React.useEffect(() => {
     if (loaded) return
@@ -6614,10 +6649,107 @@ function DisenrollmentTab({
   if (loading) return <p className="py-8 text-center text-sm text-gray-500 dark:text-slate-400">Loading…</p>
 
   if (!record) return (
-    <div className="py-12 text-center">
+    <div className="py-12 text-center space-y-4">
       <p className="text-sm text-gray-500 dark:text-slate-400">
         No disenrollment record found. This participant has not been disenrolled.
       </p>
+      {canDisenroll && enrollmentStatus === 'enrolled' && (
+        <button
+          onClick={() => { setShowDisenrollModal(true); setDisenrollError('') }}
+          className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700"
+        >
+          Disenroll Participant
+        </button>
+      )}
+
+      {/* Disenrollment initiation modal */}
+      {showDisenrollModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg p-6 space-y-4 text-left">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">
+              Disenroll Participant
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-slate-400">
+              This will end the participant's enrollment, set their status to disenrolled, and
+              automatically generate transition plan and CMS notification tasks per 42 CFR §460.116.
+            </p>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">
+                Reason <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={disenrollForm.reason}
+                onChange={e => setDisenrollForm(f => ({ ...f, reason: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm px-3 py-2"
+              >
+                <option value="">Select a reason</option>
+                <option value="voluntary">Voluntary withdrawal</option>
+                <option value="involuntary">Involuntary disenrollment</option>
+                <option value="deceased">Deceased</option>
+                <option value="moved">Moved out of service area</option>
+                <option value="nf_admission">Nursing facility admission (permanent)</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">
+                Effective Date <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={disenrollForm.effective_date}
+                onChange={e => setDisenrollForm(f => ({ ...f, effective_date: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm px-3 py-2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">
+                Notes
+              </label>
+              <textarea
+                rows={3}
+                value={disenrollForm.notes}
+                onChange={e => setDisenrollForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Optional: additional context or instructions"
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm px-3 py-2 resize-none"
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={disenrollForm.cms_notification_required}
+                onChange={e => setDisenrollForm(f => ({ ...f, cms_notification_required: e.target.checked }))}
+                className="rounded border-gray-300 text-blue-600"
+              />
+              CMS and State Medicaid Agency (SMA) notification required
+            </label>
+
+            {disenrollError && (
+              <p className="text-xs text-red-600 dark:text-red-400">{disenrollError}</p>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2 border-t border-gray-200 dark:border-slate-700">
+              <button
+                onClick={() => setShowDisenrollModal(false)}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitDisenrollment}
+                disabled={disenrollSaving}
+                className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >
+                {disenrollSaving ? 'Processing…' : 'Confirm Disenrollment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 
@@ -7081,6 +7213,378 @@ function OrdersTab({ participantId, userDept, isSuperAdmin }: { participantId: n
             </div>
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+// ─── LabResultsTab ─────────────────────────────────────────────────────────────
+// W5-2: Displays structured lab results for a PACE participant.
+// Supports list view with abnormal/critical badges, inline component expansion,
+// and clinical review marking. Data loaded lazily on first tab activation.
+// Manual entry allowed for primary_care, home_care, therapies, it_admin.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface LabComponent {
+  id: number
+  component_name: string
+  component_code: string | null
+  value: string
+  unit: string | null
+  reference_range: string | null
+  abnormal_flag: string | null
+  is_abnormal: boolean
+  is_critical: boolean
+}
+
+interface LabResultItem {
+  id: number
+  participant_id: number
+  test_name: string
+  test_code: string | null
+  collected_at: string | null
+  resulted_at: string | null
+  ordering_provider_name: string | null
+  performing_facility: string | null
+  source: string
+  overall_status: string
+  status_label: string
+  abnormal_flag: boolean
+  is_reviewed: boolean
+  reviewed_by: string | null
+  reviewed_at: string | null
+  notes: string | null
+  component_count: number
+  components?: LabComponent[]
+  created_at: string
+}
+
+function LabResultsTab({ participantId, userDept, userIsSuperAdmin }: {
+  participantId: number
+  userDept: string
+  userIsSuperAdmin: boolean
+}) {
+  const canWrite  = userIsSuperAdmin || ['primary_care','home_care','therapies','it_admin'].includes(userDept)
+  const canReview = userIsSuperAdmin || ['primary_care','it_admin'].includes(userDept)
+
+  const [results, setResults] = React.useState<LabResultItem[]>([])
+  const [meta, setMeta]       = React.useState<{ total: number; unreviewed_count: number } | null>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [expanded, setExpanded] = React.useState<number | null>(null)
+  const [showNewForm, setShowNewForm] = React.useState(false)
+  const [saving, setSaving] = React.useState(false)
+  const [error, setError]   = React.useState<string | null>(null)
+
+  // Filters
+  const [abnormalOnly, setAbnormalOnly] = React.useState(false)
+  const [unreviewedOnly, setUnreviewedOnly] = React.useState(false)
+
+  // New manual entry form
+  const blankForm = {
+    test_name: '', test_code: '', collected_at: '', resulted_at: '',
+    ordering_provider_name: '', performing_facility: '', overall_status: 'final', notes: '',
+    components: [{ component_name: '', component_code: '', value: '', unit: '', reference_range: '', abnormal_flag: '' }],
+  }
+  const [form, setForm] = React.useState(blankForm)
+
+  const load = () => {
+    setLoading(true)
+    const params = new URLSearchParams()
+    if (abnormalOnly)   params.set('abnormal_only', '1')
+    if (unreviewedOnly) params.set('unreviewed', '1')
+    axios.get(`/participants/${participantId}/lab-results?${params}`)
+      .then(r => { setResults(r.data.data); setMeta(r.data.meta) })
+      .finally(() => setLoading(false))
+  }
+
+  React.useEffect(() => { load() }, [abnormalOnly, unreviewedOnly])
+
+  const loadDetail = async (id: number) => {
+    if (expanded === id) { setExpanded(null); return }
+    const r = await axios.get(`/participants/${participantId}/lab-results/${id}`)
+    setResults(prev => prev.map(lab => lab.id === id ? { ...lab, components: r.data.components } : lab))
+    setExpanded(id)
+  }
+
+  const markReviewed = async (id: number) => {
+    try {
+      const r = await axios.post(`/participants/${participantId}/lab-results/${id}/review`)
+      setResults(prev => prev.map(lab => lab.id === id ? { ...lab, ...r.data } : lab))
+    } catch (e: any) {
+      // 409 means already reviewed — refresh
+      if (e?.response?.status === 409) load()
+    }
+  }
+
+  const addComponent = () => setForm(f => ({
+    ...f,
+    components: [...f.components, { component_name: '', component_code: '', value: '', unit: '', reference_range: '', abnormal_flag: '' }],
+  }))
+
+  const removeComponent = (idx: number) => setForm(f => ({
+    ...f,
+    components: f.components.filter((_, i) => i !== idx),
+  }))
+
+  const updateComponent = (idx: number, field: string, val: string) => setForm(f => ({
+    ...f,
+    components: f.components.map((c, i) => i === idx ? { ...c, [field]: val } : c),
+  }))
+
+  const submitNew = async () => {
+    if (!form.test_name || !form.collected_at) {
+      setError('Test name and collection date are required.')
+      return
+    }
+    setSaving(true); setError(null)
+    try {
+      const payload = {
+        ...form,
+        components: form.components
+          .filter(c => c.component_name.trim() && c.value.trim())
+          .map(c => ({ ...c, abnormal_flag: c.abnormal_flag || null })),
+      }
+      const r = await axios.post(`/participants/${participantId}/lab-results`, payload)
+      setResults(prev => [r.data, ...prev])
+      setShowNewForm(false)
+      setForm(blankForm)
+    } catch (e: any) {
+      setError(e?.response?.data?.message ?? 'Failed to save lab result.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const flagBadge = (flag: string | null, label?: string) => {
+    if (!flag || flag === 'normal') return null
+    const isCrit = flag === 'critical_low' || flag === 'critical_high'
+    const cls = isCrit
+      ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+      : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+    const text = label ?? flag.replace('_', ' ').toUpperCase()
+    return <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold ${cls}`}>{text}</span>
+  }
+
+  if (loading) return <div className="py-12 text-center text-gray-400 dark:text-slate-500">Loading lab results...</div>
+
+  return (
+    <div className="p-4 space-y-4">
+      {/* Header row */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
+          <label className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-slate-400 cursor-pointer select-none">
+            <input type="checkbox" checked={abnormalOnly} onChange={e => setAbnormalOnly(e.target.checked)} className="rounded border-gray-300 dark:border-slate-600" />
+            Abnormal only
+          </label>
+          <label className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-slate-400 cursor-pointer select-none">
+            <input type="checkbox" checked={unreviewedOnly} onChange={e => setUnreviewedOnly(e.target.checked)} className="rounded border-gray-300 dark:border-slate-600" />
+            Unreviewed only
+          </label>
+          {meta && meta.unreviewed_count > 0 && (
+            <span className="text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">
+              {meta.unreviewed_count} unreviewed abnormal
+            </span>
+          )}
+        </div>
+        {canWrite && (
+          <button
+            onClick={() => { setShowNewForm(true); setError(null) }}
+            className="px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            + Add Lab Result
+          </button>
+        )}
+      </div>
+
+      {/* New result form */}
+      {showNewForm && (
+        <div className="border border-blue-200 dark:border-blue-800 rounded-xl bg-blue-50 dark:bg-blue-900/20 p-4 space-y-4">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">New Lab Result</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Test Name *</label>
+              <input value={form.test_name} onChange={e => setForm(f => ({ ...f, test_name: e.target.value }))}
+                className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700" placeholder="e.g. CBC with Differential" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">LOINC Code</label>
+              <input value={form.test_code} onChange={e => setForm(f => ({ ...f, test_code: e.target.value }))}
+                className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700" placeholder="e.g. 58410-2" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Collected *</label>
+              <input type="datetime-local" value={form.collected_at} onChange={e => setForm(f => ({ ...f, collected_at: e.target.value }))}
+                className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Resulted</label>
+              <input type="datetime-local" value={form.resulted_at} onChange={e => setForm(f => ({ ...f, resulted_at: e.target.value }))}
+                className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Ordering Provider</label>
+              <input value={form.ordering_provider_name} onChange={e => setForm(f => ({ ...f, ordering_provider_name: e.target.value }))}
+                className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Performing Facility</label>
+              <input value={form.performing_facility} onChange={e => setForm(f => ({ ...f, performing_facility: e.target.value }))}
+                className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700" />
+            </div>
+          </div>
+
+          {/* Components */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wide">Components (analytes)</span>
+              <button onClick={addComponent} className="text-xs text-blue-600 hover:text-blue-700">+ Add component</button>
+            </div>
+            <div className="space-y-2">
+              {form.components.map((comp, idx) => (
+                <div key={idx} className="grid grid-cols-6 gap-2 items-start">
+                  <input value={comp.component_name} onChange={e => updateComponent(idx, 'component_name', e.target.value)}
+                    placeholder="Name *" className="col-span-2 border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-xs bg-white dark:bg-slate-700" />
+                  <input value={comp.value} onChange={e => updateComponent(idx, 'value', e.target.value)}
+                    placeholder="Value *" className="border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-xs bg-white dark:bg-slate-700" />
+                  <input value={comp.unit} onChange={e => updateComponent(idx, 'unit', e.target.value)}
+                    placeholder="Unit" className="border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-xs bg-white dark:bg-slate-700" />
+                  <select value={comp.abnormal_flag} onChange={e => updateComponent(idx, 'abnormal_flag', e.target.value)}
+                    className="border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-xs bg-white dark:bg-slate-700">
+                    <option value="">Normal</option>
+                    <option value="low">Low</option>
+                    <option value="high">High</option>
+                    <option value="critical_low">Critical Low</option>
+                    <option value="critical_high">Critical High</option>
+                    <option value="abnormal">Abnormal</option>
+                  </select>
+                  {form.components.length > 1 && (
+                    <button onClick={() => removeComponent(idx)} className="text-red-500 text-xs hover:text-red-700">Remove</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Notes</label>
+            <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2}
+              className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700" />
+          </div>
+
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+          <div className="flex justify-end gap-3">
+            <button onClick={() => { setShowNewForm(false); setForm(blankForm); setError(null) }}
+              className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200">
+              Cancel
+            </button>
+            <button onClick={submitNew} disabled={saving}
+              className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              {saving ? 'Saving...' : 'Save Lab Result'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Results list */}
+      {results.length === 0 ? (
+        <p className="text-sm text-gray-500 dark:text-slate-400 py-4">No lab results found.</p>
+      ) : (
+        <div className="space-y-2">
+          {results.map(lab => (
+            <div key={lab.id} className={`border rounded-xl overflow-hidden ${
+              lab.abnormal_flag
+                ? 'border-amber-200 dark:border-amber-800/60'
+                : 'border-gray-200 dark:border-slate-700'
+            }`}>
+              {/* Row header */}
+              <button
+                onClick={() => loadDetail(lab.id)}
+                className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-slate-700/50"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium text-gray-900 dark:text-slate-100">{lab.test_name}</span>
+                    {lab.test_code && <span className="text-xs text-gray-500 dark:text-slate-500">{lab.test_code}</span>}
+                    {lab.abnormal_flag && flagBadge('abnormal', 'ABNORMAL')}
+                    {lab.overall_status !== 'final' && (
+                      <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">
+                        {lab.status_label}
+                      </span>
+                    )}
+                    {lab.source === 'hl7_inbound' && (
+                      <span className="text-xs bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 px-1.5 py-0.5 rounded">HL7</span>
+                    )}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-3 text-xs text-gray-500 dark:text-slate-400 flex-wrap">
+                    {lab.collected_at && <span>Collected: {new Date(lab.collected_at).toLocaleDateString()}</span>}
+                    {lab.ordering_provider_name && <span>Provider: {lab.ordering_provider_name}</span>}
+                    {lab.performing_facility && <span>{lab.performing_facility}</span>}
+                    <span>{lab.component_count} {lab.component_count === 1 ? 'result' : 'results'}</span>
+                  </div>
+                </div>
+                <div className="shrink-0 flex items-center gap-2">
+                  {lab.is_reviewed ? (
+                    <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                      Reviewed by {lab.reviewed_by}
+                    </span>
+                  ) : lab.abnormal_flag && canReview ? (
+                    <button
+                      onClick={e => { e.stopPropagation(); markReviewed(lab.id) }}
+                      className="px-2.5 py-1 text-xs font-medium bg-amber-600 text-white rounded hover:bg-amber-700"
+                    >
+                      Mark Reviewed
+                    </button>
+                  ) : lab.abnormal_flag ? (
+                    <span className="text-xs text-amber-600 dark:text-amber-400">Unreviewed</span>
+                  ) : null}
+                  <ChevronDownIcon className={`w-4 h-4 text-gray-400 dark:text-slate-500 transition-transform ${expanded === lab.id ? 'rotate-180' : ''}`} />
+                </div>
+              </button>
+
+              {/* Expanded component detail */}
+              {expanded === lab.id && lab.components && (
+                <div className="border-t border-gray-100 dark:border-slate-700 px-4 py-3 bg-gray-50 dark:bg-slate-800/50">
+                  {lab.components.length === 0 ? (
+                    <p className="text-xs text-gray-500 dark:text-slate-400">No component data available.</p>
+                  ) : (
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-gray-500 dark:text-slate-400">
+                          <th className="text-left font-medium pb-1.5 pr-3">Component</th>
+                          <th className="text-left font-medium pb-1.5 pr-3">Value</th>
+                          <th className="text-left font-medium pb-1.5 pr-3">Unit</th>
+                          <th className="text-left font-medium pb-1.5 pr-3">Reference Range</th>
+                          <th className="text-left font-medium pb-1.5">Flag</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                        {lab.components.map(comp => (
+                          <tr key={comp.id} className={comp.is_critical ? 'text-red-700 dark:text-red-300' : comp.is_abnormal ? 'text-amber-700 dark:text-amber-300' : 'text-gray-800 dark:text-slate-200'}>
+                            <td className="py-1 pr-3 font-medium">{comp.component_name}</td>
+                            <td className="py-1 pr-3 font-mono">{comp.value}</td>
+                            <td className="py-1 pr-3">{comp.unit ?? '-'}</td>
+                            <td className="py-1 pr-3">{comp.reference_range ?? '-'}</td>
+                            <td className="py-1">{flagBadge(comp.abnormal_flag)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  {lab.notes && (
+                    <p className="mt-2 text-xs text-gray-500 dark:text-slate-400 italic">{lab.notes}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {meta && meta.total > 25 && (
+        <p className="text-xs text-center text-gray-400 dark:text-slate-500">
+          Showing 25 of {meta.total} results. Use filters to narrow the view.
+        </p>
       )}
     </div>
   )
@@ -7728,7 +8232,7 @@ type Tab =
   | 'overview'
   | 'chart' | 'vitals' | 'assessments' | 'problems' | 'allergies' | 'adl' | 'careplan'
   | 'medications' | 'emar' | 'med-recon'
-  | 'immunizations' | 'procedures' | 'sdoh' | 'wounds'
+  | 'immunizations' | 'procedures' | 'sdoh' | 'wounds' | 'lab-results'
   | 'orders'   // W4-7: 42 CFR §460.90 CPOE order entry
   | 'contacts' | 'flags' | 'insurance' | 'documents' | 'audit' | 'transfers'
   | 'grievances' | 'consents'
@@ -7765,7 +8269,7 @@ export default function ParticipantShow({
     const raw = params.get('tab') as Tab | null
     const valid: Tab[] = ['overview', 'chart', 'vitals', 'assessments', 'problems',
       'allergies', 'adl', 'careplan', 'medications', 'emar', 'med-recon',
-      'immunizations', 'procedures', 'sdoh', 'wounds', 'orders',
+      'immunizations', 'procedures', 'sdoh', 'wounds', 'lab-results', 'orders',
       'contacts', 'flags', 'insurance', 'documents', 'audit', 'transfers',
       'grievances', 'consents', 'disenrollment']
     return raw && valid.includes(raw) ? raw : 'overview'
@@ -7800,6 +8304,7 @@ export default function ParticipantShow({
     { id: 'immunizations', label: 'Immunizations' },
     { id: 'procedures',    label: 'Procedures' },
     { id: 'wounds',        label: 'Wounds' },
+    { id: 'lab-results',   label: 'Labs' },
   ]
 
   // ── Row 2: ADMIN tabs (slate active underline) — overview + care coordination ─
@@ -7950,6 +8455,13 @@ export default function ParticipantShow({
         {activeTab === 'procedures'    && <ProceduresTab     participantId={participant.id} />}
         {activeTab === 'sdoh'          && <SdohTab           participantId={participant.id} />}
         {activeTab === 'wounds'        && <WoundsTab         participantId={participant.id} />}
+        {activeTab === 'lab-results'   && (
+          <LabResultsTab
+            participantId={participant.id}
+            userDept={auth.user.department}
+            userIsSuperAdmin={auth.user.is_super_admin}
+          />
+        )}
         {activeTab === 'contacts'    && <ContactsTab     participantId={participant.id} initialContacts={contacts} />}
         {activeTab === 'flags'       && <FlagsTab        participantId={participant.id} initialFlags={flags} />}
         {activeTab === 'insurance'   && <InsuranceTab    insurances={insurances} />}
@@ -7966,6 +8478,7 @@ export default function ParticipantShow({
         {activeTab === 'disenrollment' && canViewDisenrollment && (
           <DisenrollmentTab
             participantId={participant.id}
+            enrollmentStatus={participant.enrollment_status}
             userDept={auth.user.department}
             userIsSuperAdmin={auth.user.is_super_admin}
           />

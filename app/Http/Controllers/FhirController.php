@@ -22,7 +22,7 @@
 //   GET /Immunization           → immunizations()        scope: immunization.read   (Phase 11B)
 //   GET /Procedure              → procedures()           scope: procedure.read      (Phase 11B)
 //   GET /Encounter              → encounters()           scope: encounter.read      (W4-9)
-//   GET /DiagnosticReport       → diagnosticReports()    scope: diagnosticreport.read (W4-9)
+//   GET /DiagnosticReport       → diagnosticReports()    scope: diagnosticreport.read (W4-9, W5-2)
 //   GET /Practitioner/{id}      → practitioner()         scope: practitioner.read   (W4-9)
 //   GET /Practitioner           → practitioners()        scope: practitioner.read   (W4-9, ?name=)
 //   GET /Organization           → organizations()        scope: organization.read   (W4-9)
@@ -54,6 +54,7 @@ use App\Models\AuditLog;
 use App\Models\CarePlan;
 use App\Models\Immunization;
 use App\Models\IntegrationLog;
+use App\Models\LabResult;
 use App\Models\Medication;
 use App\Models\Participant;
 use App\Models\Problem;
@@ -447,9 +448,8 @@ class FhirController extends Controller
     // ── DiagnosticReport ──────────────────────────────────────────────────────
 
     /**
-     * Return a FHIR Bundle of DiagnosticReport resources from lab results.
-     * Source: emr_integration_log rows where connector_type='lab_results', status='processed'.
-     * MRN lookup is used to resolve participant identity from the raw_payload.
+     * Return a FHIR Bundle of DiagnosticReport resources from structured lab results.
+     * Source: emr_lab_results (W5-2: replaces emr_integration_log JSONB lookup).
      * Scope: diagnosticreport.read
      * Required: ?patient={participantId}
      *
@@ -466,22 +466,16 @@ class FhirController extends Controller
                 : $this->fhirNotFound("Patient/{$participantId}");
         }
 
-        // Resolve the participant's MRN for matching against integration log raw_payload
-        $participant = Participant::find($participantId);
-        if (! $participant) {
-            return $this->fhirNotFound("Patient/{$participantId}");
-        }
-
-        // Lab results are stored in integration_log with patient_mrn in the JSONB raw_payload
-        $logs = IntegrationLog::where('tenant_id', $tenantId)
-            ->where('connector_type', 'lab_results')
-            ->where('status', 'processed')
-            ->whereRaw("raw_payload->>'patient_mrn' = ?", [$participant->mrn])
-            ->orderBy('created_at', 'desc')
+        // W5-2: Pull from structured emr_lab_results with component detail
+        $labs = LabResult::where('tenant_id', $tenantId)
+            ->where('participant_id', $participantId)
+            ->whereIn('overall_status', ['final', 'preliminary', 'corrected'])
+            ->with('components')
+            ->orderByDesc('collected_at')
             ->limit(200)
             ->get();
 
-        $entries = $logs->map(fn ($log) => ['resource' => DiagnosticReportMapper::toFhir($log, $participantId)])->values()->all();
+        $entries = $labs->map(fn (LabResult $lab) => ['resource' => DiagnosticReportMapper::toFhir($lab)])->values()->all();
 
         $this->logFhirRead($request, 'DiagnosticReport', $participantId, $tenantId, count($entries));
 

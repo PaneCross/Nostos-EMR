@@ -6,10 +6,11 @@
 // (or super_admin).
 //
 // Routes (GET, all under /dashboards/primary-care/):
-//   schedule   — Today's clinic/lab/specialist/telehealth appointments
-//   alerts     — Active alerts targeting primary_care
-//   docs       — Unsigned notes + overdue assessments (documentation queue)
-//   vitals     — 5 most recent vitals records across the tenant
+//   schedule    — Today's clinic/lab/specialist/telehealth appointments
+//   alerts      — Active alerts targeting primary_care
+//   docs        — Unsigned notes + overdue assessments (documentation queue)
+//   vitals      — 5 most recent vitals records across the tenant
+//   lab-results — Unreviewed abnormal lab results (W5-2)
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace App\Http\Controllers\Dashboards;
@@ -21,6 +22,7 @@ use App\Models\Assessment;
 use App\Models\ClinicalNote;
 use App\Models\ClinicalOrder;
 use App\Models\Vital;
+use App\Models\LabResult;
 use App\Models\WoundRecord;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -319,6 +321,53 @@ class PrimaryCareDashboardController extends Controller
             'wounds'          => $wounds,
             'open_count'      => WoundRecord::forTenant($tenantId)->open()->count(),
             'critical_count'  => WoundRecord::forTenant($tenantId)->open()->criticalStage()->count(),
+        ]);
+    }
+
+    /**
+     * GET /dashboards/primary-care/lab-results
+     * W5-2: Unreviewed abnormal lab results requiring clinical attention.
+     * Returns up to 15 most recent unreviewed abnormal results, oldest-first
+     * so the longest-waiting results appear at the top.
+     */
+    public function labResults(): JsonResponse
+    {
+        $this->requireDept();
+        $tenantId = Auth::user()->tenant_id;
+
+        $labs = LabResult::forTenant($tenantId)
+            ->abnormal()
+            ->unreviewed()
+            ->with(['participant:id,first_name,last_name,mrn'])
+            ->orderByDesc('collected_at')
+            ->limit(15)
+            ->get()
+            ->map(fn (LabResult $lab) => [
+                'id'            => $lab->id,
+                'participant'   => $lab->participant ? [
+                    'id'   => $lab->participant->id,
+                    'name' => $lab->participant->first_name . ' ' . $lab->participant->last_name,
+                    'mrn'  => $lab->participant->mrn,
+                ] : null,
+                'test_name'     => $lab->test_name,
+                'test_code'     => $lab->test_code,
+                'collected_at'  => $lab->collected_at?->toIso8601String(),
+                'overall_status'=> $lab->overall_status,
+                'has_critical'  => $lab->hasCriticalComponent(),
+                'source'        => $lab->source,
+                'href'          => $lab->participant
+                    ? "/participants/{$lab->participant->id}?tab=lab-results"
+                    : '/participants',
+            ]);
+
+        return response()->json([
+            'labs'             => $labs,
+            'unreviewed_count' => LabResult::forTenant($tenantId)->abnormal()->unreviewed()->count(),
+            'critical_count'   => LabResult::forTenant($tenantId)
+                ->abnormal()
+                ->unreviewed()
+                ->whereHas('components', fn ($q) => $q->whereIn('abnormal_flag', ['critical_low', 'critical_high']))
+                ->count(),
         ]);
     }
 }

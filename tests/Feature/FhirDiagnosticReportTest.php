@@ -1,13 +1,15 @@
 <?php
 
 // ─── FhirDiagnosticReportTest ─────────────────────────────────────────────────
-// Feature tests for the W4-9 FHIR R4 DiagnosticReport endpoint.
+// Feature tests for the W4-9/W5-2 FHIR R4 DiagnosticReport endpoint.
+//
+// W5-2: Updated to use emr_lab_results (not integration_log) as the source.
 //
 // Coverage:
-//   - Bundle returned for participant with lab results in integration_log
+//   - Bundle returned for participant with LabResult records
 //   - Each entry has resource.resourceType='DiagnosticReport'
 //   - Category contains LAB code
-//   - Status is 'final' for processed lab results
+//   - Status is 'final' for final lab results
 //   - Abnormal flag included in conclusion text
 //   - Missing ?patient= returns 400
 //   - Cross-tenant returns 404
@@ -18,7 +20,7 @@ namespace Tests\Feature;
 
 use App\Models\ApiToken;
 use App\Models\AuditLog;
-use App\Models\IntegrationLog;
+use App\Models\LabResult;
 use App\Models\Participant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -48,27 +50,21 @@ class FhirDiagnosticReportTest extends TestCase
     }
 
     /**
-     * Create a processed lab result integration log entry for a participant.
+     * Create a LabResult record for a participant (W5-2: uses emr_lab_results, not integration_log).
      */
-    private function makeLabResult(Participant $participant, int $tenantId, array $payloadOverrides = []): IntegrationLog
+    private function makeLabResult(Participant $participant, int $tenantId, array $overrides = []): LabResult
     {
-        $payload = array_merge([
-            'patient_mrn'   => $participant->mrn,
-            'test_name'     => 'CBC with Differential',
-            'result_value'  => '12.5',
-            'result_unit'   => 'g/dL',
-            'abnormal_flag' => false,
-            'collected_at'  => now()->subHours(2)->toIso8601String(),
-        ], $payloadOverrides);
-
-        return IntegrationLog::create([
-            'tenant_id'      => $tenantId,
-            'connector_type' => 'lab_results',
-            'direction'      => 'inbound',
-            'status'         => 'processed',
-            'raw_payload'    => $payload,
-            'created_at'     => now()->toDateTimeString(),
-        ]);
+        return LabResult::create(array_merge([
+            'participant_id'  => $participant->id,
+            'tenant_id'       => $tenantId,
+            'test_name'       => 'CBC with Differential',
+            'test_code'       => '58410-2',
+            'collected_at'    => now()->subHours(2),
+            'resulted_at'     => now()->subHour(),
+            'overall_status'  => 'final',
+            'abnormal_flag'   => false,
+            'source'          => 'hl7_inbound',
+        ], $overrides));
     }
 
     // ── Bundle structure ──────────────────────────────────────────────────────
@@ -139,8 +135,6 @@ class FhirDiagnosticReportTest extends TestCase
         [$token, $plaintext] = $this->makeToken();
         $participant = $this->makeParticipantForToken($token);
         $this->makeLabResult($participant, $token->tenant_id, [
-            'result_value'  => '18.5',
-            'result_unit'   => 'g/dL',
             'abnormal_flag' => true,
         ]);
 
@@ -150,7 +144,8 @@ class FhirDiagnosticReportTest extends TestCase
         )->assertOk();
 
         $conclusion = $response->json('entry.0.resource.conclusion');
-        $this->assertStringContainsString('ABNORMAL', $conclusion);
+        $this->assertNotNull($conclusion);
+        $this->assertStringContainsStringIgnoringCase('abnormal', $conclusion);
     }
 
     public function test_normal_result_has_no_abnormal_in_conclusion(): void
@@ -158,7 +153,6 @@ class FhirDiagnosticReportTest extends TestCase
         [$token, $plaintext] = $this->makeToken();
         $participant = $this->makeParticipantForToken($token);
         $this->makeLabResult($participant, $token->tenant_id, [
-            'result_value'  => '12.5',
             'abnormal_flag' => false,
         ]);
 
@@ -168,7 +162,7 @@ class FhirDiagnosticReportTest extends TestCase
         )->assertOk();
 
         $conclusion = $response->json('entry.0.resource.conclusion');
-        $this->assertStringNotContainsString('ABNORMAL', (string) $conclusion);
+        $this->assertNull($conclusion);
     }
 
     // ── Error cases ───────────────────────────────────────────────────────────
