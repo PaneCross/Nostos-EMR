@@ -866,6 +866,36 @@ Route::prefix('fhir/R4')
         Route::get('/Observation/social-history', [FhirController::class, 'sdohObservations'])
             ->middleware('fhir.auth:observation.read')
             ->name('fhir.sdoh_observations');
+
+        // Encounter — search by patient (W4-9 GAP-13)
+        Route::get('/Encounter', [FhirController::class, 'encounters'])
+            ->middleware('fhir.auth:encounter.read')
+            ->name('fhir.encounters');
+
+        // DiagnosticReport — search by patient (W4-9 GAP-13)
+        // Source: emr_integration_log rows with connector_type='lab_results'
+        Route::get('/DiagnosticReport', [FhirController::class, 'diagnosticReports'])
+            ->middleware('fhir.auth:diagnosticreport.read')
+            ->name('fhir.diagnostic_reports');
+
+        // Practitioner — by ID or name search (W4-9 GAP-13)
+        // Only clinical department users are exposed; non-clinical return 404
+        Route::get('/Practitioner/{id}', [FhirController::class, 'practitioner'])
+            ->middleware('fhir.auth:practitioner.read')
+            ->name('fhir.practitioner');
+        Route::get('/Practitioner', [FhirController::class, 'practitioners'])
+            ->middleware('fhir.auth:practitioner.read')
+            ->name('fhir.practitioners');
+
+        // Organization — tenant + sites (W4-9 GAP-13)
+        // GET /Organization       → all (tenant + all sites)
+        // GET /Organization/{id}  → single (id is prefixed: tenant-1, site-3)
+        Route::get('/Organization/{id}', [FhirController::class, 'organization'])
+            ->middleware('fhir.auth:organization.read')
+            ->name('fhir.organization');
+        Route::get('/Organization', [FhirController::class, 'organizations'])
+            ->middleware('fhir.auth:organization.read')
+            ->name('fhir.organizations');
     });
 
 // ─── Transport Webhooks (public — HMAC-authenticated) ────────────────────────

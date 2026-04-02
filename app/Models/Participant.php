@@ -43,7 +43,8 @@ class Participant extends Model
     protected $fillable = [
         'tenant_id', 'site_id', 'mrn',
         'first_name', 'last_name', 'preferred_name', 'dob', 'gender', 'pronouns',
-        'ssn_last_four', 'medicare_id', 'medicaid_id', 'pace_contract_id', 'h_number',
+        'ssn_last_four', 'medicare_id', 'medicare_a_start_date', 'medicare_b_start_date',
+        'medicaid_id', 'county_fips_code', 'pace_contract_id', 'h_number',
         'primary_language', 'interpreter_needed', 'interpreter_language',
         'enrollment_status', 'enrollment_date', 'disenrollment_date', 'disenrollment_reason',
         'nursing_facility_eligible', 'nf_certification_date',
@@ -62,6 +63,9 @@ class Participant extends Model
         'enrollment_date'               => 'date',
         'disenrollment_date'            => 'date',
         'nf_certification_date'         => 'date',
+        // W4-9: HPMS enrollment file fields (GAP-14)
+        'medicare_a_start_date'         => 'date',
+        'medicare_b_start_date'         => 'date',
         'interpreter_needed'            => 'boolean',
         'nursing_facility_eligible'     => 'boolean',
         'is_active'                     => 'boolean',

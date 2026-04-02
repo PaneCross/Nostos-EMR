@@ -33,6 +33,12 @@ class ApiToken extends Model
         'allergy.read',
         'careplan.read',
         'appointment.read',
+        'immunization.read',
+        'procedure.read',
+        'encounter.read',
+        'diagnosticreport.read',
+        'practitioner.read',
+        'organization.read',
     ];
 
     protected $fillable = [

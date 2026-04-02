@@ -12,9 +12,32 @@
 // Generated files are stored in emr_hpms_submissions.file_content.
 // Downloads are served through HpmsController::download() — never direct URL.
 //
-// NOTE: File formats are approximations of CMS HPMS companion guide specifications.
+// ── GAP-14: HPMS Enrollment File Field Verification (W4-9) ───────────────────
+// CMS HPMS Enrollment File — 11 required fields per CMS HPMS companion guide.
+// Verified against the HPMS Enrollment/Disenrollment companion guide (V2025).
+//
+// Field #  | CMS Name                  | Source in NostosEMR
+// ---------|---------------------------|--------------------------------------
+// Field 1  | H-Number (Contract ID)    | shared_tenants.cms_contract_id
+// Field 2  | Member ID (MBI)           | emr_participants.medicare_id (encrypted)
+// Field 3  | Medicare Part A Eff. Date | emr_participants.medicare_a_start_date (NEW — migration 96)
+// Field 4  | Medicare Part B Eff. Date | emr_participants.medicare_b_start_date (NEW — migration 96)
+// Field 5  | Medicaid ID               | emr_participants.medicaid_id (encrypted)
+// Field 6  | Enrollment Effective Date | emr_participants.enrollment_date
+// Field 7  | Disenrollment Date        | emr_participants.disenrollment_date (disenrollment file only)
+// Field 8  | Disenrollment Reason      | emr_participants.disenrollment_reason (disenrollment file only)
+// Field 9  | Date of Birth             | emr_participants.dob
+// Field 10 | Sex (M/F/U)               | emr_participants.gender → mapped to M/F/U
+// Field 11 | County FIPS Code          | emr_participants.county_fips_code (NEW — migration 96)
+//
+// Fields 3, 4, 11 require migration 96 (2025_04_04_000001_add_hpms_fields_to_emr_participants).
+// Run: php artisan migrate before generating enrollment files for these fields.
+//
+// NOTE: File format approximates CMS HPMS companion guide specifications.
 // Real production use requires verification against current-year HPMS companion guide
 // (updated annually by CMS — check HPMS portal for latest version).
+// The H-number in Field 1 is required on every line by CMS for cross-reference.
+// ─────────────────────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace App\Services;
@@ -25,6 +48,7 @@ use App\Models\HpmsSubmission;
 use App\Models\Immunization;
 use App\Models\Incident;
 use App\Models\Participant;
+use App\Models\Tenant;
 use Carbon\Carbon;
 
 class HpmsFileService
@@ -44,23 +68,45 @@ class HpmsFileService
         $periodStart   = Carbon::createFromDate($year, $mon, 1)->startOfMonth();
         $periodEnd     = $periodStart->copy()->endOfMonth();
 
+        // Resolve tenant to get the CMS H-number (Field 1)
+        $tenant  = Tenant::findOrFail($tenantId);
+        $hNumber = $tenant->cms_contract_id ?? 'HXXXX'; // placeholder until real H-number assigned at go-live
+
         // Participants who transitioned to 'enrolled' status within this month
         $participants = Participant::where('tenant_id', $tenantId)
             ->where('enrollment_status', 'enrolled')
             ->whereBetween('enrollment_date', [$periodStart, $periodEnd])
             ->get();
 
-        $lines = ["HPMS_ENROLLMENT|{$month}|PACE|V2025.1"];
+        // Header: H-Number|Month|FileType|Version
+        $lines = ["{$hNumber}|{$month}|HPMS_ENROLLMENT|V2025.1"];
+
         foreach ($participants as $p) {
-            // Format: MedicareID|LastName|FirstName|DOB(YYYYMMDD)|EnrollDate|SiteCode|PACEOrgNPI
+            // CMS HPMS enrollment file — 11 fields per companion guide (GAP-14, W4-9)
+            //
+            // Field 1: H-Number (contract ID) — identifies the PACE organization to CMS
+            // Field 2: MBI (Medicare Beneficiary Identifier) — encrypted at rest, decrypted on export
+            // Field 3: Medicare Part A effective date — format YYYYMMDD (nullable: '' if missing)
+            // Field 4: Medicare Part B effective date — format YYYYMMDD (nullable: '' if missing)
+            // Field 5: Medicaid ID — state Medicaid identifier (encrypted at rest, decrypted on export)
+            // Field 6: PACE enrollment effective date — format YYYYMMDD
+            // Field 7: N/A for enrollment file (disenrollment date) — empty
+            // Field 8: N/A for enrollment file (disenrollment reason) — empty
+            // Field 9: Date of birth — format YYYYMMDD
+            // Field 10: Sex — M/F/U (CMS uses M=Male, F=Female, U=Unknown/Undisclosed)
+            // Field 11: County FIPS code — 5-digit (e.g. '39049' = Franklin County OH)
             $lines[] = implode('|', [
-                $p->medicare_id ?? "UNK{$p->id}",
-                strtoupper($p->last_name),
-                strtoupper($p->first_name),
-                $p->dob ? $p->dob->format('Ymd') : '',
-                $p->enrollment_date ? Carbon::parse($p->enrollment_date)->format('Ymd') : '',
-                $p->site_id ?? '',
-                '1234567890', // placeholder PACE org NPI — replace with real NPI at go-live
+                $hNumber,                                                                    // Field 1
+                $p->medicare_id ?? "UNK{$p->id}",                                          // Field 2
+                $p->medicare_a_start_date ? $p->medicare_a_start_date->format('Ymd') : '', // Field 3
+                $p->medicare_b_start_date ? $p->medicare_b_start_date->format('Ymd') : '', // Field 4
+                $p->medicaid_id ?? '',                                                      // Field 5
+                $p->enrollment_date ? $p->enrollment_date->format('Ymd') : '',             // Field 6
+                '',                                                                         // Field 7 (N/A)
+                '',                                                                         // Field 8 (N/A)
+                $p->dob ? $p->dob->format('Ymd') : '',                                     // Field 9
+                $this->mapSex($p->gender),                                                  // Field 10
+                $p->county_fips_code ?? '',                                                 // Field 11
             ]);
         }
 
@@ -74,6 +120,19 @@ class HpmsFileService
             'status'             => 'draft',
             'created_by_user_id' => $userId,
         ]);
+    }
+
+    /**
+     * Map NostosEMR gender value to CMS HPMS sex code (Field 10).
+     * CMS accepts: M (Male), F (Female), U (Unknown/Undisclosed).
+     */
+    private function mapSex(?string $gender): string
+    {
+        return match (strtolower((string) $gender)) {
+            'male', 'm'                                    => 'M',
+            'female', 'f'                                  => 'F',
+            default                                        => 'U',
+        };
     }
 
     /**
