@@ -4687,10 +4687,10 @@ type MedRefResult = {
 }
 
 const SEVERITY_COLORS: Record<string, string> = {
-  contraindicated: 'bg-red-100 dark:bg-red-900/60 text-red-800 dark:text-red-300 border-red-300',
-  major:           'bg-orange-100 text-orange-800 border-orange-300',
-  moderate:        'bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 border-amber-300',
-  minor:           'bg-yellow-100 dark:bg-yellow-900/60 text-yellow-800 dark:text-yellow-300 border-yellow-300',
+  contraindicated: 'bg-red-100 dark:bg-red-900/60 text-red-800 dark:text-red-300 border-red-300 dark:border-red-700',
+  major:           'bg-orange-100 dark:bg-orange-900/60 text-orange-800 dark:text-orange-300 border-orange-300 dark:border-orange-700',
+  moderate:        'bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700',
+  minor:           'bg-yellow-100 dark:bg-yellow-900/60 text-yellow-800 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700',
 }
 
 function MedicationsTab({ participantId }: { participantId: number }) {
@@ -4785,7 +4785,7 @@ function MedicationsTab({ participantId }: { participantId: number }) {
   const handleAcknowledgeAlert = async (alert: InteractionAlert) => {
     try {
       await axios.post(
-        `/participants/${participantId}/medications/0/interactions/${alert.id}/acknowledge`,
+        `/participants/${participantId}/medications/interactions/${alert.id}/acknowledge`,
         { acknowledgement_note: 'Reviewed and accepted' }
       )
       setAlerts(prev => prev.filter(a => a.id !== alert.id))

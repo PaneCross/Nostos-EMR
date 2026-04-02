@@ -348,7 +348,7 @@ Route::middleware('auth')->group(function () {
         Route::put('/medications/{medication}/discontinue',                    [MedicationController::class, 'discontinue'])->name('participants.medications.discontinue');
         // Drug interaction alerts
         Route::get('/medications/interactions',                                [MedicationController::class, 'interactions'])->name('participants.medications.interactions');
-        Route::post('/medications/{medication}/interactions/{alert}/acknowledge', [MedicationController::class, 'acknowledgeInteraction'])->name('participants.medications.interactions.acknowledge');
+        Route::post('/medications/interactions/{alert}/acknowledge', [MedicationController::class, 'acknowledgeInteraction'])->name('participants.medications.interactions.acknowledge');
         // eMAR
         Route::get('/emar',                                                    [MedicationController::class, 'emarIndex'])->name('participants.emar.index');
         Route::post('/emar/{record}/administer',                               [MedicationController::class, 'administer'])->name('participants.emar.administer');

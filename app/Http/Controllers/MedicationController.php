@@ -177,7 +177,6 @@ class MedicationController extends Controller
     public function acknowledgeInteraction(
         Request $request,
         Participant $participant,
-        Medication $medication,
         DrugInteractionAlert $alert
     ): JsonResponse {
         $user = $request->user();
