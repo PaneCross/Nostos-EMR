@@ -19,6 +19,7 @@ use App\Http\Controllers\ImmunizationController;
 use App\Http\Controllers\ProcedureController;
 use App\Http\Controllers\SocialDeterminantController;
 use App\Http\Controllers\DayCenterController;
+use App\Http\Controllers\ClinicalOrderController;
 use App\Http\Controllers\ClinicalOverviewController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\SystemSettingsController;
@@ -125,6 +126,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/alerts',     [PrimaryCareDashboardController::class, 'alerts'])->name('dashboards.primary-care.alerts');
             Route::get('/docs',       [PrimaryCareDashboardController::class, 'docs'])->name('dashboards.primary-care.docs');
             Route::get('/vitals',     [PrimaryCareDashboardController::class, 'vitals'])->name('dashboards.primary-care.vitals');
+            // W4-7: CPOE orders widget — active orders for primary_care dept
+            Route::get('/orders',     [PrimaryCareDashboardController::class, 'orders'])->name('dashboards.primary-care.orders');
         });
 
         Route::prefix('therapies')->group(function () {
@@ -132,6 +135,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/goals',      [TherapiesDashboardController::class, 'goals'])->name('dashboards.therapies.goals');
             Route::get('/sdrs',       [TherapiesDashboardController::class, 'sdrs'])->name('dashboards.therapies.sdrs');
             Route::get('/docs',       [TherapiesDashboardController::class, 'docs'])->name('dashboards.therapies.docs');
+            // W4-7: CPOE orders widget — therapy orders (PT/OT/ST) for therapies dept
+            Route::get('/orders',     [TherapiesDashboardController::class, 'orders'])->name('dashboards.therapies.orders');
         });
 
         Route::prefix('social-work')->group(function () {
@@ -183,6 +188,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/interactions', [PharmacyDashboardController::class, 'interactions'])->name('dashboards.pharmacy.interactions');
             Route::get('/controlled',   [PharmacyDashboardController::class, 'controlled'])->name('dashboards.pharmacy.controlled');
             Route::get('/refills',      [PharmacyDashboardController::class, 'refills'])->name('dashboards.pharmacy.refills');
+            // W4-7: CPOE orders widget — medication_change orders for pharmacy dept
+            Route::get('/orders',       [PharmacyDashboardController::class, 'orders'])->name('dashboards.pharmacy.orders');
         });
 
         Route::prefix('idt')->group(function () {
@@ -305,6 +312,25 @@ Route::middleware('auth')->group(function () {
         Route::post('/adl',                           [AdlController::class, 'store'])->name('participants.adl.store');
         Route::put('/adl/thresholds',                 [AdlController::class, 'updateThresholds'])->name('participants.adl.thresholds');
     });
+
+    // ─── W4-7: Clinical Orders / CPOE (nested under participant) ────────────────
+    // 42 CFR §460.90 — all PACE services must be ordered and documented.
+    // Prescribers create orders; target_department is auto-set via DEPARTMENT_ROUTING.
+    Route::prefix('participants/{participant}/orders')->group(function () {
+        Route::get('/',                         [ClinicalOrderController::class, 'index'])->name('participants.orders.index');
+        Route::post('/',                        [ClinicalOrderController::class, 'store'])->name('participants.orders.store');
+        Route::get('/{order}',                  [ClinicalOrderController::class, 'show'])->name('participants.orders.show');
+        Route::patch('/{order}',                [ClinicalOrderController::class, 'update'])->name('participants.orders.update');
+        Route::post('/{order}/acknowledge',     [ClinicalOrderController::class, 'acknowledge'])->name('participants.orders.acknowledge');
+        Route::post('/{order}/result',          [ClinicalOrderController::class, 'result'])->name('participants.orders.result');
+        Route::post('/{order}/complete',        [ClinicalOrderController::class, 'complete'])->name('participants.orders.complete');
+        Route::post('/{order}/cancel',          [ClinicalOrderController::class, 'cancel'])->name('participants.orders.cancel');
+    });
+
+    // Cross-participant orders worklist (replaces clinical.orders → care-plan-goals stub)
+    // Was: GET /clinical/orders → ClinicalOverviewController::orders() (showed care plan goals)
+    // Now: GET /orders → ClinicalOrderController::worklist() (real CPOE worklist)
+    Route::get('/orders', [ClinicalOrderController::class, 'worklist'])->name('orders.worklist');
 
     // ─── Phase 5C: Medications + eMAR (nested under participant) ─────────────
     Route::prefix('participants/{participant}')->group(function () {
@@ -456,7 +482,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/assessments', [ClinicalDashboardController::class, 'assessments'])->name('clinical.assessments');
         Route::get('/care-plans',  [ClinicalDashboardController::class, 'carePlans'])->name('clinical.care-plans');
         Route::get('/medications', [ClinicalOverviewController::class, 'medications'])->name('clinical.medications');
-        Route::get('/orders',      [ClinicalOverviewController::class, 'orders'])->name('clinical.orders');
+        // W4-7: Real CPOE worklist is at /orders (ClinicalOrderController::worklist).
+        // Keep this route as a redirect so any old bookmarks/links still work.
+        Route::get('/orders',      fn () => redirect('/orders'))->name('clinical.orders');
     });
 
     // ─── Transport Module ─────────────────────────────────────────────────────

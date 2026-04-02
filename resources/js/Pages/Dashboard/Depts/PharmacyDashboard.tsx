@@ -1,11 +1,12 @@
 // ─── PharmacyDashboard ─────────────────────────────────────────────────────────
 // Real-data dashboard for the Pharmacy department.
 // Rendered from Dashboard/Index.tsx when department === 'pharmacy'.
-// Fetches 4 widget endpoints in parallel on mount:
+// Fetches 5 widget endpoints in parallel on mount:
 //   GET /dashboards/pharmacy/med-changes    — meds created/discontinued today
 //   GET /dashboards/pharmacy/interactions   — unacknowledged drug interaction alerts
 //   GET /dashboards/pharmacy/controlled     — controlled substance eMAR records today
 //   GET /dashboards/pharmacy/refills        — medications requiring refill attention
+//   GET /dashboards/pharmacy/orders         — active medication_change orders (W4-7)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useEffect, useState } from 'react';
@@ -64,6 +65,19 @@ interface RefillItem {
     href: string;
 }
 
+// W4-7: Medication change order for orders widget
+interface OrderItem {
+    id: number;
+    participant_id: number;
+    participant_first_name: string;
+    participant_last_name: string;
+    order_type_label: string;
+    priority: string;
+    status: string;
+    is_overdue: boolean;
+    href: string;
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 interface Props { departmentLabel: string; role: string }
@@ -77,6 +91,8 @@ export default function PharmacyDashboard({ departmentLabel, role }: Props) {
     const [interactions, setInteractions] = useState<{ alerts: InteractionAlert[]; total_count: number } | null>(null);
     const [controlled, setControlled]     = useState<{ records: ControlledRecord[]; count: number } | null>(null);
     const [refills, setRefills]           = useState<{ medications: RefillItem[]; count: number } | null>(null);
+    // W4-7: active medication_change orders routed to pharmacy
+    const [orders, setOrders]             = useState<{ orders: OrderItem[]; pending_count: number; stat_count: number } | null>(null);
 
     useEffect(() => {
         Promise.all([
@@ -84,11 +100,13 @@ export default function PharmacyDashboard({ departmentLabel, role }: Props) {
             axios.get('/dashboards/pharmacy/interactions'),
             axios.get('/dashboards/pharmacy/controlled'),
             axios.get('/dashboards/pharmacy/refills'),
-        ]).then(([meds, inter, ctrl, ref]) => {
+            axios.get('/dashboards/pharmacy/orders'),
+        ]).then(([meds, inter, ctrl, ref, ord]) => {
             setMedChanges(meds.data);
             setInteractions(inter.data);
             setControlled(ctrl.data);
             setRefills(ref.data);
+            setOrders(ord.data);
         }).finally(() => setLoading(false));
     }, []);
 
@@ -134,6 +152,19 @@ export default function PharmacyDashboard({ departmentLabel, role }: Props) {
             ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300'
             : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300',
         sublabel: `${r.controlled_schedule ?? '?'} | ${r.status}${r.scheduled_time ? ` | ${r.scheduled_time}` : ''}`,
+    }));
+
+    // W4-7: Map medication_change orders to ActionItems — stat=red, urgent=amber
+    const orderItems: ActionItem[] = (orders?.orders ?? []).map(o => ({
+        label: `${o.participant_first_name} ${o.participant_last_name} — ${o.order_type_label}`,
+        href: o.href,
+        badge: o.priority.toUpperCase(),
+        badgeColor: o.priority === 'stat'
+            ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 font-bold'
+            : o.priority === 'urgent'
+            ? 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300'
+            : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300',
+        sublabel: o.is_overdue ? 'OVERDUE' : o.status,
     }));
 
     // Build ActionItems for Refills
@@ -183,6 +214,16 @@ export default function PharmacyDashboard({ departmentLabel, role }: Props) {
                 items={refillItems}
                 emptyMessage="No refills require attention"
                 viewAllHref="/clinical/medications"
+                loading={loading}
+            />
+
+            {/* W4-7: Medication change orders widget */}
+            <ActionWidget
+                title={`Medication Change Orders${orders?.stat_count ? ` (${orders.stat_count} STAT)` : ''}`}
+                description="Active medication change orders routed to pharmacy. STAT requires immediate dispensing. Click any row to manage in the participant's Orders tab."
+                items={orderItems}
+                emptyMessage="No active medication change orders"
+                viewAllHref="/orders"
                 loading={loading}
             />
 

@@ -84,7 +84,7 @@ Wave 4 (Phases W4-0 through W4-9): IN PROGRESS
   W4-4  Quick Wins — Vitals & Assessments: [x] COMPLETE — 2026-04-01
   W4-5  Care Plan + IDT Compliance:        [x] COMPLETE — 2026-04-01
   W4-6  Incident + Regulatory Tracking:    [x] COMPLETE — 2026-04-01
-  W4-7  CPOE — Lightweight Order Entry:    [ ] NOT STARTED
+  W4-7  CPOE — Lightweight Order Entry:    [x] COMPLETE — 2026-04-01 (BLOCKER-04 resolved)
   W4-8  New Note Types + Assessments:      [ ] NOT STARTED
   W4-9  FHIR Gaps + HPMS Verification:     [ ] NOT STARTED
 
@@ -175,9 +175,10 @@ Full context for Wave 4 build. Status tags indicate which W4 phase addresses eac
   (emr_sra_records) built. SecurityComplianceController + ItAdmin/Security.tsx
   (3-tab page). QA Dashboard compliance posture widget. W42DataSeeder seeds demo
   data (AWS active, Mailgun expiring, clearinghouse pending, 1 completed SRA).
-- BLOCKER-04 [W4-7]: Clinical > Orders page shows care plan goals worklist, NOT a
-  clinical order entry system. CPOE (Computerized Physician Order Entry) is
-  expected for 42 CFR §460.100 (medical care plan) and survey compliance.
+- BLOCKER-04 [W4-7]: RESOLVED — Lightweight CPOE built (42 CFR §460.90). emr_clinical_orders
+  (migration 94), ClinicalOrder model, ClinicalOrderController (9 endpoints),
+  /orders worklist (Inertia), orders widget on 3 dept dashboards, ClinicalOrdersSeeder.
+  37 new tests (ClinicalOrderTest 12 + OrderWorklistTest 8 + OrderRoutingTest 17).
 - BLOCKER-05 [FUTURE]: Live EDI clearinghouse — 837P builder (Edi837PBuilderService)
   exists but no live submission, no 277CA tracking, no 835 remittance
   reconciliation. Required before billing go-live.
@@ -538,21 +539,22 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 91. 2025_04_02_000001_add_notification_fields_to_emr_incidents
 92. 2025_04_02_000002_create_emr_significant_change_events
 93. 2025_04_02_000003_create_emr_qapi_projects
+94. 2025_04_03_000001_create_emr_clinical_orders_table
 
-## MODELS (62)
+## MODELS (63)
 AdlRecord, AdlThreshold, Alert, Allergy, ApiToken, Appointment, Assessment, AuditLog,
 Authorization, BaaRecord, CapitationRecord, CarePlan, CarePlanGoal, ChatChannel, ChatMembership, ChatMessage,
-ClinicalNote, ConsentRecord, DayCenterAttendance, DisenrollmentRecord, Document, DrugInteractionAlert, EdiBatch, EhiExport, EmarRecord, EncounterLog,
+ClinicalNote, ClinicalOrder, ConsentRecord, DayCenterAttendance, DisenrollmentRecord, Document, DrugInteractionAlert, EdiBatch, EhiExport, EmarRecord, EncounterLog,
 Grievance, HccMapping, HosMSurvey, HpmsSubmission, Icd10Lookup, IdtMeeting, IdtParticipantReview, Immunization,
 Incident, InsuranceCoverage, IntegrationLog, Location, MedReconciliation, Medication, OtpCode,
 Participant, ParticipantAddress, ParticipantContact, ParticipantFlag, ParticipantRiskScore,
 ParticipantSiteTransfer, PdeRecord, Problem, Procedure, QapiProject, Referral, RolePermission, Sdr, Site,
 SignificantChangeEvent, SocialDeterminant, SraRecord, StateMedicaidConfig, Tenant, TransportRequest, User, Vital
 
-## CONTROLLERS (61 root + Auth/ subdirectory + Dashboards/ subdirectory)
+## CONTROLLERS (62 root + Auth/ subdirectory + Dashboards/ subdirectory)
 AdlController, AlertController, AllergyController, AppointmentController,
 AssessmentController, BillingComplianceController, BillingEncounterController, CapitationController,
-CarePlanController, ChatController, ClinicalDashboardController, ClinicalNoteController, ClinicalOverviewController,
+CarePlanController, ChatController, ClinicalDashboardController, ClinicalNoteController, ClinicalOrderController, ClinicalOverviewController,
 ComingSoonController, ConsentController, Controller (base), DayCenterController, DashboardController, DisenrollmentController, DocumentController, EdiBatchController,
 EhiExportController, FhirController, FinanceController, FinanceDashboardController,
 GrievanceController, HosMSurveyController, HpmsController, IdtMeetingController, ImmunizationController,
@@ -843,6 +845,13 @@ Rules (enforced going forward — audit ran 2026-03-14, all gaps patched):
 - [W4-5] EnrollmentService::disenroll() SDR priority must be 'urgent' (NOT 'high'). Valid SDR priorities: routine/urgent/emergent. Also: `requesting_department` is NOT NULL on emr_sdrs — always set it when creating SDRs programmatically.
 - [W4-5] Participant::idtReviewOverdue() returns false for non-enrolled OR recently enrolled (< 180 days). Only returns true for enrolled > 180 days with no review, OR last review > 180 days ago. The 180-day threshold matches 42 CFR §460.104(c) 6-month rule.
 - [W4-5] IdtReviewFrequencyJob deduplication: only checks for `is_active=true` + `alert_type='idt_review_overdue'`. Running the job twice without resolving the alert creates only 1 alert. Once the alert is resolved (is_active=false) AND a new review is recorded, the next job run will NOT re-alert (overdue check passes). If alert is resolved but NO review recorded, next run re-creates the alert.
+- [W4-7] ClinicalOrderController::index() returns `{orders, total_count, active_count}` — NOT just `{orders}`. Tests assert all three keys.
+- [W4-7] ClinicalOrder::TERMINAL_STATUSES = ['completed', 'cancelled']. cancel() endpoint returns 409 Conflict (not 422) for terminal orders — 409 is the correct HTTP semantic for "state machine won't allow this transition".
+- [W4-7] Alert creation in ClinicalOrderController::store(): `emr_alerts.title` is NOT NULL — always include `'title'` in AlertService::create() calls. Pattern: `strtoupper($priority) . ' Order: ' . $order->orderTypeLabel()`.
+- [W4-7] PermissionService orders href: changed from `/clinical/orders` to `/orders` (W4-7). The old `/clinical/orders` route now redirects to `/orders`. ComingSoonBannerTest updated.
+- [W4-7] DEPARTMENT_ROUTING is auto-applied in store() — callers never set target_department directly. Routing is deterministic by order_type.
+- [W4-7] Prescriber departments for order creation: primary_care/therapies/social_work/idt/it_admin (NOT pharmacy, dietary, behavioral_health, etc.). Enforced via hardcoded constant in ClinicalOrderController.
+- [W4-7] Dashboard orders endpoints: `/dashboards/primary-care/orders`, `/dashboards/therapies/orders`, `/dashboards/pharmacy/orders`. Returns `{orders, pending_count, stat_count}`. Each dept sees only orders with matching target_department.
 
 ## DEMO CREDENTIALS (dev only)
 - Super Admin: superadmin@nostos.dev / DemoP@ce2025!
@@ -920,6 +929,7 @@ rsync -av --exclude=vendor --exclude=node_modules --exclude=public/build --exclu
 - [2026-04-01] W4-4 — 1302 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). BMI auto-calc, blood glucose timing, VIS fields on immunizations, Braden/MoCA/OHAT assessment types + alert thresholds, assessment due-date endpoint.
 - [2026-04-01] W4-5 — 1335 passing, 0 failing (16 deprecations, 158 PHPUnit deprecations — non-blocking). Care plan participation acknowledgment, IDT review frequency tracking, disenrollment transition plan.
 - [2026-04-01] W4-6 — 1370 passing, 0 failing (16 deprecations, 228 PHPUnit deprecations — non-blocking). Incident regulatory tracking + QAPI module. 3 migrations, 2 models, 1 controller, 2 jobs, 1 React page (Qapi/Projects), 35 new tests.
+- [2026-04-01] W4-7 — 1407 passing, 0 failing (16 deprecations, 302 PHPUnit deprecations — non-blocking). CPOE Lightweight Order Entry. BLOCKER-04 resolved. 1 migration (94), 1 model (ClinicalOrder), 1 controller (ClinicalOrderController), 1 React page (Clinical/Orders rewritten), orders widget on 3 dashboards (PrimaryCareDashboard, TherapiesDashboard, PharmacyDashboard), 3 dashboard endpoints, ClinicalOrdersSeeder, 37 new tests.
 - [2026-03-31] W4-2 + Grievance permissions + Timestamp fix — 1263 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). Migration 84 (column widening for encrypted PHI). 28 new tests (EncryptionTest 10 + BaaTrackerTest 18). Grievances nav opened to all 14 depts. Grievance datetime toIso8601String() fix. SecurityComplianceController JSON returns. Build clean.
 - [2026-03-26] W3-2 — 1091 passing, 0 failing. Build clean. Adds NavRoutingTest (13 tests) + DayCenterAttendanceTest (12 tests) + Day Center attendance module + Reports page + System Settings page. Bugs fixed: scopeForSite null type hint, payer_id column DNE, pace_contract column DNE (mapped to cms_contract_id), ComingSoonBannerTest stale assertions for 3 now-live pages + /idt/minutes redirect target.
 - [2026-03-27] W3-4 — 1137 passing, 0 failing. Build clean. Adds FacesheetTest (6 tests) + ParticipantTabRoutingTest (22 tests). Show.tsx: print CSS fixed (visibility approach — position:fixed caused blank print), two-row tab layout (CLINICAL blue / ADMIN slate), switchTab() for URL sync via window.history.replaceState, valid tab list updated with immunizations/procedures/sdoh (Phase 11B), ParticipantHeader onTabChange prop + Care Plan/Schedule header buttons fixed, advance directive DNR/POLST/No Directive badges in sticky header flags row, CarePlanTab save error state (catch block no longer silent), editability guard on Edit button (hidden for active/archived plans). Bugs fixed: cross-tenant returns 403 not 404 (authorizeForTenant uses abort_if(..., 403)), PHPUnit @dataProvider converted to #[DataProvider] attribute.
@@ -1416,6 +1426,71 @@ Based on the audit above, Phase 9B (Encounter Data & Billing Infrastructure) sho
 ---
 
 ## SESSION LOG
+
+### 2026-04-01 — W4-7 Complete — CPOE Lightweight Clinical Order Entry (BLOCKER-04: 42 CFR §460.90)
+
+Implemented W4-7 — Lightweight CPOE (Computerized Provider Order Entry). Resolves BLOCKER-04.
+
+**Migration 94 — emr_clinical_orders:**
+- `participant_id`, `tenant_id`, `ordered_by_user_id` (prescriber FK), `order_type` (11 CHECK-constrained types), `priority` (stat/urgent/routine), `target_department` (auto-set from DEPARTMENT_ROUTING), `status` (pending/acknowledged/in_progress/resulted/completed/cancelled), `ordered_at`, `due_at`, `acknowledged_at`, `acknowledged_by_user_id`, `result_summary` (TEXT nullable), `clinical_notes`, `soft_deletes`.
+
+**ClinicalOrder model:**
+- `ORDER_TYPES`: lab, imaging, therapy_pt, therapy_ot, therapy_speech, medication_change, dme, hospice_referral, dental, dietary_consult, behavioral_health_consult.
+- `DEPARTMENT_ROUTING`: maps each order_type → target_department.
+- `TERMINAL_STATUSES = ['completed', 'cancelled']`.
+- `alertSeverity()`: stat→critical, urgent→warning, routine→info.
+- `isTerminal()`, `isPending()`, `orderTypeLabel()`, `toApiArray()`.
+
+**ClinicalOrderController (9 endpoints):**
+- `GET  /participants/{participant}/orders` → `index()` — returns `{orders, total_count, active_count}`.
+- `POST /participants/{participant}/orders` → `store()` — prescriber-only (primary_care/therapies/social_work/idt/it_admin), auto-sets target_department, creates stat/urgent alerts with `title` field.
+- `GET  /participants/{participant}/orders/{order}` → `show()`.
+- `PATCH /participants/{participant}/orders/{order}` → `update()`.
+- `POST /participants/{participant}/orders/{order}/acknowledge` → `acknowledge()` — pending→acknowledged.
+- `POST /participants/{participant}/orders/{order}/result` → `result()` — stores result_summary, sets status=resulted.
+- `POST /participants/{participant}/orders/{order}/complete` → `complete()`.
+- `POST /participants/{participant}/orders/{order}/cancel` → `cancel()` — terminal orders → 409 Conflict.
+- `GET  /orders` → `worklist()` — cross-participant, Inertia Clinical/Orders, dept-scoped.
+
+**DEPARTMENT_ROUTING map (CPOE architecture):**
+- lab → primary_care, imaging → primary_care
+- therapy_pt/ot/speech → therapies
+- medication_change → pharmacy, dietary_consult → dietary
+- dme → home_care, hospice_referral → social_work
+- dental → primary_care, behavioral_health_consult → behavioral_health
+
+**Clinical/Orders.tsx (rewritten from care-plan-goals stub):**
+- 3 filter tabs: pending / my_dept / all
+- KPI cards: pending count, stat count
+- Orders table with priority row coloring (red=stat, amber=urgent)
+- Acknowledge action (POST, reloads page)
+- ResultModal for entering result_summary
+- nav href changed from `/clinical/orders` → `/orders` in PermissionService
+
+**Dashboard widgets (3 depts):**
+- `GET /dashboards/primary-care/orders` → PrimaryCareDashboardController::orders()
+- `GET /dashboards/therapies/orders` → TherapiesDashboardController::orders()
+- `GET /dashboards/pharmacy/orders` → PharmacyDashboardController::orders()
+- Each returns `{orders: OrderItem[], pending_count, stat_count}`.
+- 5th ActionWidget added to PrimaryCareDashboard, TherapiesDashboard, PharmacyDashboard TSX.
+
+**ClinicalOrdersSeeder:** 3-5 orders per enrolled participant covering all 11 order_types, mix of priorities. Wired into DemoEnvironmentSeeder.
+
+**ComingSoonBannerTest fix:** `/clinical/orders` now redirects to `/orders` (was a live Inertia page in W3-8). Test updated from assertOk() to assertRedirect('/orders').
+
+**Test files:**
+- `tests/Feature/ClinicalOrderTest.php` — 12 tests: auto-routing, stat/urgent/routine alert creation, non-prescriber 403, cross-tenant 403, acknowledge, result, cancel, terminal cancel 409, index structure, unauthenticated 401.
+- `tests/Feature/OrderWorklistTest.php` — 8 tests: Inertia page, props structure, dept-scoping (pharmacy=own dept only, primary_care=all), auth redirect, cancelled excluded, allCount, tenant isolation.
+- `tests/Unit/OrderRoutingTest.php` — 17 tests: all order types have routing, each routing target, alertSeverity, isTerminal, isPending.
+
+**Bugs fixed:**
+1. Alert creation: `emr_alerts.title` is NOT NULL — added `'title' => strtoupper($priority) . ' Order: ' . $order->orderTypeLabel()`.
+2. Cancel terminal orders: changed response from 422 to 409 Conflict (correct HTTP semantic for "state machine won't allow this").
+3. ClinicalOrderController::index(): added `total_count` and `active_count` to JSON response.
+4. Route cache stale after W4-7 routes added: `php artisan route:clear` required.
+5. ComingSoonBannerTest: updated test for `/clinical/orders` redirect change.
+
+**Result:** 1407 tests, 0 failures. Migration 94 confirmed. BLOCKER-04 resolved.
 
 ### 2026-04-01 — W4-6 Complete — Incident Regulatory Tracking + QAPI Module (GAP-08, GAP-10, QW-10, QW-12)
 

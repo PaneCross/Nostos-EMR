@@ -18,8 +18,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Models\CarePlanGoal;
 use App\Models\ClinicalNote;
+use App\Models\ClinicalOrder;
 use App\Models\Sdr;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class TherapiesDashboardController extends Controller
@@ -193,6 +195,44 @@ class TherapiesDashboardController extends Controller
         return response()->json([
             'notes'         => $notes,
             'unsigned_count'=> ClinicalNote::where('tenant_id', $tenantId)->whereIn('note_type', ['therapy_pt', 'therapy_ot', 'therapy_st'])->unsigned()->count(),
+        ]);
+    }
+
+    /**
+     * GET /dashboards/therapies/orders
+     * W4-7: Active therapy orders (PT/OT/ST/Speech) for therapies department.
+     */
+    public function orders(Request $request): JsonResponse
+    {
+        $this->requireDept();
+        $tenantId = Auth::user()->tenant_id;
+
+        $therapyTypes = ['therapy_pt', 'therapy_ot', 'therapy_st', 'therapy_speech'];
+
+        $pendingOrders = ClinicalOrder::forTenant($tenantId)
+            ->whereIn('order_type', $therapyTypes)
+            ->whereNotIn('status', ClinicalOrder::TERMINAL_STATUSES)
+            ->with(['participant:id,first_name,last_name,mrn'])
+            ->orderByRaw("CASE priority WHEN 'stat' THEN 1 WHEN 'urgent' THEN 2 ELSE 3 END")
+            ->orderBy('ordered_at')
+            ->limit(10)
+            ->get()
+            ->map(fn ($o) => [
+                'id'           => $o->id,
+                'participant'  => $o->participant->first_name . ' ' . $o->participant->last_name,
+                'mrn'          => $o->participant->mrn,
+                'order_type'   => $o->orderTypeLabel(),
+                'priority'     => $o->priority,
+                'status'       => $o->status,
+                'instructions' => \Illuminate\Support\Str::limit($o->instructions, 80),
+                'ordered_at'   => $o->ordered_at?->toIso8601String(),
+                'is_overdue'   => $o->isOverdue(),
+                'href'         => '/participants/' . $o->participant_id . '?tab=orders',
+            ]);
+
+        return response()->json([
+            'orders'        => $pendingOrders,
+            'pending_count' => ClinicalOrder::forTenant($tenantId)->whereIn('order_type', $therapyTypes)->pending()->count(),
         ]);
     }
 }

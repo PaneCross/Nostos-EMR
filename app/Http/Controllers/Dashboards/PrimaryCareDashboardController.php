@@ -19,6 +19,7 @@ use App\Models\Alert;
 use App\Models\Appointment;
 use App\Models\Assessment;
 use App\Models\ClinicalNote;
+use App\Models\ClinicalOrder;
 use App\Models\Vital;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -237,5 +238,43 @@ class PrimaryCareDashboardController extends Controller
             ]);
 
         return response()->json(['vitals' => $vitals]);
+    }
+
+    /**
+     * GET /dashboards/primary-care/orders
+     * W4-7: Active clinical orders for primary_care department.
+     * Returns stat/urgent pending orders + recently resulted orders.
+     */
+    public function orders(Request $request): JsonResponse
+    {
+        $this->requireDept();
+        $tenantId = Auth::user()->tenant_id;
+
+        $pendingOrders = ClinicalOrder::forTenant($tenantId)
+            ->forDepartment('primary_care')
+            ->whereNotIn('status', ClinicalOrder::TERMINAL_STATUSES)
+            ->with(['participant:id,first_name,last_name,mrn'])
+            ->orderByRaw("CASE priority WHEN 'stat' THEN 1 WHEN 'urgent' THEN 2 ELSE 3 END")
+            ->orderBy('ordered_at')
+            ->limit(10)
+            ->get()
+            ->map(fn ($o) => [
+                'id'           => $o->id,
+                'participant'  => $o->participant->first_name . ' ' . $o->participant->last_name,
+                'mrn'          => $o->participant->mrn,
+                'order_type'   => $o->orderTypeLabel(),
+                'priority'     => $o->priority,
+                'status'       => $o->status,
+                'instructions' => \Illuminate\Support\Str::limit($o->instructions, 80),
+                'ordered_at'   => $o->ordered_at?->toIso8601String(),
+                'is_overdue'   => $o->isOverdue(),
+                'href'         => '/participants/' . $o->participant_id . '?tab=orders',
+            ]);
+
+        return response()->json([
+            'orders'        => $pendingOrders,
+            'pending_count' => ClinicalOrder::forTenant($tenantId)->forDepartment('primary_care')->pending()->count(),
+            'stat_count'    => ClinicalOrder::forTenant($tenantId)->forDepartment('primary_care')->where('priority', 'stat')->where('status', 'pending')->count(),
+        ]);
     }
 }

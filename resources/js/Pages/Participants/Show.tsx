@@ -6647,11 +6647,265 @@ function DisenrollmentTab({
   )
 }
 
+// ─── OrdersTab ────────────────────────────────────────────────────────────────
+// W4-7: 42 CFR §460.90 — PACE services must be ordered and documented.
+// Displays the participant's clinical orders with a "New Order" modal.
+// Lazy-loads on first activation. Prescriber depts can create orders;
+// all depts can view. stat rows = red, urgent rows = amber.
+// ─────────────────────────────────────────────────────────────────────────────
+function OrdersTab({ participantId, userDept, isSuperAdmin }: { participantId: number; userDept: string; isSuperAdmin: boolean }) {
+  const [orders, setOrders]     = React.useState<any[] | null>(null)
+  const [loading, setLoading]   = React.useState(false)
+  const [showModal, setShowModal] = React.useState(false)
+  const [form, setForm]         = React.useState({ order_type: 'lab', priority: 'routine', instructions: '', clinical_indication: '', due_date: '' })
+  const [saving, setSaving]     = React.useState(false)
+  const [saveError, setSaveError] = React.useState<string | null>(null)
+  const [cancelModal, setCancelModal] = React.useState<{ orderId: number; reason: string } | null>(null)
+
+  // Departments allowed to create orders per 42 CFR §460.90
+  const canOrder = isSuperAdmin || ['primary_care', 'therapies', 'social_work', 'idt', 'it_admin'].includes(userDept)
+
+  const ORDER_TYPE_LABELS: Record<string, string> = {
+    lab: 'Laboratory', imaging: 'Imaging / Radiology', consult: 'Specialist Consult',
+    therapy_pt: 'Physical Therapy', therapy_ot: 'Occupational Therapy',
+    therapy_st: 'Speech Therapy (ST)', therapy_speech: 'Speech-Language Pathology',
+    dme: 'DME / Equipment', medication_change: 'Medication Change',
+    home_health: 'Home Health', hospice_referral: 'Hospice Referral', other: 'Other',
+  }
+
+  // Lazy-load orders on first tab activation
+  React.useEffect(() => {
+    if (orders !== null) return
+    setLoading(true)
+    axios.get(`/participants/${participantId}/orders`)
+      .then(r => setOrders(r.data.orders))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const reload = () => {
+    axios.get(`/participants/${participantId}/orders`).then(r => setOrders(r.data.orders))
+  }
+
+  const submitOrder = async () => {
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await axios.post(`/participants/${participantId}/orders`, form)
+      setShowModal(false)
+      setForm({ order_type: 'lab', priority: 'routine', instructions: '', clinical_indication: '', due_date: '' })
+      reload()
+    } catch (err: any) {
+      setSaveError(err?.response?.data?.message ?? 'Failed to create order.')
+    } finally { setSaving(false) }
+  }
+
+  const acknowledge = async (orderId: number) => {
+    await axios.post(`/participants/${participantId}/orders/${orderId}/acknowledge`)
+    reload()
+  }
+
+  const complete = async (orderId: number) => {
+    if (!window.confirm('Mark this order as completed?')) return
+    await axios.post(`/participants/${participantId}/orders/${orderId}/complete`)
+    reload()
+  }
+
+  const cancelOrder = async () => {
+    if (!cancelModal || !cancelModal.reason.trim()) return
+    await axios.post(`/participants/${participantId}/orders/${cancelModal.orderId}/cancel`, { cancellation_reason: cancelModal.reason })
+    setCancelModal(null)
+    reload()
+  }
+
+  // Row background color by priority (stat=red, urgent=amber, routine=default)
+  const rowBg = (order: any) => {
+    if (order.priority === 'stat')   return 'bg-red-50 dark:bg-red-950/30'
+    if (order.priority === 'urgent') return 'bg-amber-50 dark:bg-amber-950/20'
+    return ''
+  }
+
+  const priorityBadge = (p: string) => {
+    if (p === 'stat')   return 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300'
+    if (p === 'urgent') return 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300'
+    return 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300'
+  }
+
+  const statusBadge = (s: string) => {
+    const map: Record<string, string> = {
+      pending:      'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300',
+      acknowledged: 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300',
+      in_progress:  'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300',
+      resulted:     'bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300',
+      completed:    'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300',
+      cancelled:    'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400',
+    }
+    return 'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ' + (map[s] ?? '')
+  }
+
+  if (loading) return <div className="py-12 text-center text-sm text-gray-500 dark:text-slate-400">Loading orders...</div>
+
+  return (
+    <div className="space-y-4" data-testid="orders-tab">
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-200">Clinical Orders</h3>
+        {canOrder && (
+          <button
+            onClick={() => setShowModal(true)}
+            data-testid="new-order-btn"
+            className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            + New Order
+          </button>
+        )}
+      </div>
+
+      {/* Orders table */}
+      {!orders || orders.length === 0 ? (
+        <div className="text-center py-10 text-gray-500 dark:text-slate-400 text-sm">No orders found for this participant.</div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-slate-700">
+          <table className="min-w-full text-xs">
+            <thead>
+              <tr className="bg-gray-50 dark:bg-slate-700/50 text-gray-600 dark:text-slate-400 text-left">
+                <th className="px-3 py-2 font-medium">Order Type</th>
+                <th className="px-3 py-2 font-medium">Priority</th>
+                <th className="px-3 py-2 font-medium">Status</th>
+                <th className="px-3 py-2 font-medium">Instructions</th>
+                <th className="px-3 py-2 font-medium">Ordered</th>
+                <th className="px-3 py-2 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-slate-700 bg-white dark:bg-slate-800">
+              {orders.map((order: any) => (
+                <tr key={order.id} className={rowBg(order)}>
+                  <td className="px-3 py-2 font-medium text-gray-800 dark:text-slate-200 whitespace-nowrap">
+                    {order.order_type_label}
+                    {order.is_overdue && <span className="ml-1 text-red-600 dark:text-red-400 font-semibold">(Overdue)</span>}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <span className={priorityBadge(order.priority)}>{order.priority.toUpperCase()}</span>
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <span className={statusBadge(order.status)}>{order.status.replace('_', ' ')}</span>
+                  </td>
+                  <td className="px-3 py-2 text-gray-700 dark:text-slate-300 max-w-xs truncate">
+                    {order.instructions}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap text-gray-500 dark:text-slate-400">
+                    {order.ordered_at ? new Date(order.ordered_at).toLocaleDateString() : '-'}
+                    {order.ordered_by && <div className="text-[10px] text-gray-400 dark:text-slate-500">{order.ordered_by.name}</div>}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      {order.status === 'pending' && (
+                        <button onClick={() => acknowledge(order.id)} className="text-blue-600 dark:text-blue-400 hover:underline text-[11px]">Acknowledge</button>
+                      )}
+                      {['pending', 'acknowledged', 'in_progress', 'resulted'].includes(order.status) && (
+                        <button onClick={() => complete(order.id)} className="text-green-600 dark:text-green-400 hover:underline text-[11px]">Complete</button>
+                      )}
+                      {!['completed', 'cancelled'].includes(order.status) && (
+                        <button onClick={() => setCancelModal({ orderId: order.id, reason: '' })} className="text-red-500 dark:text-red-400 hover:underline text-[11px]">Cancel</button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* New Order modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg p-6 space-y-4">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">New Clinical Order</h3>
+            {saveError && <p className="text-sm text-red-600 dark:text-red-400">{saveError}</p>}
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Order Type</label>
+                <select value={form.order_type} onChange={e => setForm(f => ({ ...f, order_type: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:bg-slate-700 px-3 py-2 text-sm">
+                  {Object.entries(ORDER_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Priority</label>
+                <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 px-3 py-2 text-sm">
+                  <option value="routine">Routine</option>
+                  <option value="urgent">Urgent</option>
+                  <option value="stat">STAT</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Instructions <span className="text-red-500">*</span></label>
+                <textarea value={form.instructions} onChange={e => setForm(f => ({ ...f, instructions: e.target.value }))}
+                  rows={3} className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 px-3 py-2 text-sm"
+                  placeholder="Order instructions..." />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Clinical Indication</label>
+                <input type="text" value={form.clinical_indication} onChange={e => setForm(f => ({ ...f, clinical_indication: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 px-3 py-2 text-sm"
+                  placeholder="Reason for order..." />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Due Date</label>
+                <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => { setShowModal(false); setSaveError(null) }}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200">
+                Cancel
+              </button>
+              <button onClick={submitOrder} disabled={saving || !form.instructions.trim()}
+                className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {saving ? 'Saving...' : 'Create Order'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Order modal */}
+      {cancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">Cancel Order</h3>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Cancellation Reason <span className="text-red-500">*</span></label>
+              <textarea value={cancelModal.reason}
+                onChange={e => setCancelModal(m => m ? { ...m, reason: e.target.value } : null)}
+                rows={3} className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 px-3 py-2 text-sm"
+                placeholder="Reason for cancelling this order..." />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setCancelModal(null)}
+                className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200">
+                Back
+              </button>
+              <button onClick={cancelOrder} disabled={!cancelModal.reason.trim()}
+                className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+                Cancel Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 type Tab =
   | 'overview'
   | 'chart' | 'vitals' | 'assessments' | 'problems' | 'allergies' | 'adl' | 'careplan'
   | 'medications' | 'emar' | 'med-recon'
   | 'immunizations' | 'procedures' | 'sdoh'
+  | 'orders'   // W4-7: 42 CFR §460.90 CPOE order entry
   | 'contacts' | 'flags' | 'insurance' | 'documents' | 'audit' | 'transfers'
   | 'grievances' | 'consents'
   | 'disenrollment' // W4-5: 42 CFR §460.116 transition plan tracking
@@ -6686,7 +6940,7 @@ export default function ParticipantShow({
     const raw = params.get('tab') as Tab | null
     const valid: Tab[] = ['overview', 'chart', 'vitals', 'assessments', 'problems',
       'allergies', 'adl', 'careplan', 'medications', 'emar', 'med-recon',
-      'immunizations', 'procedures', 'sdoh',
+      'immunizations', 'procedures', 'sdoh', 'orders',
       'contacts', 'flags', 'insurance', 'documents', 'audit', 'transfers',
       'grievances', 'consents', 'disenrollment']
     return raw && valid.includes(raw) ? raw : 'overview'
@@ -6717,6 +6971,7 @@ export default function ParticipantShow({
     { id: 'allergies',     label: 'Allergies',    count: allergies.length },
     { id: 'adl',           label: 'ADL' },
     { id: 'careplan',      label: 'Care Plan' },
+    { id: 'orders',        label: 'Orders' },   // W4-7: 42 CFR §460.90 CPOE
     { id: 'immunizations', label: 'Immunizations' },
     { id: 'procedures',    label: 'Procedures' },
   ]
@@ -6854,6 +7109,7 @@ export default function ParticipantShow({
         {activeTab === 'medications'   && <MedicationsTab    participantId={participant.id} />}
         {activeTab === 'emar'          && <EmarTab           participantId={participant.id} />}
         {activeTab === 'med-recon'     && <MedReconTab       participantId={participant.id} />}
+        {activeTab === 'orders'        && <OrdersTab          participantId={participant.id} userDept={auth.user.department} isSuperAdmin={auth.user.is_super_admin} />}
         {activeTab === 'immunizations' && <ImmunizationsTab  participantId={participant.id} />}
         {activeTab === 'procedures'    && <ProceduresTab     participantId={participant.id} />}
         {activeTab === 'sdoh'          && <SdohTab           participantId={participant.id} />}

@@ -231,6 +231,14 @@ class DemoEnvironmentSeeder extends Seeder
         $this->command->info('  Seeding W4-6 QAPI projects and significant change demo data...');
         $this->call(W46DataSeeder::class);
 
+        // ─── W4-7: Clinical Orders Seed ───────────────────────────────────────
+        // Seeds 2-4 routine orders per enrolled participant + 1 stat + 1 urgent
+        // for the first 3 participants. Demonstrates CPOE worklist at /orders.
+        // 42 CFR §460.90 — all PACE services must be ordered and documented.
+        $this->command->info('');
+        $this->command->info('  Seeding W4-7 clinical orders (CPOE demo data)...');
+        $this->call(\Database\Seeders\ClinicalOrdersSeeder::class);
+
         // ─── Participant Photos ────────────────────────────────────────────────
         // Downloads pravatar.cc placeholder images for the first 15 enrolled
         // participants so the photo upload feature is visually testable.

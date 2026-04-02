@@ -157,7 +157,7 @@ class PermissionService
                     ['label' => 'Assessments',      'module' => 'assessments',      'href' => '/clinical/assessments'],
                     ['label' => 'Care Plans',       'module' => 'care_plans',       'href' => '/clinical/care-plans'],
                     ['label' => 'Medications',      'module' => 'medications',      'href' => '/clinical/medications'],
-                    ['label' => 'Orders',           'module' => 'orders',           'href' => '/clinical/orders'],
+                    ['label' => 'Orders',           'module' => 'orders',           'href' => '/orders'],
                 ],
             ],
             [

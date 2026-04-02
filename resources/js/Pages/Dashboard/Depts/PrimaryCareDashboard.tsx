@@ -1,11 +1,12 @@
 // ─── PrimaryCareDashboard ──────────────────────────────────────────────────────
 // Real-data dashboard for the Primary Care / Nursing department.
 // Rendered from Dashboard/Index.tsx when department === 'primary_care'.
-// Fetches 4 widget endpoints in parallel on mount:
+// Fetches 5 widget endpoints in parallel on mount:
 //   GET /dashboards/primary-care/schedule   — today's clinic/lab/telehealth appointments
 //   GET /dashboards/primary-care/alerts     — active alerts targeting primary_care
 //   GET /dashboards/primary-care/docs       — unsigned notes + overdue assessments
 //   GET /dashboards/primary-care/vitals     — 5 most recent vitals records
+//   GET /dashboards/primary-care/orders     — active clinical orders for primary_care (W4-7)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useEffect, useState } from 'react';
@@ -74,6 +75,19 @@ interface VitalRecord {
     href: string;
 }
 
+// W4-7: Clinical order for orders widget (42 CFR §460.90)
+interface OrderItem {
+    id: number;
+    participant_id: number;
+    participant_first_name: string;
+    participant_last_name: string;
+    order_type_label: string;
+    priority: string;
+    status: string;
+    is_overdue: boolean;
+    href: string;
+}
+
 // ── Badge color helpers ────────────────────────────────────────────────────────
 
 // Maps appointment status to a badge color class
@@ -105,6 +119,8 @@ export default function PrimaryCareDashboard({ departmentLabel, role }: Props) {
         overdue_count: number;
     } | null>(null);
     const [vitals, setVitals]         = useState<{ vitals: VitalRecord[] } | null>(null);
+    // W4-7: active clinical orders for primary_care dept
+    const [orders, setOrders]         = useState<{ orders: OrderItem[]; pending_count: number; stat_count: number } | null>(null);
 
     useEffect(() => {
         Promise.all([
@@ -112,11 +128,13 @@ export default function PrimaryCareDashboard({ departmentLabel, role }: Props) {
             axios.get('/dashboards/primary-care/alerts'),
             axios.get('/dashboards/primary-care/docs'),
             axios.get('/dashboards/primary-care/vitals'),
-        ]).then(([sched, alert, doc, vital]) => {
+            axios.get('/dashboards/primary-care/orders'),
+        ]).then(([sched, alert, doc, vital, ord]) => {
             setSchedule(sched.data);
             setAlerts(alert.data);
             setDocs(doc.data);
             setVitals(vital.data);
+            setOrders(ord.data);
         }).finally(() => setLoading(false));
     }, []);
 
@@ -163,6 +181,19 @@ export default function PrimaryCareDashboard({ departmentLabel, role }: Props) {
         badge: v.out_of_range ? 'Out of range' : undefined,
         badgeColor: 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300',
         sublabel: [v.bp ? `BP ${v.bp}` : null, v.o2_saturation != null ? `O2 ${v.o2_saturation}%` : null, v.recorded_at].filter(Boolean).join(' | ') || undefined,
+    }));
+
+    // W4-7: Map active clinical orders to ActionItems — stat=red, urgent=amber
+    const orderItems: ActionItem[] = (orders?.orders ?? []).map(o => ({
+        label: `${o.participant_first_name} ${o.participant_last_name} — ${o.order_type_label}`,
+        href: o.href,
+        badge: o.priority.toUpperCase(),
+        badgeColor: o.priority === 'stat'
+            ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 font-bold'
+            : o.priority === 'urgent'
+            ? 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300'
+            : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300',
+        sublabel: o.is_overdue ? 'OVERDUE' : o.status,
     }));
 
     return (
@@ -212,6 +243,16 @@ export default function PrimaryCareDashboard({ departmentLabel, role }: Props) {
                 items={vitalsItems}
                 emptyMessage="No vitals recorded today"
                 viewAllHref="/clinical/vitals"
+                loading={loading}
+            />
+
+            {/* W4-7: Clinical Orders widget — stat orders in red, urgent in amber */}
+            <ActionWidget
+                title={`Clinical Orders${orders?.stat_count ? ` (${orders.stat_count} STAT)` : ''}`}
+                description="Active orders routed to primary care: lab, imaging, consults. STAT orders require immediate attention. Click any row to manage in the participant's Orders tab."
+                items={orderItems}
+                emptyMessage="No active orders for primary care"
+                viewAllHref="/orders"
                 loading={loading}
             />
 

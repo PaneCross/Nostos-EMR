@@ -282,6 +282,7 @@ class PermissionSeeder extends Seeder
         $therapiesBase['vitals']         = $read();
         $therapiesBase['assessments']    = $full();
         $therapiesBase['care_plans']     = $cru();
+        $therapiesBase['orders']         = $cru();   // therapies receives therapy orders (PT/OT/ST)
         $therapiesBase['idt_dashboard']  = $read();
         $therapiesBase['sdr_tracker']    = $cru();
         $therapiesBase['appointments']   = $full();
@@ -302,6 +303,7 @@ class PermissionSeeder extends Seeder
         $swBase['clinical_notes']  = $cru();
         $swBase['care_plans']      = $cru();
         $swBase['assessments']     = $full();
+        $swBase['orders']          = $cru();   // social_work receives hospice_referral orders
         $swBase['idt_dashboard']   = $read();
         $swBase['sdr_tracker']     = $cru();
         $swBase['appointments']    = $full();
@@ -377,6 +379,7 @@ class PermissionSeeder extends Seeder
         $homeCareBase['clinical_notes'] = $cru();
         $homeCareBase['assessments']    = $cru();
         $homeCareBase['care_plans']     = $read();
+        $homeCareBase['orders']         = $cru();    // home_care receives DME and home_health orders
         $homeCareBase['idt_dashboard']  = $read();
         $homeCareBase['sdr_tracker']    = $cru();
         $homeCareBase['appointments']   = $read();

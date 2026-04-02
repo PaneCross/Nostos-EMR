@@ -132,13 +132,13 @@ class ComingSoonBannerTest extends TestCase
 
     // ── CAT3: Planned features return Inertia ComingSoon with mode='planned' ───
 
-    public function test_clinical_orders_returns_live_page(): void
+    public function test_clinical_orders_redirects_to_orders(): void
     {
-        // W3-8: /clinical/orders is now a live Inertia page (ClinicalOverviewController::orders()).
-        // It no longer returns the ComingSoon 'planned' mode — confirm it responds 200.
+        // W4-7: /clinical/orders now redirects to /orders (the real CPOE worklist).
+        // The old ClinicalOverviewController stub was replaced with a redirect.
         $this->actingAs($this->user)
             ->get('/clinical/orders')
-            ->assertOk();
+            ->assertRedirect('/orders');
     }
 
     public function test_scheduling_day_center_returns_ok(): void

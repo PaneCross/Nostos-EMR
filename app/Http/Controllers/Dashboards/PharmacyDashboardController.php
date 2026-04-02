@@ -14,10 +14,12 @@
 namespace App\Http\Controllers\Dashboards;
 
 use App\Http\Controllers\Controller;
+use App\Models\ClinicalOrder;
 use App\Models\DrugInteractionAlert;
 use App\Models\EmarRecord;
 use App\Models\Medication;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class PharmacyDashboardController extends Controller
@@ -255,6 +257,42 @@ class PharmacyDashboardController extends Controller
         return response()->json([
             'medications' => $needsRefill,
             'count'       => $needsRefill->count(),
+        ]);
+    }
+
+    /**
+     * GET /dashboards/pharmacy/orders
+     * W4-7: Pending medication_change orders for pharmacy department.
+     */
+    public function orders(Request $request): JsonResponse
+    {
+        $this->requireDept();
+        $tenantId = Auth::user()->tenant_id;
+
+        $pendingOrders = ClinicalOrder::forTenant($tenantId)
+            ->where('order_type', 'medication_change')
+            ->whereNotIn('status', ClinicalOrder::TERMINAL_STATUSES)
+            ->with(['participant:id,first_name,last_name,mrn'])
+            ->orderByRaw("CASE priority WHEN 'stat' THEN 1 WHEN 'urgent' THEN 2 ELSE 3 END")
+            ->orderBy('ordered_at')
+            ->limit(10)
+            ->get()
+            ->map(fn ($o) => [
+                'id'           => $o->id,
+                'participant'  => $o->participant->first_name . ' ' . $o->participant->last_name,
+                'mrn'          => $o->participant->mrn,
+                'order_type'   => $o->orderTypeLabel(),
+                'priority'     => $o->priority,
+                'status'       => $o->status,
+                'instructions' => \Illuminate\Support\Str::limit($o->instructions, 80),
+                'ordered_at'   => $o->ordered_at?->toIso8601String(),
+                'is_overdue'   => $o->isOverdue(),
+                'href'         => '/participants/' . $o->participant_id . '?tab=orders',
+            ]);
+
+        return response()->json([
+            'orders'        => $pendingOrders,
+            'pending_count' => ClinicalOrder::forTenant($tenantId)->where('order_type', 'medication_change')->pending()->count(),
         ]);
     }
 }
