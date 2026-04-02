@@ -76,13 +76,67 @@ class AssessmentController extends Controller
     }
 
     /**
-     * Create a warning alert when an assessment score crosses the clinical threshold.
-     * Braden ≤14 (moderate-to-very-high pressure injury risk),
-     * MoCA <26 (possible cognitive impairment),
-     * OHAT >8 (dental referral indicated).
+     * Create a clinical alert when an assessment crosses a threshold.
+     *
+     * Standard types (Braden/MoCA/OHAT): single operator/value threshold → warning.
+     *
+     * Special cases:
+     *   fall_history     — response-based: alert when responses.falls_12_months >= 2 (warning).
+     *                      No numeric score is required.
+     *   lace_plus_index  — dual threshold: score >= 10 = critical, 5-9 = warning, <5 = no alert.
      */
     private function maybeCreateAssessmentAlert(Assessment $assessment, Participant $participant, int $tenantId): void
     {
+        $label      = $assessment->typeLabel();
+        $name       = $participant->first_name . ' ' . $participant->last_name;
+        $alertBase  = [
+            'tenant_id'         => $tenantId,
+            'participant_id'    => $participant->id,
+            'alert_type'        => "assessment_{$assessment->assessment_type}_threshold",
+            'target_departments'=> ['primary_care', 'idt'],
+            'source_module'     => 'assessments',
+            'metadata'          => ['assessment_id' => $assessment->id],
+            'created_by_system' => true,
+        ];
+
+        // ── fall_history: response-based alert (no numeric score) ─────────────
+        if ($assessment->assessment_type === 'fall_history') {
+            $falls = (int) ($assessment->responses['falls_12_months'] ?? 0);
+            if ($falls >= 2) {
+                $this->alertService->create(array_merge($alertBase, [
+                    'severity' => 'warning',
+                    'title'    => "Fall History Alert",
+                    'message'  => "{$name} reported {$falls} falls in the past 12 months. Fall prevention review recommended.",
+                    'metadata' => array_merge($alertBase['metadata'], ['falls_12_months' => $falls]),
+                ]));
+            }
+            return;
+        }
+
+        // ── lace_plus_index: dual threshold ───────────────────────────────────
+        if ($assessment->assessment_type === 'lace_plus_index') {
+            if ($assessment->score === null) {
+                return;
+            }
+            if ($assessment->score >= 10) {
+                $this->alertService->create(array_merge($alertBase, [
+                    'severity' => 'critical',
+                    'title'    => "LACE+ Index - High Readmission Risk",
+                    'message'  => "LACE+ score {$assessment->score}/19 for {$name}: High readmission risk. Intensive care coordination required.",
+                    'metadata' => array_merge($alertBase['metadata'], ['score' => $assessment->score]),
+                ]));
+            } elseif ($assessment->score >= 5) {
+                $this->alertService->create(array_merge($alertBase, [
+                    'severity' => 'warning',
+                    'title'    => "LACE+ Index - Moderate Readmission Risk",
+                    'message'  => "LACE+ score {$assessment->score}/19 for {$name}: Moderate readmission risk. Care plan review recommended.",
+                    'metadata' => array_merge($alertBase['metadata'], ['score' => $assessment->score]),
+                ]));
+            }
+            return;
+        }
+
+        // ── Standard single-threshold types (Braden, MoCA, OHAT) ─────────────
         $threshold = Assessment::ALERT_THRESHOLD[$assessment->assessment_type] ?? null;
         if ($threshold === null || $assessment->score === null) {
             return;
@@ -100,19 +154,12 @@ class AssessmentController extends Controller
             return;
         }
 
-        $label = $assessment->typeLabel();
-        $this->alertService->create([
-            'tenant_id'          => $tenantId,
-            'participant_id'     => $participant->id,
-            'alert_type'         => "assessment_{$assessment->assessment_type}_threshold",
-            'severity'           => 'warning',
-            'title'              => "{$label} Alert",
-            'message'            => "{$label} score {$assessment->score} for {$participant->first_name} {$participant->last_name}: {$assessment->scoredLabel()}",
-            'target_departments' => ['primary_care', 'idt'],
-            'source_module'      => 'assessments',
-            'metadata'           => ['assessment_id' => $assessment->id, 'score' => $assessment->score],
-            'created_by_system'  => true,
-        ]);
+        $this->alertService->create(array_merge($alertBase, [
+            'severity' => 'warning',
+            'title'    => "{$label} Alert",
+            'message'  => "{$label} score {$assessment->score} for {$name}: {$assessment->scoredLabel()}",
+            'metadata' => array_merge($alertBase['metadata'], ['score' => $assessment->score]),
+        ]));
     }
 
     /**

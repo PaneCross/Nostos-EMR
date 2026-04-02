@@ -85,7 +85,7 @@ Wave 4 (Phases W4-0 through W4-9): IN PROGRESS
   W4-5  Care Plan + IDT Compliance:        [x] COMPLETE — 2026-04-01
   W4-6  Incident + Regulatory Tracking:    [x] COMPLETE — 2026-04-01
   W4-7  CPOE — Lightweight Order Entry:    [x] COMPLETE — 2026-04-01 (BLOCKER-04 resolved)
-  W4-8  New Note Types + Assessments:      [ ] NOT STARTED
+  W4-8  New Note Types + Assessments:      [x] COMPLETE — 2026-04-01
   W4-9  FHIR Gaps + HPMS Verification:     [ ] NOT STARTED
 
 ---
@@ -540,6 +540,7 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 92. 2025_04_02_000002_create_emr_significant_change_events
 93. 2025_04_02_000003_create_emr_qapi_projects
 94. 2025_04_03_000001_create_emr_clinical_orders_table
+95. 2025_04_03_000002_add_w4_8_note_and_assessment_types
 
 ## MODELS (63)
 AdlRecord, AdlThreshold, Alert, Allergy, ApiToken, Appointment, Assessment, AuditLog,
@@ -930,6 +931,7 @@ rsync -av --exclude=vendor --exclude=node_modules --exclude=public/build --exclu
 - [2026-04-01] W4-5 — 1335 passing, 0 failing (16 deprecations, 158 PHPUnit deprecations — non-blocking). Care plan participation acknowledgment, IDT review frequency tracking, disenrollment transition plan.
 - [2026-04-01] W4-6 — 1370 passing, 0 failing (16 deprecations, 228 PHPUnit deprecations — non-blocking). Incident regulatory tracking + QAPI module. 3 migrations, 2 models, 1 controller, 2 jobs, 1 React page (Qapi/Projects), 35 new tests.
 - [2026-04-01] W4-7 — 1407 passing, 0 failing (16 deprecations, 302 PHPUnit deprecations — non-blocking). CPOE Lightweight Order Entry. BLOCKER-04 resolved. 1 migration (94), 1 model (ClinicalOrder), 1 controller (ClinicalOrderController), 1 React page (Clinical/Orders rewritten), orders widget on 3 dashboards (PrimaryCareDashboard, TherapiesDashboard, PharmacyDashboard), 3 dashboard endpoints, ClinicalOrdersSeeder, 37 new tests.
+- [2026-04-01] W4-8 — 1440 passing, 0 failing (16 deprecations, 302 PHPUnit deprecations — non-blocking). New Note Types + Assessment Tools. 1 migration (95), 2 new note types (transition_of_care, podiatry), 2 new assessment types (fall_history, lace_plus_index), ADT job auto-creates draft transition notes, dual-threshold LACE+ alert logic, 5 new test files (33 new tests).
 - [2026-03-31] W4-2 + Grievance permissions + Timestamp fix — 1263 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). Migration 84 (column widening for encrypted PHI). 28 new tests (EncryptionTest 10 + BaaTrackerTest 18). Grievances nav opened to all 14 depts. Grievance datetime toIso8601String() fix. SecurityComplianceController JSON returns. Build clean.
 - [2026-03-26] W3-2 — 1091 passing, 0 failing. Build clean. Adds NavRoutingTest (13 tests) + DayCenterAttendanceTest (12 tests) + Day Center attendance module + Reports page + System Settings page. Bugs fixed: scopeForSite null type hint, payer_id column DNE, pace_contract column DNE (mapped to cms_contract_id), ComingSoonBannerTest stale assertions for 3 now-live pages + /idt/minutes redirect target.
 - [2026-03-27] W3-4 — 1137 passing, 0 failing. Build clean. Adds FacesheetTest (6 tests) + ParticipantTabRoutingTest (22 tests). Show.tsx: print CSS fixed (visibility approach — position:fixed caused blank print), two-row tab layout (CLINICAL blue / ADMIN slate), switchTab() for URL sync via window.history.replaceState, valid tab list updated with immunizations/procedures/sdoh (Phase 11B), ParticipantHeader onTabChange prop + Care Plan/Schedule header buttons fixed, advance directive DNR/POLST/No Directive badges in sticky header flags row, CarePlanTab save error state (catch block no longer silent), editability guard on Edit button (hidden for active/archived plans). Bugs fixed: cross-tenant returns 403 not 404 (authorizeForTenant uses abort_if(..., 403)), PHPUnit @dataProvider converted to #[DataProvider] attribute.

@@ -26,6 +26,9 @@ class Assessment extends Model
         'braden_scale',   // Braden Scale for Predicting Pressure Sore Risk (6 subscales, 6–23)
         'moca_cognitive', // Montreal Cognitive Assessment (30-point + 1 education bonus)
         'oral_health',    // Oral Health Assessment Tool — OHAT (8 items, 0–16)
+        // W4-8 additions
+        'fall_history',      // Fall history screen; alert when responses.falls_12_months >= 2
+        'lace_plus_index',   // Readmission risk (L+A+C+E, 0–19); dual threshold 5=warning, 10=critical
     ];
 
     // ── Score ranges by type (max score) ─────────────────────────────────────
@@ -38,6 +41,7 @@ class Assessment extends Model
         'braden_scale'     => 23,  // 6 subscales × 1–4 each (min 6 = very high risk)
         'moca_cognitive'   => 30,  // +1 bonus for ≤12 yr education (not reflected here)
         'oral_health'      => 16,  // 8 items × 0–2
+        'lace_plus_index'  => 19,  // L(0-5)+A(0/3)+C(0-6+)+E(0-4) practical max
     ];
 
     // ── Alert thresholds — score at or below/above this value triggers a clinical alert ─
@@ -45,6 +49,8 @@ class Assessment extends Model
         'braden_scale'   => ['operator' => '<=', 'value' => 14], // moderate-to-very-high risk
         'moca_cognitive' => ['operator' => '<',  'value' => 26], // <26 = mild cognitive impairment
         'oral_health'    => ['operator' => '>',  'value' => 8],  // >8 = dental referral needed
+        // lace_plus_index and fall_history use special handling in AssessmentController
+        // (dual threshold and response-based logic respectively)
     ];
 
     protected $fillable = [
@@ -168,7 +174,12 @@ class Assessment extends Model
             'oral_health' => match (true) {
                 $this->score <= 2  => 'Healthy',
                 $this->score <= 8  => 'Changes Present',
-                default            => 'Unhealthy — Referral Needed',
+                default            => 'Unhealthy - Referral Needed',
+            },
+            'lace_plus_index' => match (true) {
+                $this->score >= 10 => 'High Risk',
+                $this->score >= 5  => 'Moderate Risk',
+                default            => 'Low Risk',
             },
             default => null,
         };
@@ -195,6 +206,8 @@ class Assessment extends Model
             'braden_scale'          => 'Braden Scale (Pressure Injury Risk)',
             'moca_cognitive'        => 'MoCA (Cognitive Assessment)',
             'oral_health'           => 'Oral Health Screening (OHAT)',
+            'fall_history'          => 'Fall History Screen',
+            'lace_plus_index'       => 'LACE+ Index (Readmission Risk)',
             default                 => ucwords(str_replace('_', ' ', $this->assessment_type)),
         };
     }

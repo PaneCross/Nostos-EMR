@@ -613,4 +613,110 @@ return [
         ],
     ],
 
+    // ─── W4-8: Transition of Care Note ───────────────────────────────────────
+    // Auto-created as DRAFT from HL7 ADT A01 (admission) and A03 (discharge).
+    // Pre-populated with transition_type and facility from the ADT payload.
+    // All departments can view; clinical staff complete and sign after the event.
+    // Field counts: 10 structured, 3 free-text → 13 total (77% structured).
+    'transition_of_care' => [
+        'label'       => 'Transition of Care',
+        'departments' => [
+            'primary_care', 'therapies', 'social_work', 'behavioral_health',
+            'dietary', 'home_care', 'idt', 'pharmacy', 'nursing', 'it_admin',
+        ],
+        'sections'    => [
+            [
+                'key'    => 'transition_details',
+                'label'  => 'Transition Details',
+                'fields' => [
+                    ['key' => 'transition_type',     'type' => 'select',   'label' => 'Transition Type',
+                     'options' => ['hospital_admission', 'hospital_discharge', 'snf_admission', 'snf_discharge', 'er_visit', 'home_health_referral', 'hospice_referral', 'other']],
+                    ['key' => 'facility',            'type' => 'select',   'label' => 'Receiving / Sending Facility',
+                     'options' => ['PACE Center', 'External Hospital', 'Skilled Nursing Facility', 'Emergency Department', 'Home', 'Hospice', 'Other']],
+                    ['key' => 'event_date',          'type' => 'date',     'label' => 'Transition Date'],
+                    ['key' => 'transport_mode',      'type' => 'select',   'label' => 'Mode of Transport',
+                     'options' => ['Ambulance', 'PACE van', 'Family/caregiver vehicle', 'Personal vehicle', 'N/A']],
+                    ['key' => 'accompanied_by',      'type' => 'select',   'label' => 'Accompanied By',
+                     'options' => ['Family member', 'PACE staff', 'Caregiver', 'Unaccompanied', 'N/A']],
+                ],
+            ],
+            [
+                'key'    => 'clinical_status',
+                'label'  => 'Clinical Status at Transition',
+                'fields' => [
+                    ['key' => 'primary_diagnosis',   'type' => 'select',   'label' => 'Primary Reason for Transition',
+                     'options' => ['Acute illness', 'Injury/fall', 'Cardiac event', 'Respiratory event', 'Stroke/TIA', 'Infection', 'Surgical procedure', 'Behavioral/psych crisis', 'Elective procedure', 'Other']],
+                    ['key' => 'functional_status',   'type' => 'select',   'label' => 'Functional Status at Transition',
+                     'options' => ['Independent', 'Minimal assist', 'Moderate assist', 'Max assist', 'Dependent', 'Bedbound']],
+                    ['key' => 'medications_reconciled', 'type' => 'checkbox', 'label' => 'Medications reconciled at transition'],
+                    ['key' => 'care_plan_updated',   'type' => 'checkbox', 'label' => 'Care plan reviewed/updated for transition'],
+                    ['key' => 'clinical_notes',      'type' => 'textarea', 'label' => 'Clinical Summary / Reason for Transition'],
+                ],
+            ],
+            [
+                'key'    => 'follow_up',
+                'label'  => 'Follow-Up Plan',
+                'fields' => [
+                    ['key' => 'follow_up_timeframe', 'type' => 'select',   'label' => 'Follow-Up Contact Timeframe',
+                     'options' => ['Within 24 hours', 'Within 48 hours', 'Within 72 hours', 'Within 1 week', 'As needed']],
+                    ['key' => 'idt_notified',        'type' => 'checkbox', 'label' => 'IDT team notified of transition'],
+                    ['key' => 'sdr_required',        'type' => 'checkbox', 'label' => 'SDR required (discharge only)'],
+                    ['key' => 'follow_up_notes',     'type' => 'textarea', 'label' => 'Follow-Up Instructions / Plan Notes'],
+                ],
+            ],
+        ],
+    ],
+
+    // ─── W4-8: Podiatry Note ─────────────────────────────────────────────────
+    // Required PACE podiatry service per 42 CFR §460.92.
+    // Documents routine foot care, pathology findings, and treatment provided.
+    // Field counts: 11 structured, 2 free-text → 13 total (85% structured).
+    'podiatry' => [
+        'label'       => 'Podiatry',
+        'departments' => [
+            'primary_care', 'therapies', 'home_care', 'idt', 'it_admin',
+        ],
+        'sections'    => [
+            [
+                'key'    => 'visit',
+                'label'  => 'Visit Details',
+                'fields' => [
+                    ['key' => 'visit_reason',      'type' => 'select',      'label' => 'Reason for Visit',
+                     'options' => ['Routine nail care', 'Wound care', 'New concern', 'Follow-up', 'Diabetic foot exam', 'Orthotic fitting', 'Post-surgical follow-up']],
+                    ['key' => 'diabetes_dx',       'type' => 'checkbox',    'label' => 'Participant has diabetes diagnosis'],
+                    ['key' => 'peripheral_vascular','type' => 'checkbox',   'label' => 'Peripheral vascular disease documented'],
+                ],
+            ],
+            [
+                'key'    => 'exam',
+                'label'  => 'Foot Examination',
+                'fields' => [
+                    ['key' => 'skin_integrity',    'type' => 'select',      'label' => 'Skin Integrity',
+                     'options' => ['Intact, no lesions', 'Callus/hyperkeratosis', 'Fissures present', 'Skin breakdown', 'Wound/ulcer present', 'Blister']],
+                    ['key' => 'nail_condition',    'type' => 'select',      'label' => 'Nail Condition',
+                     'options' => ['Normal', 'Thickened', 'Ingrown', 'Fungal', 'Absent', 'Discolored', 'Brittle']],
+                    ['key' => 'circulation',       'type' => 'select',      'label' => 'Circulation (Dorsalis Pedis / PT Pulses)',
+                     'options' => ['Normal bilaterally', 'Diminished left', 'Diminished right', 'Diminished bilaterally', 'Absent left', 'Absent right', 'Not assessed']],
+                    ['key' => 'sensation',         'type' => 'select',      'label' => 'Sensation (Monofilament)',
+                     'options' => ['Intact bilaterally', 'Decreased left', 'Decreased right', 'Decreased bilaterally', 'Absent', 'Not tested']],
+                    ['key' => 'deformity',         'type' => 'multiselect', 'label' => 'Deformity / Structural Finding',
+                     'options' => ['None', 'Hallux valgus', 'Hammer toe', 'Claw toe', 'Charcot deformity', 'Flat foot', 'High arch', 'Amputation (partial)', 'Other']],
+                    ['key' => 'wound_present',     'type' => 'checkbox',    'label' => 'Active wound present (triggers wound care protocol)'],
+                    ['key' => 'exam_notes',        'type' => 'textarea',    'label' => 'Examination Findings'],
+                ],
+            ],
+            [
+                'key'    => 'treatment',
+                'label'  => 'Treatment',
+                'fields' => [
+                    ['key' => 'treatment_provided', 'type' => 'multiselect', 'label' => 'Treatment Provided',
+                     'options' => ['Nail trimming', 'Debridement', 'Callus reduction', 'Wound dressing', 'Padding applied', 'Orthotics evaluated', 'Patient education', 'Referral placed', 'No treatment — monitoring only']],
+                    ['key' => 'follow_up_interval', 'type' => 'select',      'label' => 'Follow-Up Interval',
+                     'options' => ['2 weeks', '4 weeks', '6 weeks', '8 weeks', '3 months', '6 months', 'PRN', 'Urgent referral']],
+                    ['key' => 'treatment_notes',    'type' => 'textarea',    'label' => 'Treatment Notes / Recommendations'],
+                ],
+            ],
+        ],
+    ],
+
 ];

@@ -32,11 +32,13 @@ namespace App\Jobs;
 
 use App\Models\AuditLog;
 use App\Models\CarePlan;
+use App\Models\ClinicalNote;
 use App\Models\EncounterLog;
 use App\Models\IntegrationLog;
 use App\Models\Participant;
 use App\Models\Sdr;
 use App\Models\SignificantChangeEvent;
+use App\Models\User;
 use App\Services\AlertService;
 use Illuminate\Support\Carbon;
 use Illuminate\Bus\Queueable;
@@ -154,6 +156,11 @@ class ProcessHl7AdtJob implements ShouldQueue
             'status'                       => 'pending',
         ]);
 
+        // W4-8: Create draft transition-of-care note for clinical team to complete.
+        // 42 CFR §460.104(b): IDT must be notified of significant changes; auto-populated
+        // draft ensures the admission is documented and prompts care coordination.
+        $this->createTransitionNote($participant, 'hospital_admission', $facility, $admissionDate);
+
         AuditLog::record(
             action:       'integration.hl7.admission',
             resourceType: 'Participant',
@@ -212,6 +219,10 @@ class ProcessHl7AdtJob implements ShouldQueue
             'created_by_system'  => true,
         ]);
 
+        // W4-8: Create draft transition-of-care note for discharge follow-up.
+        // Prompts IDT to document the discharge transition per 42 CFR §460.104.
+        $this->createTransitionNote($participant, 'hospital_discharge', $facility, now()->toDateString());
+
         AuditLog::record(
             action:       'integration.hl7.discharge',
             resourceType: 'Participant',
@@ -237,6 +248,62 @@ class ProcessHl7AdtJob implements ShouldQueue
         );
 
         $logEntry->markProcessed();
+    }
+
+    // ── Transition-of-care draft note ─────────────────────────────────────────
+
+    /**
+     * Creates a DRAFT transition-of-care clinical note pre-populated with ADT data.
+     * The note is attributed to the first active IT-admin user for the tenant
+     * (system-authored), then left as draft for a clinician to review and sign.
+     * If no active user exists for the tenant the note is silently skipped.
+     *
+     * @param string $transitionType  'hospital_admission' or 'hospital_discharge'
+     * @param string $facility        Facility name from ADT payload
+     * @param string $eventDate       ISO date string (YYYY-MM-DD)
+     */
+    private function createTransitionNote(
+        Participant $participant,
+        string      $transitionType,
+        string      $facility,
+        string      $eventDate,
+    ): void {
+        // Find a system author for the note (IT admin preferred, any active user fallback)
+        $systemUser = User::where('tenant_id', $this->tenantId)
+            ->where('is_active', true)
+            ->where('department', 'it_admin')
+            ->first()
+            ?? User::where('tenant_id', $this->tenantId)
+                ->where('is_active', true)
+                ->first();
+
+        if (! $systemUser) {
+            Log::warning('[ProcessHl7AdtJob] No active user found for tenant — skipping transition note', [
+                'tenant_id'       => $this->tenantId,
+                'participant_id'  => $participant->id,
+                'transition_type' => $transitionType,
+            ]);
+            return;
+        }
+
+        ClinicalNote::create([
+            'participant_id'      => $participant->id,
+            'tenant_id'           => $this->tenantId,
+            'site_id'             => $participant->site_id,
+            'note_type'           => 'transition_of_care',
+            'authored_by_user_id' => $systemUser->id,
+            'department'          => 'it_admin',
+            'status'              => ClinicalNote::STATUS_DRAFT,
+            'visit_type'          => 'in_center',
+            'visit_date'          => $eventDate,
+            'content'             => [
+                'transition_type'         => $transitionType,
+                'facility'                => $facility,
+                'event_date'              => $eventDate,
+                'auto_populated'          => true,
+                'review_instructions'     => 'Draft auto-created from HL7 ADT event. Please review, complete, and sign.',
+            ],
+        ]);
     }
 
     // ── Unknown message type ───────────────────────────────────────────────────

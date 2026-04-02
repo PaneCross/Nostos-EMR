@@ -25,6 +25,9 @@ class ClinicalNote extends Model
         'soap', 'progress_nursing', 'therapy_pt', 'therapy_ot', 'therapy_st',
         'social_work', 'behavioral_health', 'dietary', 'home_visit',
         'telehealth', 'idt_summary', 'incident', 'addendum',
+        // W4-8 additions
+        'transition_of_care', // Auto-created draft from HL7 ADT A01/A03 (42 CFR §460.104)
+        'podiatry',           // Required PACE podiatry service note (42 CFR §460.92)
     ];
 
     // ── Note types that use the SOAP subjective/objective/assessment/plan fields
@@ -167,6 +170,8 @@ class ClinicalNote extends Model
             'idt_summary'        => 'IDT Meeting Summary',
             'incident'           => 'Incident Report',
             'addendum'           => 'Addendum',
+            'transition_of_care' => 'Transition of Care',
+            'podiatry'           => 'Podiatry',
             default              => ucwords(str_replace('_', ' ', $this->note_type)),
         };
     }
