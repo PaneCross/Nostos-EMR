@@ -88,9 +88,27 @@ Wave 4 (Phases W4-0 through W4-9): COMPLETE
   W4-8  New Note Types + Assessments:      [x] COMPLETE — 2026-04-01
   W4-9  FHIR Gaps + HPMS Verification:     [x] COMPLETE — 2026-04-01
 
+Wave 5 (Phases W5-0 through W5-9): IN PROGRESS
+  W5-0  CLAUDE.md Wave 5 Update:            [x] IN PROGRESS
+  W5-1  Quick Wins (Wound Care + BTG):       [ ] NOT STARTED
+  W5-2  Lab Results Viewer:                  [ ] NOT STARTED
+  W5-3  835 Remittance + Denial Mgmt:        [ ] NOT STARTED
+  W5-4  Live Clearinghouse (BLOCKER-05):     [ ] NOT STARTED
+  W5-5  CPOE Complete (BLOCKER-04):          [ ] NOT STARTED
+  W5-6  Custom Report Builder:               [ ] NOT STARTED
+  W5-7  Pharmacy Integration (Outbound):     [ ] NOT STARTED
+  W5-8  Direct Messaging + C-CDA:            [ ] NOT STARTED
+  W5-9  SMART on FHIR + HEDIS Foundations:   [ ] NOT STARTED
+
 ---
 
-## FUTURE SCOPE — DO NOT BUILD IN WAVE 4
+## FUTURE SCOPE — DO NOT BUILD IN WAVE 5
+
+Wave 5 addresses: Wound Care, Break-the-Glass, Lab Results Viewer, 835 Remittance,
+Live Clearinghouse, CPOE Enhancement, Custom Reports, Pharmacy Integration,
+Direct Messaging + C-CDA, SMART on FHIR + HEDIS Foundations.
+
+The following are confirmed Wave 6+ scope items:
 
 1. **Full Transportation suite and live connections to Nostos transport.**
    Status: ComingSoonBanner in place. Brian (transport team) to implement.
@@ -103,20 +121,20 @@ Wave 4 (Phases W4-0 through W4-9): COMPLETE
    Note: home care workflows on tablet is highest priority within this scope.
    Do not start until explicitly requested.
 
-3. **Live EDI clearinghouse submission (BLOCKER-05).**
+3. **Live EDI clearinghouse submission (BLOCKER-05). [Wave 5 — W5-4]**
    837P builder exists (Edi837PBuilderService). No live submission pipeline.
    Requires clearinghouse vendor selection (Availity, Change Healthcare, etc.),
    credential config, 277CA tracking, and 835 remittance reconciliation.
 
-4. **eRx integration (NCPDP SCRIPT).**
+4. **eRx integration (NCPDP SCRIPT). [Wave 6+]**
    Electronic prescribing to pharmacy. Requires Brian / transport team coordination
    for the PACE pharmacy integration model.
 
-5. **C-CDA generation for transitions of care.**
+5. **C-CDA generation for transitions of care. [Wave 5 — W5-8]**
    Requires HL7 FHIR/CDA library and Direct Secure Messaging (HISP) setup.
    Deferred pending clearinghouse and EHR integration decisions.
 
-6. **HEDIS measure extraction.**
+6. **HEDIS measure extraction. [Wave 5 — W5-9 foundations]**
    Post-launch data quality work. Depends on clean encounter and diagnosis data.
 
 7. **HCC chasing workflow UI.**
@@ -127,24 +145,24 @@ Wave 4 (Phases W4-0 through W4-9): COMPLETE
    Pharmacy enhancement for high-risk medications in elderly populations.
    Requires drug reference expansion and clinical validation.
 
-9. **Patient/family portal.**
-   Separate application, FHIR patient-facing API (SMART on FHIR).
+9. **Patient/family portal. [Wave 6+]**
+   Separate application, FHIR patient-facing API (SMART on FHIR — W5-9 lays groundwork).
    Out of scope for NostosEMR v1 — future standalone product.
 
 10. **CMS-2728 form module.**
     ESRD (End-Stage Renal Disease) participants only. Low PACE volume.
 
-11. **FHIR bulk export ($export operation).**
+11. **FHIR bulk export ($export operation). [Wave 6+]**
     Required for population-level analytics and payer integrations.
     Depends on USCDI v3 full compliance (DEBT-024).
 
-12. **Telehealth integration.**
-    Video visit scheduling + documentation linkage.
+12. **Telehealth integration. [Wave 6+]**
+    PACE-native video visit scheduling + documentation linkage.
 
-13. **Wound care documentation module.**
+13. **Wound care documentation module. [Wave 5 — W5-1]**
     Specialty clinical documentation with wound staging, measurements, photo.
 
-14. **Remote Patient Monitoring (RPM) infrastructure.**
+14. **Remote Patient Monitoring (RPM) infrastructure. [Wave 6+]**
     Device data ingestion, threshold alerting, home care integration.
 
 15. **GDS (Geriatric Depression Scale) assessment tool.**
@@ -158,6 +176,12 @@ Wave 4 (Phases W4-0 through W4-9): COMPLETE
 
 18. **Vision/Hearing screening assessment.**
     Standard PACE intake and annual screening tools.
+
+19. **ONC Health IT Certification. [Wave 6+]**
+    Formal ONC certification process for NostosEMR. Requires CPOE, SMART on FHIR,
+    CDA, and full USCDI v3 compliance audit. Wave 5 lays the technical groundwork
+    (SMART on FHIR, C-CDA, CPOE enhancement) but formal certification engagement
+    is a Wave 6+ initiative.
 
 ---
 
@@ -231,6 +255,46 @@ Full context for Wave 4 build. Status tags indicate which W4 phase addresses eac
 - QW-10 [W4-6]: RESOLVED — Incident CMS/SMA notification tracking fields complete
 - QW-11 [W4-4]: VIS (Vaccine Information Statement) given field on immunizations
 - QW-12 [W4-6]: RESOLVED — Significant change flag on ADT hospitalizations complete
+
+---
+
+## AUDIT FINDINGS (2026-04-01) — post-W4-9 state
+Build baseline: 1,510 passing tests, 96 migrations.
+
+Confirmed strengths (no action needed):
+  Participant Management: Strong — all USCDI v3 fields, payer data, CMS participant rights
+  Clinical Documentation: Strong — all USCDI v3 categories covered
+  Medication Management: Strong — controlled substance enforcement at API boundary
+  IDT / Care Coordination: Strong — 72h SDR enforcement at model level
+  QAPI / Incident: Strong — RCA enforcement at service layer (not bypassable via API)
+  Billing Infrastructure: Strong for MVP — 837P, PDE, capitation, HCC, HPMS all present
+  FHIR R4: Strong — 16 endpoints / 13 resource types, scope-enforced, audit-logged
+  Security / HIPAA: Exceptionally strong — append-only audit log at PostgreSQL level,
+    field-level encryption, TOTP, BAA/SRA tracking, RBAC all present
+  Reporting / Dashboards: Strong — 14 live dept dashboards, executive, finance, QA
+  CMS HPMS Reporting: Strong — enrollment file, EDS encounter data, capitation all present
+
+Genuine gaps to resolve in Wave 5:
+  BLOCKER-05 [W5-4]: Live clearinghouse EDI — 837P files built but manual upload only.
+    No automated transmission, no 277CA acknowledgement tracking.
+  Gap: 835 Remittance + Denial Management [W5-3] — ERA ingestion absent, revenue
+    cycle loop cannot close, denial workflows entirely missing.
+  Gap: Lab Results Viewer [W5-2] — HL7 ORU ingested into integration log but not
+    surfaced in participant chart.
+  Gap: Wound Care [W5-1] — no wound assessment or staging tool.
+  Gap: Break-the-Glass Emergency Access [W5-1] — no formal override for emergency
+    access outside normal RBAC scope.
+  Gap: Custom Report Builder [W5-6] — all reports are fixed endpoints; no ad-hoc
+    queries or custom export builder.
+  Gap: Pharmacy Integration Outbound [W5-7] — no transmission to external pharmacy,
+    no dispensing confirmation feedback into eMAR.
+  Gap: Direct Messaging / C-CDA [W5-8] — no CDA export, no Direct Secure Messaging.
+  Gap: SMART on FHIR [W5-9] — no OAuth SMART flow for third-party patient apps.
+  Gap: HEDIS / Star Ratings [W5-9] — no measure tracking or Star Ratings roll-up.
+
+Note: BLOCKER-04 (CPOE) was resolved in W4-7 (lightweight ClinicalOrder system).
+The W5-5 slot is reserved for full CPOE enhancement (order sets, result attachment)
+if ONC certification path requires it — not a current blocker.
 
 ---
 
@@ -939,6 +1003,7 @@ rsync -av --exclude=vendor --exclude=node_modules --exclude=public/build --exclu
 - [2026-04-01] W4-6 — 1370 passing, 0 failing (16 deprecations, 228 PHPUnit deprecations — non-blocking). Incident regulatory tracking + QAPI module. 3 migrations, 2 models, 1 controller, 2 jobs, 1 React page (Qapi/Projects), 35 new tests.
 - [2026-04-01] W4-7 — 1407 passing, 0 failing (16 deprecations, 302 PHPUnit deprecations — non-blocking). CPOE Lightweight Order Entry. BLOCKER-04 resolved. 1 migration (94), 1 model (ClinicalOrder), 1 controller (ClinicalOrderController), 1 React page (Clinical/Orders rewritten), orders widget on 3 dashboards (PrimaryCareDashboard, TherapiesDashboard, PharmacyDashboard), 3 dashboard endpoints, ClinicalOrdersSeeder, 37 new tests.
 - [2026-04-01] W4-8 — 1440 passing, 0 failing (16 deprecations, 302 PHPUnit deprecations — non-blocking). New Note Types + Assessment Tools. 1 migration (95), 2 new note types (transition_of_care, podiatry), 2 new assessment types (fall_history, lace_plus_index), ADT job auto-creates draft transition notes, dual-threshold LACE+ alert logic, 5 new test files (33 new tests).
+- [2026-04-01] W5-0 — 1510 passing, 0 failing (16 deprecations, 302 PHPUnit deprecations — non-blocking). Wave 5 baseline confirmed. No code changes — CLAUDE.md only.
 - [2026-04-01] W4-9 — 1510 passing, 0 failing. Bugs fixed: ApiToken::SCOPES missing 6 new scopes (immunization.read, procedure.read, encounter.read, diagnosticreport.read, practitioner.read, organization.read); EncounterMapperTest used invalid 'day_center' appointment_type (fixed to 'clinic_visit'); stale route cache caused 404s on all new endpoints (fixed with route:clear).
 - [2026-03-31] W4-2 + Grievance permissions + Timestamp fix — 1263 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). Migration 84 (column widening for encrypted PHI). 28 new tests (EncryptionTest 10 + BaaTrackerTest 18). Grievances nav opened to all 14 depts. Grievance datetime toIso8601String() fix. SecurityComplianceController JSON returns. Build clean.
 - [2026-03-26] W3-2 — 1091 passing, 0 failing. Build clean. Adds NavRoutingTest (13 tests) + DayCenterAttendanceTest (12 tests) + Day Center attendance module + Reports page + System Settings page. Bugs fixed: scopeForSite null type hint, payer_id column DNE, pace_contract column DNE (mapped to cms_contract_id), ComingSoonBannerTest stale assertions for 3 now-live pages + /idt/minutes redirect target.
