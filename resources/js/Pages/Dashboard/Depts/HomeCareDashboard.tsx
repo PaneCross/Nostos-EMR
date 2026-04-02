@@ -1,11 +1,12 @@
 // ─── HomeCareDashboard ─────────────────────────────────────────────────────────
 // Real-data dashboard for the Home Care department.
 // Rendered from Dashboard/Index.tsx when department === 'home_care'.
-// Fetches 4 widget endpoints in parallel on mount:
+// Fetches 5 widget endpoints in parallel on mount:
 //   GET /dashboards/home-care/schedule    — today's home visits
 //   GET /dashboards/home-care/adl-alerts  — active ADL decline alerts for home_care
 //   GET /dashboards/home-care/goals       — active home_care domain care plan goals
 //   GET /dashboards/home-care/sdrs        — open/overdue SDRs for home_care
+//   GET /dashboards/home-care/wounds      — open wound records for home care nursing (W5-1)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useEffect, useState } from 'react';
@@ -62,6 +63,19 @@ interface Sdr {
     href: string;
 }
 
+// W5-1: Wound record for wound care widget
+interface WoundItem {
+    id: number;
+    participant: Participant | null;
+    wound_type: string;
+    type_label: string;
+    location: string | null;
+    stage_label: string | null;
+    is_critical: boolean;
+    days_open: number;
+    href: string;
+}
+
 // ── Badge color helpers ────────────────────────────────────────────────────────
 
 // Maps appointment status to a badge color class
@@ -88,6 +102,8 @@ export default function HomeCareDashboard({ departmentLabel, role }: Props) {
     const [adlAlerts, setAdlAlerts] = useState<{ alerts: AlertItem[]; unacknowledged_count: number } | null>(null);
     const [goals, setGoals]         = useState<{ goals: Goal[] } | null>(null);
     const [sdrs, setSdrs]           = useState<{ sdrs: Sdr[]; overdue_count: number; open_count: number } | null>(null);
+    // W5-1: open wound records for home care nursing staff
+    const [wounds, setWounds]       = useState<{ wounds: WoundItem[]; open_count: number; critical_count: number } | null>(null);
 
     useEffect(() => {
         Promise.all([
@@ -95,11 +111,13 @@ export default function HomeCareDashboard({ departmentLabel, role }: Props) {
             axios.get('/dashboards/home-care/adl-alerts'),
             axios.get('/dashboards/home-care/goals'),
             axios.get('/dashboards/home-care/sdrs'),
-        ]).then(([sched, alert, goal, sdr]) => {
+            axios.get('/dashboards/home-care/wounds'),
+        ]).then(([sched, alert, goal, sdr, wnd]) => {
             setSchedule(sched.data);
             setAdlAlerts(alert.data);
             setGoals(goal.data);
             setSdrs(sdr.data);
+            setWounds(wnd.data);
         }).finally(() => setLoading(false));
     }, []);
 
@@ -128,6 +146,17 @@ export default function HomeCareDashboard({ departmentLabel, role }: Props) {
         badge: g.target_date ? `Due ${g.target_date}` : undefined,
         badgeColor: 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
         sublabel: g.goal_description,
+    }));
+
+    // W5-1: Map wound records to ActionItems — critical stage wounds in red
+    const woundItems: ActionItem[] = (wounds?.wounds ?? []).map(w => ({
+        label: `${w.participant?.name ?? '-'} — ${w.type_label}`,
+        href: w.href,
+        badge: w.is_critical ? 'Stage 3+' : (w.stage_label ?? 'Open'),
+        badgeColor: w.is_critical
+            ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 font-bold'
+            : 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
+        sublabel: [w.location, `${w.days_open}d open`].filter(Boolean).join(' | ') || undefined,
     }));
 
     // Map SDRs to ActionItems — overdue SDRs shown in red
@@ -177,6 +206,16 @@ export default function HomeCareDashboard({ departmentLabel, role }: Props) {
                 items={sdrItems}
                 emptyMessage="No open SDRs"
                 viewAllHref="/sdrs"
+                loading={loading}
+            />
+
+            {/* W5-1: Wound Care widget — home care nurses monitor wounds between day-center visits */}
+            <ActionWidget
+                title={`Open Wounds${wounds?.critical_count ? ` (${wounds.critical_count} Critical)` : ''}`}
+                description="Open wound records to monitor between day-center visits. Stage 3+, unstageable, and DTI wounds require immediate escalation to primary care."
+                items={woundItems}
+                emptyMessage="No open wound records"
+                viewAllHref="/participants"
                 loading={loading}
             />
 

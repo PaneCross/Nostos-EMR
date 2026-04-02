@@ -247,6 +247,9 @@ interface Props {
   // W3-6: site transfer context
   hasMultipleSites:    boolean
   completedTransfers:  { effective_date: string; from_site_name: string | null; to_site_name: string | null }[]
+  // W5-1: break-the-glass emergency access state (passed from ParticipantController)
+  hasBreakGlassAccess: boolean
+  breakGlassExpiresAt: string | null
 }
 
 // ─── Display Constants ────────────────────────────────────────────────────────
@@ -6900,11 +6903,649 @@ function OrdersTab({ participantId, userDept, isSuperAdmin }: { participantId: n
   )
 }
 
+// ─── WoundsTab ─────────────────────────────────────────────────────────────────
+// Displays active and healed wound records for a PACE participant.
+// Supports opening new wounds, adding periodic assessments, and closing wounds.
+// Stage 3+ pressure injuries are highlighted in red (CMS quality metric).
+// Data loaded lazily on first tab activation.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface WoundAssessmentItem {
+  id: number
+  assessed_at: string
+  length_cm: string | null
+  width_cm: string | null
+  depth_cm: string | null
+  wound_bed: string | null
+  exudate_amount: string | null
+  status_change: string | null
+  notes: string | null
+  assessed_by: string | null
+}
+
+interface WoundItem {
+  id: number
+  wound_type: string
+  wound_type_label: string
+  location: string
+  pressure_injury_stage: string | null
+  stage_label: string | null
+  is_critical_stage: boolean
+  length_cm: string | null
+  width_cm: string | null
+  depth_cm: string | null
+  wound_bed: string | null
+  exudate_amount: string | null
+  odor: boolean
+  pain_score: number | null
+  treatment_description: string | null
+  dressing_type: string | null
+  dressing_change_frequency: string | null
+  goal: string | null
+  status: string
+  first_identified_date: string
+  healed_date: string | null
+  days_open: number
+  photo_taken: boolean
+  notes: string | null
+  documented_by: string | null
+  last_assessment_at: string | null
+  assessment_count: number
+  assessments?: WoundAssessmentItem[]
+}
+
+const WOUND_TYPES = [
+  { value: 'pressure_injury',   label: 'Pressure Injury' },
+  { value: 'diabetic_foot_ulcer', label: 'Diabetic Foot Ulcer' },
+  { value: 'venous_ulcer',      label: 'Venous Ulcer' },
+  { value: 'arterial_ulcer',    label: 'Arterial Ulcer' },
+  { value: 'surgical_wound',    label: 'Surgical Wound' },
+  { value: 'traumatic_wound',   label: 'Traumatic Wound' },
+  { value: 'moisture_associated', label: 'Moisture-Associated' },
+  { value: 'other',             label: 'Other' },
+]
+
+const PRESSURE_STAGES = [
+  { value: 'stage_1',           label: 'Stage 1' },
+  { value: 'stage_2',           label: 'Stage 2' },
+  { value: 'stage_3',           label: 'Stage 3' },
+  { value: 'stage_4',           label: 'Stage 4' },
+  { value: 'unstageable',       label: 'Unstageable' },
+  { value: 'deep_tissue_injury', label: 'Deep Tissue Injury' },
+]
+
+const WOUND_BED_OPTIONS  = ['granulation','slough','eschar','epithelialization','mixed','not_visible']
+const EXUDATE_AMOUNTS    = ['none','scant','light','moderate','heavy']
+const EXUDATE_TYPES      = ['serous','serosanguineous','sanguineous','purulent']
+const PERIWOUND_OPTIONS  = ['intact','macerated','erythema','callus','other']
+
+function stageBadgeClass(w: WoundItem): string {
+  if (!w.pressure_injury_stage) return 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300'
+  if (w.is_critical_stage)      return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+  if (w.pressure_injury_stage === 'stage_2') return 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300'
+  return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+}
+
+function WoundsTab({ participantId }: { participantId: number }) {
+  const [open, setOpen]     = React.useState<WoundItem[]>([])
+  const [healed, setHealed] = React.useState<WoundItem[]>([])
+  const [loading, setLoading] = React.useState(true)
+  const [expanded, setExpanded] = React.useState<number | null>(null)
+  const [showNewForm, setShowNewForm] = React.useState(false)
+  const [assessModal, setAssessModal] = React.useState<number | null>(null)
+  const [showHealed, setShowHealed] = React.useState(false)
+  const [saving, setSaving] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const blankWound = {
+    wound_type: 'pressure_injury', location: '', pressure_injury_stage: '',
+    length_cm: '', width_cm: '', depth_cm: '',
+    wound_bed: '', exudate_amount: '', exudate_type: '', periwound_skin: '',
+    odor: false, pain_score: '', treatment_description: '',
+    dressing_type: '', dressing_change_frequency: '',
+    goal: 'healing', first_identified_date: new Date().toISOString().split('T')[0],
+    photo_taken: false, notes: '',
+  }
+  const [newWound, setNewWound] = React.useState<Record<string, unknown>>(blankWound)
+
+  const blankAssess = {
+    length_cm: '', width_cm: '', depth_cm: '', wound_bed: '',
+    exudate_amount: '', status_change: '', pain_score: '', notes: '',
+    treatment_description: '',
+  }
+  const [assessData, setAssessData] = React.useState<Record<string, unknown>>(blankAssess)
+
+  React.useEffect(() => {
+    axios.get(`/participants/${participantId}/wounds`)
+      .then(r => { setOpen(r.data.open); setHealed(r.data.healed) })
+      .finally(() => setLoading(false))
+  }, [participantId])
+
+  const loadDetail = async (wid: number) => {
+    if (expanded === wid) { setExpanded(null); return }
+    const r = await axios.get(`/participants/${participantId}/wounds/${wid}`)
+    setOpen(prev => prev.map(w => w.id === wid ? { ...w, assessments: r.data.assessments } : w))
+    setExpanded(wid)
+  }
+
+  const saveNewWound = async () => {
+    setSaving(true); setError(null)
+    try {
+      const r = await axios.post(`/participants/${participantId}/wounds`, newWound)
+      setOpen(prev => [r.data, ...prev])
+      setShowNewForm(false); setNewWound(blankWound)
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setError(msg ?? 'Failed to save wound.')
+    } finally { setSaving(false) }
+  }
+
+  const saveAssessment = async () => {
+    if (!assessModal) return
+    setSaving(true); setError(null)
+    try {
+      const r = await axios.post(`/participants/${participantId}/wounds/${assessModal}/assess`, assessData)
+      setOpen(prev => prev.map(w =>
+        w.id === assessModal
+          ? { ...r.data.wound, assessments: [r.data.assessment, ...(w.assessments ?? [])] }
+          : w
+      ).filter(w => w.status !== 'healed'))
+      if (r.data.wound.status === 'healed') {
+        setHealed(prev => [r.data.wound, ...prev])
+      }
+      setAssessModal(null); setAssessData(blankAssess)
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setError(msg ?? 'Failed to save assessment.')
+    } finally { setSaving(false) }
+  }
+
+  const closeWound = async (wid: number) => {
+    const r = await axios.post(`/participants/${participantId}/wounds/${wid}/close`)
+    setOpen(prev => prev.filter(w => w.id !== wid))
+    setHealed(prev => [r.data, ...prev])
+  }
+
+  if (loading) return <div className="py-12 text-center text-gray-400 dark:text-slate-500">Loading wounds...</div>
+
+  return (
+    <div className="space-y-4">
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">
+          Wound Care
+          {open.length > 0 && (
+            <span className="ml-2 text-xs font-normal text-red-600 dark:text-red-400">
+              {open.length} active
+            </span>
+          )}
+        </h3>
+        <button
+          onClick={() => setShowNewForm(true)}
+          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          + Open New Wound
+        </button>
+      </div>
+
+      {error && (
+        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* Active wounds */}
+      {open.length === 0 && !showNewForm ? (
+        <p className="text-sm text-gray-500 dark:text-slate-400 py-4">No active wound records.</p>
+      ) : (
+        <div className="space-y-3">
+          {open.map(w => (
+            <div key={w.id} className={`rounded-xl border ${w.is_critical_stage ? 'border-red-300 dark:border-red-700' : 'border-gray-200 dark:border-slate-700'} bg-white dark:bg-slate-800 overflow-hidden`}>
+              {/* Wound card header */}
+              <div className="px-4 py-3 flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-gray-900 dark:text-slate-100 text-sm">{w.wound_type_label}</span>
+                    {w.stage_label && (
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${stageBadgeClass(w)}`}>
+                        {w.stage_label}
+                      </span>
+                    )}
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      w.status === 'open' ? 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-300' :
+                      w.status === 'healing' ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300' :
+                      w.status === 'deteriorating' ? 'bg-red-200 dark:bg-red-800/40 text-red-800 dark:text-red-200 font-semibold' :
+                      'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300'
+                    }`}>
+                      {w.status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                    {w.location} | {w.days_open} days open
+                    {w.last_assessment_at && ` | Last assessed ${new Date(w.last_assessment_at).toLocaleDateString()}`}
+                  </p>
+                  {(w.length_cm || w.width_cm) && (
+                    <p className="text-xs text-gray-600 dark:text-slate-300 mt-0.5">
+                      {[w.length_cm && `L: ${w.length_cm}cm`, w.width_cm && `W: ${w.width_cm}cm`, w.depth_cm && `D: ${w.depth_cm}cm`].filter(Boolean).join(' x ')}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => { setAssessModal(w.id); setError(null) }}
+                    className="px-2 py-1 text-xs border border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                  >
+                    Add Assessment
+                  </button>
+                  <button
+                    onClick={() => loadDetail(w.id)}
+                    className="px-2 py-1 text-xs border border-gray-200 dark:border-slate-600 text-gray-600 dark:text-slate-400 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700"
+                  >
+                    {expanded === w.id ? 'Collapse' : `History (${w.assessment_count})`}
+                  </button>
+                  <button
+                    onClick={() => closeWound(w.id)}
+                    className="px-2 py-1 text-xs text-gray-400 dark:text-slate-500 hover:text-green-600 dark:hover:text-green-400"
+                  >
+                    Mark Healed
+                  </button>
+                </div>
+              </div>
+
+              {/* Assessment history (expanded) */}
+              {expanded === w.id && w.assessments && w.assessments.length > 0 && (
+                <div className="border-t border-gray-100 dark:border-slate-700 px-4 py-3 bg-gray-50 dark:bg-slate-700/30">
+                  <p className="text-xs font-semibold text-gray-600 dark:text-slate-400 mb-2">Assessment History</p>
+                  <div className="space-y-2">
+                    {w.assessments.map(a => (
+                      <div key={a.id} className="text-xs text-gray-600 dark:text-slate-400 flex items-start gap-3">
+                        <span className="whitespace-nowrap font-medium">{new Date(a.assessed_at).toLocaleDateString()}</span>
+                        <span className="text-gray-400">|</span>
+                        {a.status_change && (
+                          <span className={`font-medium ${a.status_change === 'healed' ? 'text-green-600 dark:text-green-400' : a.status_change === 'deteriorated' ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-slate-300'}`}>
+                            {a.status_change}
+                          </span>
+                        )}
+                        {(a.length_cm || a.width_cm) && (
+                          <span>{[a.length_cm && `${a.length_cm}cm`, a.width_cm && `${a.width_cm}cm`].filter(Boolean).join(' x ')}</span>
+                        )}
+                        {a.notes && <span className="italic">{a.notes}</span>}
+                        <span className="text-gray-400 ml-auto">{a.assessed_by}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Healed / Closed section */}
+      {healed.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowHealed(h => !h)}
+            className="text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 font-medium"
+          >
+            {showHealed ? 'Hide' : 'Show'} Healed / Closed ({healed.length})
+          </button>
+          {showHealed && (
+            <div className="mt-2 space-y-2">
+              {healed.map(w => (
+                <div key={w.id} className="rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50 px-4 py-2.5 flex items-center gap-3 text-sm opacity-75">
+                  <span className="font-medium text-gray-700 dark:text-slate-300">{w.wound_type_label}</span>
+                  <span className="text-gray-400">|</span>
+                  <span className="text-gray-500 dark:text-slate-400">{w.location}</span>
+                  {w.healed_date && (
+                    <>
+                      <span className="text-gray-400">|</span>
+                      <span className="text-green-600 dark:text-green-400 text-xs">Healed {w.healed_date}</span>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* New Wound form modal */}
+      {showNewForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">Open New Wound Record</h3>
+              <button onClick={() => setShowNewForm(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 text-lg">✕</button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Wound Type <span className="text-red-500">*</span></label>
+                  <select value={String(newWound.wound_type)} onChange={e => setNewWound(p => ({ ...p, wound_type: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm">
+                    {WOUND_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Anatomical Location <span className="text-red-500">*</span></label>
+                  <input value={String(newWound.location)} onChange={e => setNewWound(p => ({ ...p, location: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm"
+                    placeholder="e.g. Sacrum, Right heel" />
+                </div>
+              </div>
+              {String(newWound.wound_type) === 'pressure_injury' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Pressure Injury Stage</label>
+                  <select value={String(newWound.pressure_injury_stage)} onChange={e => setNewWound(p => ({ ...p, pressure_injury_stage: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm">
+                    <option value="">- Select Stage -</option>
+                    {PRESSURE_STAGES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="grid grid-cols-3 gap-4">
+                {(['length_cm','width_cm','depth_cm'] as const).map(f => (
+                  <div key={f}>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">{f.replace('_cm','').toUpperCase()} (cm)</label>
+                    <input type="number" step="0.1" min="0" value={String(newWound[f])} onChange={e => setNewWound(p => ({ ...p, [f]: e.target.value }))}
+                      className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm" />
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Wound Bed</label>
+                  <select value={String(newWound.wound_bed)} onChange={e => setNewWound(p => ({ ...p, wound_bed: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm">
+                    <option value="">- Select -</option>
+                    {WOUND_BED_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Exudate Amount</label>
+                  <select value={String(newWound.exudate_amount)} onChange={e => setNewWound(p => ({ ...p, exudate_amount: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm">
+                    <option value="">- Select -</option>
+                    {EXUDATE_AMOUNTS.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Exudate Type</label>
+                  <select value={String(newWound.exudate_type)} onChange={e => setNewWound(p => ({ ...p, exudate_type: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm">
+                    <option value="">- Select -</option>
+                    {EXUDATE_TYPES.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Periwound Skin</label>
+                  <select value={String(newWound.periwound_skin)} onChange={e => setNewWound(p => ({ ...p, periwound_skin: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm">
+                    <option value="">- Select -</option>
+                    {PERIWOUND_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Pain Score (0-10)</label>
+                  <input type="number" min="0" max="10" value={String(newWound.pain_score)} onChange={e => setNewWound(p => ({ ...p, pain_score: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Goal</label>
+                  <select value={String(newWound.goal)} onChange={e => setNewWound(p => ({ ...p, goal: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm">
+                    <option value="healing">Healing</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="palliative">Palliative</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">First Identified <span className="text-red-500">*</span></label>
+                  <input type="date" value={String(newWound.first_identified_date)} onChange={e => setNewWound(p => ({ ...p, first_identified_date: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Treatment Description</label>
+                <textarea value={String(newWound.treatment_description)} onChange={e => setNewWound(p => ({ ...p, treatment_description: e.target.value }))}
+                  rows={2} className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Dressing Type</label>
+                  <input value={String(newWound.dressing_type)} onChange={e => setNewWound(p => ({ ...p, dressing_type: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm"
+                    placeholder="e.g. Foam, Hydrocolloid" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Dressing Change Frequency</label>
+                  <input value={String(newWound.dressing_change_frequency)} onChange={e => setNewWound(p => ({ ...p, dressing_change_frequency: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm"
+                    placeholder="e.g. Daily, Every 2 days" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Notes</label>
+                <textarea value={String(newWound.notes)} onChange={e => setNewWound(p => ({ ...p, notes: e.target.value }))}
+                  rows={2} className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm" />
+              </div>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300 cursor-pointer">
+                  <input type="checkbox" checked={Boolean(newWound.odor)} onChange={e => setNewWound(p => ({ ...p, odor: e.target.checked }))} />
+                  Wound odor present
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300 cursor-pointer">
+                  <input type="checkbox" checked={Boolean(newWound.photo_taken)} onChange={e => setNewWound(p => ({ ...p, photo_taken: e.target.checked }))} />
+                  Photo taken
+                </label>
+              </div>
+              {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+            </div>
+            <div className="sticky bottom-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-end gap-3">
+              <button onClick={() => setShowNewForm(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400">Cancel</button>
+              <button onClick={saveNewWound} disabled={saving || !newWound.location || !newWound.first_identified_date}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {saving ? 'Saving...' : 'Open Wound Record'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Assessment modal */}
+      {assessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg">
+            <div className="border-b border-gray-200 dark:border-slate-700 px-6 py-4 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">Add Wound Assessment</h3>
+              <button onClick={() => setAssessModal(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 text-lg">✕</button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                {(['length_cm','width_cm','depth_cm'] as const).map(f => (
+                  <div key={f}>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">{f.replace('_cm','').toUpperCase()} (cm)</label>
+                    <input type="number" step="0.1" min="0" value={String(assessData[f] ?? '')} onChange={e => setAssessData(p => ({ ...p, [f]: e.target.value }))}
+                      className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm" />
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Wound Bed</label>
+                  <select value={String(assessData.wound_bed ?? '')} onChange={e => setAssessData(p => ({ ...p, wound_bed: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm">
+                    <option value="">- Select -</option>
+                    {WOUND_BED_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Status Change</label>
+                  <select value={String(assessData.status_change ?? '')} onChange={e => setAssessData(p => ({ ...p, status_change: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm">
+                    <option value="">- No change noted -</option>
+                    <option value="improved">Improved</option>
+                    <option value="unchanged">Unchanged</option>
+                    <option value="deteriorated">Deteriorated</option>
+                    <option value="healed">Healed</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Treatment / Notes</label>
+                <textarea value={String(assessData.notes ?? '')} onChange={e => setAssessData(p => ({ ...p, notes: e.target.value }))}
+                  rows={3} className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm"
+                  placeholder="Treatment changes, observations..." />
+              </div>
+              {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+            </div>
+            <div className="border-t border-gray-200 dark:border-slate-700 px-6 py-4 flex justify-end gap-3">
+              <button onClick={() => setAssessModal(null)} className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400">Cancel</button>
+              <button onClick={saveAssessment} disabled={saving}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {saving ? 'Saving...' : 'Save Assessment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── BreakGlassSection ─────────────────────────────────────────────────────────
+// Emergency access banner and modal for users outside normal clinical scope.
+// Shows red "no standard access" banner with BTG request button.
+// Shows amber "access active" banner when BTG access has been granted.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CLINICAL_DEPARTMENTS = [
+  'primary_care','therapies','social_work','behavioral_health',
+  'home_care','idt','pharmacy','qa_compliance','it_admin',
+]
+
+function BreakGlassSection({
+  participantId,
+  participantName,
+  department,
+  isSuperAdmin,
+  hasBreakGlassAccess,
+  breakGlassExpiresAt,
+}: {
+  participantId: number
+  participantName: string
+  department: string
+  isSuperAdmin: boolean
+  hasBreakGlassAccess: boolean
+  breakGlassExpiresAt: string | null
+}) {
+  const [showModal, setShowModal] = React.useState(false)
+  const [justification, setJustification] = React.useState('')
+  const [confirmed, setConfirmed] = React.useState(false)
+  const [saving, setSaving] = React.useState(false)
+  const [granted, setGranted] = React.useState(hasBreakGlassAccess)
+  const [expiresAt, setExpiresAt] = React.useState<string | null>(breakGlassExpiresAt)
+  const [error, setError] = React.useState<string | null>(null)
+
+  // Super-admin and normal clinical depts don't need break-glass
+  if (isSuperAdmin || CLINICAL_DEPARTMENTS.includes(department)) return null
+
+  const requestAccess = async () => {
+    setSaving(true); setError(null)
+    try {
+      const r = await axios.post(`/participants/${participantId}/break-glass`, { justification })
+      setGranted(true)
+      setExpiresAt(r.data.access_expires_at)
+      setShowModal(false)
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setError(msg ?? 'Failed to request access. Contact IT Administration.')
+    } finally { setSaving(false) }
+  }
+
+  // Active BTG access banner
+  if (granted && expiresAt) {
+    return (
+      <div className="mx-6 mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 flex items-center gap-2">
+        <span className="text-amber-700 dark:text-amber-300 text-sm font-medium">
+          Emergency Access Active
+        </span>
+        <span className="text-amber-600 dark:text-amber-400 text-sm">
+          : Expires {new Date(expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. All actions are logged.
+        </span>
+      </div>
+    )
+  }
+
+  // No standard access banner
+  return (
+    <>
+      <div className="mx-6 mt-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 flex items-center justify-between gap-3">
+        <p className="text-red-700 dark:text-red-300 text-sm">
+          You do not have standard access to this participant's clinical record.
+        </p>
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex-shrink-0 px-3 py-1.5 text-xs font-medium bg-red-600 text-white rounded-lg hover:bg-red-700"
+        >
+          Request Emergency Access
+        </button>
+      </div>
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">Emergency Chart Access</h3>
+            <p className="text-sm text-gray-600 dark:text-slate-400">
+              This action grants read-only access to {participantName}'s full chart for 4 hours.
+              It will be logged and reviewed by IT Administration and QA Compliance.
+              Provide a clinical justification below.
+            </p>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">
+                Clinical Justification <span className="text-red-500">*</span> (minimum 20 characters)
+              </label>
+              <textarea
+                value={justification}
+                onChange={e => setJustification(e.target.value)}
+                rows={4}
+                className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm"
+                placeholder="Describe the clinical emergency requiring access..."
+              />
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">{justification.length} / 20 min characters</p>
+            </div>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} className="mt-0.5" />
+              <span className="text-sm text-gray-600 dark:text-slate-400">
+                I understand this access is logged and will be reviewed by a supervisor.
+              </span>
+            </label>
+            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400">Cancel</button>
+              <button
+                onClick={requestAccess}
+                disabled={saving || justification.trim().length < 20 || !confirmed}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 font-medium"
+              >
+                {saving ? 'Requesting...' : 'Grant Emergency Access'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 type Tab =
   | 'overview'
   | 'chart' | 'vitals' | 'assessments' | 'problems' | 'allergies' | 'adl' | 'careplan'
   | 'medications' | 'emar' | 'med-recon'
-  | 'immunizations' | 'procedures' | 'sdoh'
+  | 'immunizations' | 'procedures' | 'sdoh' | 'wounds'
   | 'orders'   // W4-7: 42 CFR §460.90 CPOE order entry
   | 'contacts' | 'flags' | 'insurance' | 'documents' | 'audit' | 'transfers'
   | 'grievances' | 'consents'
@@ -6915,6 +7556,7 @@ export default function ParticipantShow({
   canEdit, canDelete, canViewAudit,
   problems, allergies, lifeThreateningAllergyCount, vitals, icd10Codes, noteTemplates,
   hasMultipleSites, completedTransfers,
+  hasBreakGlassAccess, breakGlassExpiresAt,
 }: Props) {
   const { auth } = usePage<{ auth: { user: { department: string; is_super_admin: boolean } } }>().props
 
@@ -6940,7 +7582,7 @@ export default function ParticipantShow({
     const raw = params.get('tab') as Tab | null
     const valid: Tab[] = ['overview', 'chart', 'vitals', 'assessments', 'problems',
       'allergies', 'adl', 'careplan', 'medications', 'emar', 'med-recon',
-      'immunizations', 'procedures', 'sdoh', 'orders',
+      'immunizations', 'procedures', 'sdoh', 'wounds', 'orders',
       'contacts', 'flags', 'insurance', 'documents', 'audit', 'transfers',
       'grievances', 'consents', 'disenrollment']
     return raw && valid.includes(raw) ? raw : 'overview'
@@ -6974,6 +7616,7 @@ export default function ParticipantShow({
     { id: 'orders',        label: 'Orders' },   // W4-7: 42 CFR §460.90 CPOE
     { id: 'immunizations', label: 'Immunizations' },
     { id: 'procedures',    label: 'Procedures' },
+    { id: 'wounds',        label: 'Wounds' },
   ]
 
   // ── Row 2: ADMIN tabs (slate active underline) — overview + care coordination ─
@@ -7029,6 +7672,16 @@ export default function ParticipantShow({
           onViewAllergies={() => switchTab('allergies')}
         />
       )}
+
+      {/* W5-1: Break-the-glass emergency access banner (for non-clinical depts only) */}
+      <BreakGlassSection
+        participantId={participant.id}
+        participantName={`${participant.first_name} ${participant.last_name}`}
+        department={auth.user.department}
+        isSuperAdmin={auth.user.is_super_admin}
+        hasBreakGlassAccess={hasBreakGlassAccess}
+        breakGlassExpiresAt={breakGlassExpiresAt}
+      />
 
       {/* ── Two-row tab navigation ──────────────────────────────────────────── */}
       {/*                                                                       */}
@@ -7113,6 +7766,7 @@ export default function ParticipantShow({
         {activeTab === 'immunizations' && <ImmunizationsTab  participantId={participant.id} />}
         {activeTab === 'procedures'    && <ProceduresTab     participantId={participant.id} />}
         {activeTab === 'sdoh'          && <SdohTab           participantId={participant.id} />}
+        {activeTab === 'wounds'        && <WoundsTab         participantId={participant.id} />}
         {activeTab === 'contacts'    && <ContactsTab     participantId={participant.id} initialContacts={contacts} />}
         {activeTab === 'flags'       && <FlagsTab        participantId={participant.id} initialFlags={flags} />}
         {activeTab === 'insurance'   && <InsuranceTab    insurances={insurances} />}

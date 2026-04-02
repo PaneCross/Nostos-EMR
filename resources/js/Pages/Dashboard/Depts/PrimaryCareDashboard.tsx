@@ -1,12 +1,13 @@
 // ─── PrimaryCareDashboard ──────────────────────────────────────────────────────
 // Real-data dashboard for the Primary Care / Nursing department.
 // Rendered from Dashboard/Index.tsx when department === 'primary_care'.
-// Fetches 5 widget endpoints in parallel on mount:
+// Fetches 6 widget endpoints in parallel on mount:
 //   GET /dashboards/primary-care/schedule   — today's clinic/lab/telehealth appointments
 //   GET /dashboards/primary-care/alerts     — active alerts targeting primary_care
 //   GET /dashboards/primary-care/docs       — unsigned notes + overdue assessments
 //   GET /dashboards/primary-care/vitals     — 5 most recent vitals records
 //   GET /dashboards/primary-care/orders     — active clinical orders for primary_care (W4-7)
+//   GET /dashboards/primary-care/wounds     — open wound records for nursing review (W5-1)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useEffect, useState } from 'react';
@@ -88,6 +89,19 @@ interface OrderItem {
     href: string;
 }
 
+// W5-1: Wound record for wound care widget (CMS QAPI Stage 3+ threshold)
+interface WoundItem {
+    id: number;
+    participant: Participant | null;
+    wound_type: string;
+    type_label: string;
+    location: string | null;
+    stage_label: string | null;
+    is_critical: boolean;
+    days_open: number;
+    href: string;
+}
+
 // ── Badge color helpers ────────────────────────────────────────────────────────
 
 // Maps appointment status to a badge color class
@@ -121,6 +135,8 @@ export default function PrimaryCareDashboard({ departmentLabel, role }: Props) {
     const [vitals, setVitals]         = useState<{ vitals: VitalRecord[] } | null>(null);
     // W4-7: active clinical orders for primary_care dept
     const [orders, setOrders]         = useState<{ orders: OrderItem[]; pending_count: number; stat_count: number } | null>(null);
+    // W5-1: open wound records for nursing review
+    const [wounds, setWounds]         = useState<{ wounds: WoundItem[]; open_count: number; critical_count: number } | null>(null);
 
     useEffect(() => {
         Promise.all([
@@ -129,12 +145,14 @@ export default function PrimaryCareDashboard({ departmentLabel, role }: Props) {
             axios.get('/dashboards/primary-care/docs'),
             axios.get('/dashboards/primary-care/vitals'),
             axios.get('/dashboards/primary-care/orders'),
-        ]).then(([sched, alert, doc, vital, ord]) => {
+            axios.get('/dashboards/primary-care/wounds'),
+        ]).then(([sched, alert, doc, vital, ord, wnd]) => {
             setSchedule(sched.data);
             setAlerts(alert.data);
             setDocs(doc.data);
             setVitals(vital.data);
             setOrders(ord.data);
+            setWounds(wnd.data);
         }).finally(() => setLoading(false));
     }, []);
 
@@ -181,6 +199,17 @@ export default function PrimaryCareDashboard({ departmentLabel, role }: Props) {
         badge: v.out_of_range ? 'Out of range' : undefined,
         badgeColor: 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300',
         sublabel: [v.bp ? `BP ${v.bp}` : null, v.o2_saturation != null ? `O2 ${v.o2_saturation}%` : null, v.recorded_at].filter(Boolean).join(' | ') || undefined,
+    }));
+
+    // W5-1: Map wound records to ActionItems — critical stage wounds in red
+    const woundItems: ActionItem[] = (wounds?.wounds ?? []).map(w => ({
+        label: `${w.participant?.name ?? '-'} — ${w.type_label}`,
+        href: w.href,
+        badge: w.is_critical ? 'Stage 3+' : (w.stage_label ?? 'Open'),
+        badgeColor: w.is_critical
+            ? 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 font-bold'
+            : 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
+        sublabel: [w.location, `${w.days_open}d open`].filter(Boolean).join(' | ') || undefined,
     }));
 
     // W4-7: Map active clinical orders to ActionItems — stat=red, urgent=amber
@@ -253,6 +282,16 @@ export default function PrimaryCareDashboard({ departmentLabel, role }: Props) {
                 items={orderItems}
                 emptyMessage="No active orders for primary care"
                 viewAllHref="/orders"
+                loading={loading}
+            />
+
+            {/* W5-1: Wound Care widget — Stage 3+ wounds in red for CMS QAPI (42 CFR §483.25) */}
+            <ActionWidget
+                title={`Open Wounds${wounds?.critical_count ? ` (${wounds.critical_count} Critical)` : ''}`}
+                description="Open wound records requiring nursing review. Stage 3+, unstageable, and deep tissue injuries are highlighted red — these are CMS QAPI reportable events."
+                items={woundItems}
+                emptyMessage="No open wound records"
+                viewAllHref="/participants"
                 loading={loading}
             />
 

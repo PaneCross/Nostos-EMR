@@ -21,6 +21,7 @@ use App\Models\Assessment;
 use App\Models\CarePlan;
 use App\Models\ClinicalNote;
 use App\Models\Incident;
+use App\Models\WoundRecord;
 use App\Services\QaMetricsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -53,12 +54,14 @@ class QaComplianceDashboardController extends Controller
         $tenantId = Auth::user()->tenant_id;
 
         return response()->json([
-            'sdr_compliance_rate'      => $this->qaMetrics->getSdrComplianceRate($tenantId),
-            'overdue_assessments_count'=> $this->qaMetrics->getOverdueAssessments($tenantId)->count(),
-            'unsigned_notes_count'     => $this->qaMetrics->getUnsignedNotesOlderThan($tenantId)->count(),
-            'open_incidents_count'     => $this->qaMetrics->getOpenIncidents($tenantId)->count(),
-            'overdue_care_plans_count' => $this->qaMetrics->getCarePlansOverdue($tenantId)->count(),
-            'hospitalizations_count'   => $this->qaMetrics->getHospitalizationsThisMonth($tenantId),
+            'sdr_compliance_rate'                    => $this->qaMetrics->getSdrComplianceRate($tenantId),
+            'overdue_assessments_count'              => $this->qaMetrics->getOverdueAssessments($tenantId)->count(),
+            'unsigned_notes_count'                   => $this->qaMetrics->getUnsignedNotesOlderThan($tenantId)->count(),
+            'open_incidents_count'                   => $this->qaMetrics->getOpenIncidents($tenantId)->count(),
+            'overdue_care_plans_count'               => $this->qaMetrics->getCarePlansOverdue($tenantId)->count(),
+            'hospitalizations_count'                 => $this->qaMetrics->getHospitalizationsThisMonth($tenantId),
+            // W5-1: CMS QAPI pressure injury tracking (Stage 3+, unstageable, DTI = reportable wounds)
+            'active_pressure_injuries_stage3_plus'   => WoundRecord::forTenant($tenantId)->open()->criticalStage()->count(),
         ]);
     }
 

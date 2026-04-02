@@ -17,6 +17,7 @@ namespace App\Http\Controllers\Dashboards;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\BreakGlassEvent;
 use App\Models\IntegrationLog;
 use App\Models\Site;
 use App\Models\Tenant;
@@ -207,6 +208,50 @@ class ItAdminDashboardController extends Controller
             'auto_logout_minutes' => $tenant?->auto_logout_minutes ?? 15,
             'sites'               => $sites,
             'site_count'          => $sites->count(),
+        ]);
+    }
+
+    /**
+     * GET /dashboards/it-admin/break-glass
+     * W5-1: Break-the-glass emergency access events for IT Admin oversight.
+     * Returns recent BTG events + unreviewed count for HIPAA audit compliance.
+     * HIPAA 45 CFR §164.312(a)(2)(ii) requires monitoring of emergency access.
+     */
+    public function breakGlass(): JsonResponse
+    {
+        $this->requireDept();
+        $tenantId = Auth::user()->tenant_id;
+
+        $events = BreakGlassEvent::forTenant($tenantId)
+            ->with(['user:id,first_name,last_name,department', 'participant:id,first_name,last_name,mrn'])
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get()
+            ->map(fn (BreakGlassEvent $e) => [
+                'id'            => $e->id,
+                'user'          => $e->user ? [
+                    'id'         => $e->user->id,
+                    'name'       => $e->user->first_name . ' ' . $e->user->last_name,
+                    'department' => $e->user->department,
+                ] : null,
+                'participant'   => $e->participant ? [
+                    'id'   => $e->participant->id,
+                    'name' => $e->participant->first_name . ' ' . $e->participant->last_name,
+                    'mrn'  => $e->participant->mrn,
+                ] : null,
+                'reason'           => $e->reason,
+                'is_acknowledged'  => (bool) $e->acknowledged_at,
+                'accessed_at'      => $e->created_at?->diffForHumans(),
+                'access_expires_at'=> $e->access_expires_at?->toIso8601String(),
+                'href'             => '/it-admin/break-glass',
+            ]);
+
+        return response()->json([
+            'events'             => $events,
+            'unreviewed_count'   => BreakGlassEvent::forTenant($tenantId)->unacknowledged()->count(),
+            'total_today'        => BreakGlassEvent::forTenant($tenantId)
+                ->whereDate('created_at', today())
+                ->count(),
         ]);
     }
 }

@@ -1,11 +1,12 @@
 // ─── ItAdminDashboard ─────────────────────────────────────────────────────────
 // Real-data dashboard for the IT Administration department.
 // Rendered from Dashboard/Index.tsx when department === 'it_admin'.
-// Fetches 4 widget endpoints in parallel on mount:
+// Fetches 5 widget endpoints in parallel on mount:
 //   GET /dashboards/it-admin/users        — recently provisioned + deactivated users
 //   GET /dashboards/it-admin/integrations — integration health per connector
 //   GET /dashboards/it-admin/audit        — last 20 audit log entries
 //   GET /dashboards/it-admin/config       — tenant config: transport mode, sites
+//   GET /dashboards/it-admin/break-glass  — BTG emergency access events (W5-1)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useEffect, useState } from 'react';
@@ -58,6 +59,18 @@ interface ConfigData {
     site_count: number;
 }
 
+// W5-1: Break-the-glass emergency access event (HIPAA 45 CFR §164.312(a)(2)(ii))
+interface BreakGlassEventItem {
+    id: number;
+    user: { id: number; name: string; department: string } | null;
+    participant: { id: number; name: string; mrn: string } | null;
+    reason: string | null;
+    is_acknowledged: boolean;
+    accessed_at: string;
+    access_expires_at: string | null;
+    href: string;
+}
+
 const CONNECTOR_LABELS: Record<string, string> = {
     hl7_adt:        'HL7 ADT',
     lab_results:    'Lab Results',
@@ -80,6 +93,8 @@ export default function ItAdminDashboard({ departmentLabel, role }: Props) {
     const [integrations, setIntegrations] = useState<{ connectors: ConnectorHealth[] } | null>(null);
     const [audit, setAudit]           = useState<{ entries: AuditEntry[] } | null>(null);
     const [config, setConfig]         = useState<ConfigData | null>(null);
+    // W5-1: Break-the-glass emergency access events for HIPAA audit oversight
+    const [breakGlass, setBreakGlass] = useState<{ events: BreakGlassEventItem[]; unreviewed_count: number; total_today: number } | null>(null);
 
     useEffect(() => {
         Promise.all([
@@ -87,11 +102,13 @@ export default function ItAdminDashboard({ departmentLabel, role }: Props) {
             axios.get('/dashboards/it-admin/integrations'),
             axios.get('/dashboards/it-admin/audit'),
             axios.get('/dashboards/it-admin/config'),
-        ]).then(([usr, integ, aud, cfg]) => {
+            axios.get('/dashboards/it-admin/break-glass'),
+        ]).then(([usr, integ, aud, cfg, btg]) => {
             setUsers(usr.data);
             setIntegrations(integ.data);
             setAudit(aud.data);
             setConfig(cfg.data);
+            setBreakGlass(btg.data);
         }).finally(() => setLoading(false));
     }, []);
 
@@ -133,6 +150,17 @@ export default function ItAdminDashboard({ departmentLabel, role }: Props) {
         badge: e.resource_type ?? undefined,
         badgeColor: 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300',
         sublabel: `${e.user?.name ?? 'System'} | ${e.created_at}`,
+    }));
+
+    // W5-1: Map BTG events — unacknowledged events in red, acknowledged in amber
+    const btgItems: ActionItem[] = (breakGlass?.events ?? []).map(e => ({
+        label: `${e.user?.name ?? 'Unknown user'} accessed ${e.participant?.name ?? 'unknown participant'}`,
+        href: e.href,
+        badge: e.is_acknowledged ? 'Reviewed' : 'Unreviewed',
+        badgeColor: e.is_acknowledged
+            ? 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300'
+            : 'bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 font-bold',
+        sublabel: [e.participant?.mrn, e.accessed_at].filter(Boolean).join(' | ') || undefined,
     }));
 
     // Build ActionItems for Config — sites + key settings
@@ -198,6 +226,16 @@ export default function ItAdminDashboard({ departmentLabel, role }: Props) {
                 items={configItems}
                 emptyMessage="No configuration data"
                 viewAllHref="/it-admin/users"
+                loading={loading}
+            />
+
+            {/* W5-1: Break-the-Glass widget — HIPAA 45 CFR §164.312(a)(2)(ii) emergency access monitoring */}
+            <ActionWidget
+                title={`Break-the-Glass Access${breakGlass?.unreviewed_count ? ` (${breakGlass.unreviewed_count} Unreviewed)` : ''}`}
+                description="Emergency access events bypassing normal RBAC. Unreviewed events require IT Admin acknowledgment for HIPAA compliance. Today's count shown in subtitle."
+                items={btgItems}
+                emptyMessage="No break-the-glass events"
+                viewAllHref="/it-admin/break-glass"
                 loading={loading}
             />
 

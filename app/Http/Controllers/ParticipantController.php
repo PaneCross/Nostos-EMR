@@ -36,6 +36,7 @@ use App\Models\Icd10Lookup;
 use App\Models\Participant;
 use App\Models\ParticipantAddress;
 use App\Models\Site;
+use App\Services\BreakGlassService;
 use App\Services\NoteTemplateService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -45,7 +46,10 @@ use Inertia\Response;
 
 class ParticipantController extends Controller
 {
-    public function __construct(private NoteTemplateService $noteTemplateService) {}
+    public function __construct(
+        private NoteTemplateService $noteTemplateService,
+        private BreakGlassService   $breakGlassService,
+    ) {}
 
     // ─── Directory ─────────────────────────────────────────────────────────────
 
@@ -214,6 +218,19 @@ class ParticipantController extends Controller
                     'to_site_name'    => $t->toSite?->name,
                 ])
                 ->toArray(),
+            // ──────────────────────────────────────────────────────────────────
+
+            // ── W5-1: break-the-glass access state ────────────────────────────
+            // Passed to BreakGlassSection so it can show the amber "active access"
+            // banner without a separate round-trip. Computed here because it needs
+            // the authenticated user + the specific participant.
+            'hasBreakGlassAccess' => $this->breakGlassService->hasActiveAccess($user, $participant),
+            'breakGlassExpiresAt' => ($btgEvent = \App\Models\BreakGlassEvent::where('user_id', $user->id)
+                ->where('participant_id', $participant->id)
+                ->active()
+                ->first())
+                ? $btgEvent->access_expires_at->toIso8601String()
+                : null,
             // ──────────────────────────────────────────────────────────────────
 
             'auditLogs'    => $canViewAudit

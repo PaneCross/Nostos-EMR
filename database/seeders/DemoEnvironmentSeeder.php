@@ -239,6 +239,15 @@ class DemoEnvironmentSeeder extends Seeder
         $this->command->info('  Seeding W4-7 clinical orders (CPOE demo data)...');
         $this->call(\Database\Seeders\ClinicalOrdersSeeder::class);
 
+        // ─── W5-1: Wound Care + Break-the-Glass Demo Data ────────────────────
+        // Seeds 4 open wound records (1 Stage 3 critical, 2 non-critical, 1 DFU
+        // with assessments) and 3 BTG events (2 unreviewed + 1 acknowledged).
+        // Demonstrates wound care widget on Primary Care/Home Care dashboards
+        // and the Break-the-Glass widget on the IT Admin dashboard.
+        $this->command->info('');
+        $this->command->info('  Seeding W5-1 wound care and break-the-glass demo data...');
+        $this->call(W51DataSeeder::class);
+
         // ─── Participant Photos ────────────────────────────────────────────────
         // Downloads pravatar.cc placeholder images for the first 15 enrolled
         // participants so the photo upload feature is visually testable.

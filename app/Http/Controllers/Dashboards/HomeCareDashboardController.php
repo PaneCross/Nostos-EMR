@@ -19,6 +19,7 @@ use App\Models\Alert;
 use App\Models\Appointment;
 use App\Models\CarePlanGoal;
 use App\Models\Sdr;
+use App\Models\WoundRecord;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 
@@ -193,6 +194,48 @@ class HomeCareDashboardController extends Controller
             'sdrs'          => $sdrs,
             'overdue_count' => Sdr::where('tenant_id', $tenantId)->forDepartment('home_care')->overdue()->count(),
             'open_count'    => Sdr::where('tenant_id', $tenantId)->forDepartment('home_care')->open()->count(),
+        ]);
+    }
+
+    /**
+     * GET /dashboards/home-care/wounds
+     * W5-1: Open wound records for home care nursing staff.
+     * Home care nurses monitor wounds between day-center visits.
+     */
+    public function wounds(): JsonResponse
+    {
+        $this->requireDept();
+        $tenantId = Auth::user()->tenant_id;
+
+        $wounds = WoundRecord::forTenant($tenantId)
+            ->open()
+            ->with(['participant:id,first_name,last_name,mrn'])
+            ->orderByRaw("CASE WHEN wound_type = 'pressure_injury' AND pressure_injury_stage IN ('stage_3','stage_4','unstageable','deep_tissue_injury') THEN 0 ELSE 1 END")
+            ->orderBy('first_identified_date', 'asc')
+            ->limit(10)
+            ->get()
+            ->map(fn (WoundRecord $w) => [
+                'id'          => $w->id,
+                'participant' => $w->participant ? [
+                    'id'   => $w->participant->id,
+                    'name' => $w->participant->first_name . ' ' . $w->participant->last_name,
+                    'mrn'  => $w->participant->mrn,
+                ] : null,
+                'wound_type'  => $w->wound_type,
+                'type_label'  => $w->woundTypeLabel(),
+                'location'    => $w->location,
+                'stage_label' => $w->stageLabel(),
+                'is_critical' => $w->isCriticalStage(),
+                'days_open'   => $w->daysOpen(),
+                'href'        => $w->participant
+                    ? "/participants/{$w->participant->id}?tab=wounds"
+                    : '/participants',
+            ]);
+
+        return response()->json([
+            'wounds'         => $wounds,
+            'open_count'     => WoundRecord::forTenant($tenantId)->open()->count(),
+            'critical_count' => WoundRecord::forTenant($tenantId)->open()->criticalStage()->count(),
         ]);
     }
 }

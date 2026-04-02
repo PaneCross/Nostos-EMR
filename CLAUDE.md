@@ -89,8 +89,8 @@ Wave 4 (Phases W4-0 through W4-9): COMPLETE
   W4-9  FHIR Gaps + HPMS Verification:     [x] COMPLETE — 2026-04-01
 
 Wave 5 (Phases W5-0 through W5-9): IN PROGRESS
-  W5-0  CLAUDE.md Wave 5 Update:            [x] IN PROGRESS
-  W5-1  Quick Wins (Wound Care + BTG):       [ ] NOT STARTED
+  W5-0  CLAUDE.md Wave 5 Update:            [x] COMPLETE — 2026-04-02
+  W5-1  Quick Wins (Wound Care + BTG):      [x] COMPLETE — 2026-04-02
   W5-2  Lab Results Viewer:                  [ ] NOT STARTED
   W5-3  835 Remittance + Denial Mgmt:        [ ] NOT STARTED
   W5-4  Live Clearinghouse (BLOCKER-05):     [ ] NOT STARTED
@@ -510,7 +510,7 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 - Known technical debt log: [x] COMPLETE — categorized by priority in HANDOFF.md
 - Environment setup verified from scratch: [ ] Not yet verified by independent developer
 
-## MIGRATIONS RUN (96 total, in order, all batch 1)
+## MIGRATIONS RUN (99 total, in order, all batch 1)
 1.  0001_01_01_000000_create_users_table
 2.  0001_01_01_000001_create_cache_table
 3.  0001_01_01_000002_create_jobs_table
@@ -607,16 +607,20 @@ Dark mode uses `darkMode: 'class'` in tailwind.config.js. The `dark` class is ap
 94. 2025_04_03_000001_create_emr_clinical_orders_table
 95. 2025_04_03_000002_add_w4_8_note_and_assessment_types
 96. 2025_04_04_000001_add_hpms_fields_to_emr_participants
+97. 2025_05_01_000001_create_emr_wound_records_table
+98. 2025_05_01_000002_create_emr_wound_assessments_table
+99. 2025_05_01_000003_create_emr_break_glass_events_table
 
-## MODELS (63)
+## MODELS (66)
 AdlRecord, AdlThreshold, Alert, Allergy, ApiToken, Appointment, Assessment, AuditLog,
-Authorization, BaaRecord, CapitationRecord, CarePlan, CarePlanGoal, ChatChannel, ChatMembership, ChatMessage,
+Authorization, BaaRecord, BreakGlassEvent, CapitationRecord, CarePlan, CarePlanGoal, ChatChannel, ChatMembership, ChatMessage,
 ClinicalNote, ClinicalOrder, ConsentRecord, DayCenterAttendance, DisenrollmentRecord, Document, DrugInteractionAlert, EdiBatch, EhiExport, EmarRecord, EncounterLog,
 Grievance, HccMapping, HosMSurvey, HpmsSubmission, Icd10Lookup, IdtMeeting, IdtParticipantReview, Immunization,
 Incident, InsuranceCoverage, IntegrationLog, Location, MedReconciliation, Medication, OtpCode,
 Participant, ParticipantAddress, ParticipantContact, ParticipantFlag, ParticipantRiskScore,
 ParticipantSiteTransfer, PdeRecord, Problem, Procedure, QapiProject, Referral, RolePermission, Sdr, Site,
-SignificantChangeEvent, SocialDeterminant, SraRecord, StateMedicaidConfig, Tenant, TransportRequest, User, Vital
+SignificantChangeEvent, SocialDeterminant, SraRecord, StateMedicaidConfig, Tenant, TransportRequest, User, Vital,
+WoundAssessment, WoundRecord
 
 ## CONTROLLERS (62 root + Auth/ subdirectory + Dashboards/ subdirectory)
 AdlController, AlertController, AllergyController, AppointmentController,
@@ -641,13 +645,13 @@ PharmacyDashboardController, IdtDashboardController, EnrollmentDashboardControll
 FinanceWidgetController, QaComplianceDashboardController, ItAdminDashboardController,
 ExecutiveDashboardController
 
-## SERVICES (27 — Phase 9B adds 4, Phase 9C adds 2, Phase 10A adds 1, Phase 11B adds 1, W4-1 adds 1)
-AdlThresholdService, AlertService, BillingComplianceService, ChatService, ConflictDetectionService,
+## SERVICES (29 — Phase 9B adds 4, Phase 9C adds 2, Phase 10A adds 1, Phase 11B adds 1, W4-1 adds 1, W5-1 adds 2)
+AdlThresholdService, AlertService, BillingComplianceService, BreakGlassService, ChatService, ConflictDetectionService,
 DrugInteractionService, Edi837PBuilderService, EhiExportService, EnrollmentService,
 GrievanceService, HccRiskScoringService, HpmsFileService, ImpersonationService, IncidentService,
 MedReconciliationService, MedicationScheduleService, MrnService, NotificationDispatcher,
 NoteTemplateService, OtpService, PermissionService, QaMetricsService, RevenueIntegrityService,
-RiskAdjustmentService, SdrDeadlineService, TransferService, TransportBridgeService
+RiskAdjustmentService, SdrDeadlineService, TransferService, TransportBridgeService, WoundService
 
 ## INTEGRATIONS (2 connectors, 4 jobs)
 - app/Integrations/Hl7AdtConnector.php — static receive(), dispatches ProcessHl7AdtJob
@@ -904,6 +908,13 @@ Rules (enforced going forward — audit ran 2026-03-14, all gaps patched):
 - [Phase 11B] Participant update route supports both PUT and PATCH via Route::match(['PUT','PATCH']). This is required for PATCH-based tests and consistent with the billing controller pattern (Phase 9B).
 - [Phase 11B] hasDnr() returns true ONLY for advance_directive_type='dnr'. POLST is a distinct legal document (physician order, not an advance directive) and should NOT be treated as a DNR in clinical logic.
 - [Phase 11B] SocialDeterminant enum values: HOUSING_VALUES=['stable','at_risk','unstable','homeless','unknown']; FOOD_VALUES=['secure','at_risk','insecure','unknown']; TRANSPORT_VALUES=['adequate','limited','none','unknown']; ISOLATION_VALUES=['low','moderate','high','unknown']; STRAIN_VALUES=['none','mild','moderate','severe','unknown']. These differ from intuitive guesses — always use model constants.
+- [W5-1] WoundController::index() returns `{open: [...], healed: [...]}` — NOT `{wounds: [...]}`. Tests and frontend must use 'open'/'healed' keys.
+- [W5-1] WoundController WRITE_DEPARTMENTS = ['home_care', 'primary_care', 'therapies', 'it_admin']. Other depts get 403 on wound create/assess/close.
+- [W5-1] BreakGlassEvent::ACCESS_DURATION_HOURS = 4 (HIPAA 45 CFR §164.312(a)(2)(ii)). BreakGlassEvent::RATE_LIMIT_PER_DAY = 3. Justification must be >= 20 characters (ValidationException otherwise).
+- [W5-1] Carbon 3 diffInHours truncation on BreakGlassEvent TTL: always compare access_expires_at to access_granted_at on the stored event (not to now()). Comparing to now() returns N-1 hours due to execution time elapsed since access_granted_at was set.
+- [W5-1] BreakGlassService::acknowledge() uses DB::table() direct update (not $event->save()) — BreakGlassEvent is append-only at the model level.
+- [W5-1] WoundRecord::criticalStage() scope: stage_3, stage_4, unstageable, deep_tissue_injury. Stage 1/2 do NOT trigger critical alerts. Critical wounds create alert for primary_care + qa_compliance.
+- [W5-1] ItAdminDashboardController::breakGlass() returns {events, unreviewed_count, total_today}. Route: GET /dashboards/it-admin/break-glass. 5th widget in ItAdminDashboard.tsx.
 - [Phase 11B] EHI export token: 64-char hex (bin2hex(random_bytes(32))). Single-use (downloaded_at set on first download). 24h TTL (expires_at = now()+24h). Controller returns 410 Gone for expired exports.
 - [Phase 11B] FHIR R4 new endpoints: GET /fhir/R4/Immunization, GET /fhir/R4/Procedure, GET /fhir/R4/Observation/social-history. All require Bearer token auth with scope (immunization.read, procedure.read, observation.read). All audit-logged.
 - [W4-9] FHIR R4 W4-9 endpoints: GET /fhir/R4/Encounter?patient=, GET /fhir/R4/DiagnosticReport?patient=, GET /fhir/R4/Practitioner/{id}, GET /fhir/R4/Practitioner?name=, GET /fhir/R4/Organization, GET /fhir/R4/Organization/{id}. Scopes: encounter.read, diagnosticreport.read, practitioner.read, organization.read. DiagnosticReport resolves participant MRN to query integration_log JSONB. Organization IDs prefixed: 'tenant-{id}' and 'site-{id}'. Only CLINICAL_DEPARTMENTS users exposed as Practitioners.
@@ -1004,6 +1015,7 @@ rsync -av --exclude=vendor --exclude=node_modules --exclude=public/build --exclu
 - [2026-04-01] W4-7 — 1407 passing, 0 failing (16 deprecations, 302 PHPUnit deprecations — non-blocking). CPOE Lightweight Order Entry. BLOCKER-04 resolved. 1 migration (94), 1 model (ClinicalOrder), 1 controller (ClinicalOrderController), 1 React page (Clinical/Orders rewritten), orders widget on 3 dashboards (PrimaryCareDashboard, TherapiesDashboard, PharmacyDashboard), 3 dashboard endpoints, ClinicalOrdersSeeder, 37 new tests.
 - [2026-04-01] W4-8 — 1440 passing, 0 failing (16 deprecations, 302 PHPUnit deprecations — non-blocking). New Note Types + Assessment Tools. 1 migration (95), 2 new note types (transition_of_care, podiatry), 2 new assessment types (fall_history, lace_plus_index), ADT job auto-creates draft transition notes, dual-threshold LACE+ alert logic, 5 new test files (33 new tests).
 - [2026-04-01] W5-0 — 1510 passing, 0 failing (16 deprecations, 302 PHPUnit deprecations — non-blocking). Wave 5 baseline confirmed. No code changes — CLAUDE.md only.
+- [2026-04-02] W5-1 — 1560 passing, 0 failing (16 deprecations, 402 PHPUnit deprecations — non-blocking). Wound Care + Break-the-Glass emergency access complete. 50 new tests.
 - [2026-04-01] W4-9 — 1510 passing, 0 failing. Bugs fixed: ApiToken::SCOPES missing 6 new scopes (immunization.read, procedure.read, encounter.read, diagnosticreport.read, practitioner.read, organization.read); EncounterMapperTest used invalid 'day_center' appointment_type (fixed to 'clinic_visit'); stale route cache caused 404s on all new endpoints (fixed with route:clear).
 - [2026-03-31] W4-2 + Grievance permissions + Timestamp fix — 1263 passing, 0 failing (16 deprecations, 92 PHPUnit deprecations — non-blocking). Migration 84 (column widening for encrypted PHI). 28 new tests (EncryptionTest 10 + BaaTrackerTest 18). Grievances nav opened to all 14 depts. Grievance datetime toIso8601String() fix. SecurityComplianceController JSON returns. Build clean.
 - [2026-03-26] W3-2 — 1091 passing, 0 failing. Build clean. Adds NavRoutingTest (13 tests) + DayCenterAttendanceTest (12 tests) + Day Center attendance module + Reports page + System Settings page. Bugs fixed: scopeForSite null type hint, payer_id column DNE, pace_contract column DNE (mapped to cms_contract_id), ComingSoonBannerTest stale assertions for 3 now-live pages + /idt/minutes redirect target.
@@ -1501,6 +1513,56 @@ Based on the audit above, Phase 9B (Encounter Data & Billing Infrastructure) sho
 ---
 
 ## SESSION LOG
+
+### 2026-04-02 — W5-1 Complete — Wound Care + Break-the-Glass Emergency Access
+
+Implemented W5-1 (Wound Care documentation module + BTG emergency access). 50 new tests (1510 → 1560). 3 migrations (97–99).
+
+**Migrations (97–99):**
+- Migration 97: `emr_wound_records` — wound_type, location, pressure_injury_stage (CHECK: stage_1/2/3/4/unstageable/deep_tissue_injury), first_identified_date, goal (healing/palliative/maintenance), status (open/healed), healed_date, documented_by_user_id, site_id, tenant_id, softDeletes.
+- Migration 98: `emr_wound_assessments` — wound_record_id FK, length_cm/width_cm/depth_cm (DECIMAL 5,2 nullable), status_change (unchanged/improved/deteriorated/healed), assessed_by_user_id, notes, tenant_id, created_at (append-only, no updated_at).
+- Migration 99: `emr_break_glass_events` — participant_id, user_id, tenant_id, justification (TEXT), access_granted_at, access_expires_at, acknowledged_at, acknowledged_by_supervisor_user_id; append-only (no softDeletes, no updated_at by design).
+
+**Models:**
+- `WoundRecord`: WOUND_TYPES (9), STAGES (6), GOALS (3), STATUSES (2), ACCESS_DURATION_HOURS constant; scopeForParticipant/open/healed/criticalStage (stage_3/4/unstageable/deep_tissue_injury); isOpen/isHealed/isCritical helpers; toApiArray().
+- `WoundAssessment`: STATUS_CHANGES (4); belongs to WoundRecord; append-only; toApiArray().
+- `BreakGlassEvent`: ACCESS_DURATION_HOURS=4, RATE_LIMIT_PER_DAY=3; scopeForTenant/active/expired/unacknowledged; isActive/isExpired/isAcknowledged helpers; toApiArray().
+
+**Factories:** WoundRecordFactory (open/healed/pressureInjury states), WoundAssessmentFactory, BreakGlassEventFactory (active/expired/acknowledged states).
+
+**Services:**
+- `WoundService`: open() — validates payload, creates WoundRecord, triggers critical alert for Stage 3+; addAssessment() — creates WoundAssessment, closes wound on status_change='healed', creates warning alert on status_change='deteriorated'; getOpenWounds(participantId); getActiveWoundsByTenant(tenantId).
+- `BreakGlassService`: requestAccess(User, Participant, justification) — validates justification>=20 chars (ValidationException), checks RATE_LIMIT_PER_DAY (ValidationException), creates BreakGlassEvent with 4h TTL, creates critical alert for it_admin+qa_compliance, writes to shared_audit_logs; hasActiveAccess(User, Participant) → bool; acknowledge(BreakGlassEvent, supervisorUser) — DB::table() direct update (append-only event).
+
+**Controllers:**
+- `WoundController` (6 endpoints): index {open,healed}, store, show, addAssessment, close; WRITE_DEPARTMENTS = ['home_care','primary_care','therapies','it_admin']; authorizeTenant() cross-tenant guard.
+- `BreakGlassController` (4 endpoints): requestAccess (POST /participants/{participant}/break-glass → 201), adminIndex (GET /it-admin/break-glass → Inertia), acknowledge (POST /it-admin/break-glass/{event}/acknowledge → 200/409), dashboardWidget (GET /dashboards/it-admin/break-glass → JSON).
+
+**React pages/components:**
+- `ItAdmin/BreakGlass.tsx` — BTG event log page for IT Admin, shows all tenant events with acknowledged/unacknowledged status, date filters, acknowledge action.
+- `Participants/Show.tsx` — BreakGlassSection added (shows active BTG access banner, requestAccess form with justification textarea for eligible users).
+- `Dashboard/Depts/ItAdminDashboard.tsx` — 5th ActionWidget added for BTG events (unreviewed events shown red, acknowledged shown amber, viewAllHref → /it-admin/break-glass).
+- `Dashboard/Depts/PrimaryCareDashboard.tsx` + `HomeCareDashboard.tsx` — wounds widget added (open count, critical count, is_critical flag on wound items).
+
+**Dashboard routes added:**
+- `GET /dashboards/primary-care/wounds` → PrimaryCareDashboardController::wounds()
+- `GET /dashboards/home-care/wounds` → HomeCareDashboardController::wounds()
+- `GET /dashboards/qa-compliance/wounds` (KPI in existing widget)
+- `GET /dashboards/it-admin/break-glass` → ItAdminDashboardController::breakGlass()
+
+**W51DataSeeder:** 4 wound records (Stage 3 critical CMS QAPI, DFU with 2 assessments, Stage 2 non-critical, venous ulcer), 3 BTG events (2 unreviewed, 1 acknowledged). Wired into DemoEnvironmentSeeder.
+
+**Test files:**
+- `tests/Feature/WoundCareTest.php` — 15 tests (store/index/show/addAssessment/close, dashboard widgets)
+- `tests/Feature/BreakGlassTest.php` — 14 tests (requestAccess, adminIndex, acknowledge, dashboard widget, auth guards)
+- `tests/Unit/WoundServiceTest.php` — 11 tests (open, critical alert logic, addAssessment, healed close, deteriorated alert, getOpenWounds, getActiveWoundsByTenant)
+- `tests/Unit/BreakGlassServiceTest.php` — 10 tests (requestAccess TTL, justification, rate limit, alert creation, audit log, hasActiveAccess, acknowledge)
+
+**Bugs found and fixed:**
+1. `WoundCareTest::test_index_returns_wound_list_for_participant` asserted `$response->json('wounds')` but WoundController::index() returns `{open, healed}`. Fixed to `$response->json('open')`.
+2. `BreakGlassTest::test_btg_access_expires_at_is_4_hours_from_now` used `abs((int) now()->diffInHours($expiresAt))` which returns 3 due to Carbon 3 truncation when `now()` is slightly after `access_granted_at`. Fixed to compare `access_expires_at` to `access_granted_at` on the stored DB event directly.
+
+**Result:** 1560 tests, 0 failures. W5-1 complete. BLOCKER: none introduced.
 
 ### 2026-04-01 — W4-9 Complete — FHIR Gaps + HPMS Enrollment File Verification (GAP-13 + GAP-14)
 

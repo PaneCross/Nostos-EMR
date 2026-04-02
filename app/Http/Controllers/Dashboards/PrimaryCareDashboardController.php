@@ -21,6 +21,7 @@ use App\Models\Assessment;
 use App\Models\ClinicalNote;
 use App\Models\ClinicalOrder;
 use App\Models\Vital;
+use App\Models\WoundRecord;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -275,6 +276,49 @@ class PrimaryCareDashboardController extends Controller
             'orders'        => $pendingOrders,
             'pending_count' => ClinicalOrder::forTenant($tenantId)->forDepartment('primary_care')->pending()->count(),
             'stat_count'    => ClinicalOrder::forTenant($tenantId)->forDepartment('primary_care')->where('priority', 'stat')->where('status', 'pending')->count(),
+        ]);
+    }
+
+    /**
+     * GET /dashboards/primary-care/wounds
+     * W5-1: Open wound records for primary_care nursing review.
+     * Highlights critical-stage wounds (Stage 3+, unstageable, DTI) for CMS QAPI.
+     */
+    public function wounds(): JsonResponse
+    {
+        $this->requireDept();
+        $tenantId = Auth::user()->tenant_id;
+
+        $wounds = WoundRecord::forTenant($tenantId)
+            ->open()
+            ->with(['participant:id,first_name,last_name,mrn'])
+            ->orderByRaw("CASE WHEN wound_type = 'pressure_injury' AND pressure_injury_stage IN ('stage_3','stage_4','unstageable','deep_tissue_injury') THEN 0 ELSE 1 END")
+            ->orderBy('first_identified_date', 'asc')
+            ->limit(10)
+            ->get()
+            ->map(fn (WoundRecord $w) => [
+                'id'            => $w->id,
+                'participant'   => $w->participant ? [
+                    'id'   => $w->participant->id,
+                    'name' => $w->participant->first_name . ' ' . $w->participant->last_name,
+                    'mrn'  => $w->participant->mrn,
+                ] : null,
+                'wound_type'    => $w->wound_type,
+                'type_label'    => $w->woundTypeLabel(),
+                'location'      => $w->location,
+                'stage'         => $w->pressure_injury_stage,
+                'stage_label'   => $w->stageLabel(),
+                'is_critical'   => $w->isCriticalStage(),
+                'days_open'     => $w->daysOpen(),
+                'href'          => $w->participant
+                    ? "/participants/{$w->participant->id}?tab=wounds"
+                    : '/participants',
+            ]);
+
+        return response()->json([
+            'wounds'          => $wounds,
+            'open_count'      => WoundRecord::forTenant($tenantId)->open()->count(),
+            'critical_count'  => WoundRecord::forTenant($tenantId)->open()->criticalStage()->count(),
         ]);
     }
 }

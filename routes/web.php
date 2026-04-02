@@ -15,8 +15,10 @@ use App\Http\Controllers\RiskAdjustmentController;
 use App\Http\Controllers\BillingComplianceController;
 use App\Http\Controllers\StateMedicaidConfigController;
 use App\Http\Controllers\EhiExportController;
+use App\Http\Controllers\BreakGlassController;
 use App\Http\Controllers\ImmunizationController;
 use App\Http\Controllers\ProcedureController;
+use App\Http\Controllers\WoundController;
 use App\Http\Controllers\SocialDeterminantController;
 use App\Http\Controllers\DayCenterController;
 use App\Http\Controllers\ClinicalOrderController;
@@ -128,6 +130,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/vitals',     [PrimaryCareDashboardController::class, 'vitals'])->name('dashboards.primary-care.vitals');
             // W4-7: CPOE orders widget — active orders for primary_care dept
             Route::get('/orders',     [PrimaryCareDashboardController::class, 'orders'])->name('dashboards.primary-care.orders');
+            // W5-1: Open wound records for nursing review (CMS QAPI Stage 3+ threshold)
+            Route::get('/wounds',     [PrimaryCareDashboardController::class, 'wounds'])->name('dashboards.primary-care.wounds');
         });
 
         Route::prefix('therapies')->group(function () {
@@ -172,6 +176,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/adl-alerts',  [HomeCareDashboardController::class, 'adlAlerts'])->name('dashboards.home-care.adl-alerts');
             Route::get('/goals',       [HomeCareDashboardController::class, 'goals'])->name('dashboards.home-care.goals');
             Route::get('/sdrs',        [HomeCareDashboardController::class, 'sdrs'])->name('dashboards.home-care.sdrs');
+            // W5-1: Open wound records for home care nursing staff
+            Route::get('/wounds',      [HomeCareDashboardController::class, 'wounds'])->name('dashboards.home-care.wounds');
         });
 
         // ─── Phase 7B: Operations Department Dashboard Widget Endpoints ───────────
@@ -229,6 +235,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/integrations', [ItAdminDashboardController::class, 'integrations'])->name('dashboards.it-admin.integrations');
             Route::get('/audit',        [ItAdminDashboardController::class, 'audit'])->name('dashboards.it-admin.audit');
             Route::get('/config',       [ItAdminDashboardController::class, 'config'])->name('dashboards.it-admin.config');
+            // W5-1: Break-the-glass emergency access events for HIPAA audit oversight
+            Route::get('/break-glass',  [ItAdminDashboardController::class, 'breakGlass'])->name('dashboards.it-admin.break-glass');
         });
 
         // ─── Phase 10B: Executive Dashboard Widget Endpoints ──────────────────
@@ -392,6 +400,23 @@ Route::middleware('auth')->group(function () {
         Route::get('/',   [ProcedureController::class, 'index'])->name('participants.procedures.index');
         Route::post('/',  [ProcedureController::class, 'store'])->name('participants.procedures.store');
     });
+
+    // ─── W5-1: Wound Care (nested under participant) ──────────────────────────
+    // Write access: home_care, primary_care, therapies, it_admin.
+    // Read access: all authenticated users with participant access.
+    Route::prefix('participants/{participant}/wounds')->group(function () {
+        Route::get('/',                          [WoundController::class, 'index'])->name('participants.wounds.index');
+        Route::post('/',                         [WoundController::class, 'store'])->name('participants.wounds.store');
+        Route::get('/{wound}',                   [WoundController::class, 'show'])->name('participants.wounds.show');
+        Route::put('/{wound}',                   [WoundController::class, 'update'])->name('participants.wounds.update');
+        Route::post('/{wound}/assess',           [WoundController::class, 'addAssessment'])->name('participants.wounds.assess');
+        Route::post('/{wound}/close',            [WoundController::class, 'close'])->name('participants.wounds.close');
+    });
+
+    // ─── W5-1: Break-the-Glass Emergency Access (nested under participant) ────
+    // HIPAA 45 CFR §164.312(a)(2)(ii) emergency access override.
+    // Rate-limited: 3 requests per user per 24 hours (BreakGlassService).
+    Route::post('/participants/{participant}/break-glass', [BreakGlassController::class, 'requestAccess'])->name('participants.break_glass.request');
 
     // ─── Phase 11B: EHI Export (nested under participant) ────────────────────
     // POST generates a new export (returns 202 with download URL).
@@ -805,6 +830,10 @@ Route::middleware('auth')->group(function () {
         Route::put('/baa/{baa}',                  [SecurityComplianceController::class, 'baaUpdate'])->name('it-admin.baa.update');
         Route::post('/sra',                       [SecurityComplianceController::class, 'sraStore'])->name('it-admin.sra.store');
         Route::put('/sra/{sra}',                  [SecurityComplianceController::class, 'sraUpdate'])->name('it-admin.sra.update');
+        // W5-1: Break-the-Glass Emergency Access Log
+        // Supervisor review of HIPAA emergency access events (45 CFR §164.312(a)(2)(ii)).
+        Route::get('/break-glass',                [BreakGlassController::class, 'adminIndex'])->name('it-admin.break-glass.index');
+        Route::post('/break-glass/{event}/acknowledge', [BreakGlassController::class, 'acknowledge'])->name('it-admin.break-glass.acknowledge');
     });
 });
 
