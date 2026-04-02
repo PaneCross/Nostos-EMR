@@ -435,10 +435,11 @@ function ParticipantHeader({ participant, activeFlags, canDelete, canEdit, onTab
   onTabChange:  (tab: string) => void
   onEdit:       () => void
 }) {
-  const [deleting, setDeleting]           = useState(false)
-  const [photoPath, setPhotoPath]         = useState<string | null>(participant.photo_path)
+  const [deleting, setDeleting]             = useState(false)
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false)
+  const [photoPath, setPhotoPath]           = useState<string | null>(participant.photo_path)
   const [photoUploading, setPhotoUploading] = useState(false)
-  const photoInputRef                     = useRef<HTMLInputElement>(null)
+  const photoInputRef                       = useRef<HTMLInputElement>(null)
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -470,8 +471,8 @@ function ParticipantHeader({ participant, activeFlags, canDelete, canEdit, onTab
   }
 
   const handleDelete = () => {
-    if (!confirm(`Deactivate ${participant.mrn}? This cannot be undone from the UI.`)) return
     setDeleting(true)
+    setShowDeactivateModal(false)
     router.delete(`/participants/${participant.id}`)
   }
 
@@ -608,14 +609,85 @@ function ParticipantHeader({ participant, activeFlags, canDelete, canEdit, onTab
             </button>
           )}
           {canDelete && (
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              data-testid="deactivate-btn"
-              className="text-xs px-3 py-1.5 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
-            >
-              {deleting ? 'Deactivating…' : 'Deactivate'}
-            </button>
+            <>
+              <button
+                onClick={() => setShowDeactivateModal(true)}
+                disabled={deleting}
+                data-testid="deactivate-btn"
+                className="text-xs px-3 py-1.5 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+              >
+                {deleting ? 'Deactivating…' : 'Deactivate'}
+              </button>
+
+              {/* Deactivate confirmation modal */}
+              {showDeactivateModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                  <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg mx-4 p-6">
+
+                    <div className="flex items-start gap-3 mb-4">
+                      <div className="flex-shrink-0 w-9 h-9 rounded-full bg-red-100 dark:bg-red-900/40 flex items-center justify-center">
+                        <ExclamationTriangleIcon className="w-5 h-5 text-red-600 dark:text-red-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100">
+                          Deactivate participant record?
+                        </h3>
+                        <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
+                          {participant.first_name} {participant.last_name} &middot; {participant.mrn}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 text-sm text-gray-700 dark:text-slate-300">
+                      <p>
+                        <span className="font-semibold">This is a data correction tool, not a clinical workflow.</span>{' '}
+                        Use it only when a record was created in error and should never have existed.
+                      </p>
+
+                      <div>
+                        <p className="font-medium text-gray-800 dark:text-slate-200 mb-1">Appropriate reasons to deactivate:</p>
+                        <ul className="list-disc list-inside space-y-0.5 text-gray-600 dark:text-slate-400">
+                          <li>Duplicate record (participant already exists under a different MRN)</li>
+                          <li>Record created for the wrong person</li>
+                          <li>Test or training record entered in the production system</li>
+                        </ul>
+                      </div>
+
+                      <div className="rounded-lg border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5">
+                        <p className="font-medium text-amber-800 dark:text-amber-300 mb-0.5">
+                          Not the right action if the participant is leaving the program.
+                        </p>
+                        <p className="text-amber-700 dark:text-amber-400">
+                          If they are disenrolling, transferring, or have passed away, use the{' '}
+                          <span className="font-semibold">Enrollment</span> workflow instead.
+                          That records the clinical exit, notifies CMS, and preserves care history.
+                        </p>
+                      </div>
+
+                      <p className="text-gray-500 dark:text-slate-500 text-xs">
+                        The record will be hidden from the app but is not permanently deleted.
+                        IT Admin can restore it via the database if needed. This action is logged to the audit trail.
+                      </p>
+                    </div>
+
+                    <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-gray-100 dark:border-slate-700">
+                      <button
+                        onClick={() => setShowDeactivateModal(false)}
+                        className="text-sm px-4 py-2 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleDelete}
+                        className="text-sm px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                      >
+                        Yes, deactivate this record
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
