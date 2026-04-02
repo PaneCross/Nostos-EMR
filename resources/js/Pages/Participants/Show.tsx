@@ -4672,6 +4672,10 @@ type InteractionAlert = {
   severity: string
   description: string
   is_acknowledged: boolean
+  // Populated on acknowledged alerts (reviewed section only)
+  acknowledged_by_name: string | null
+  acknowledged_at: string | null
+  acknowledgement_note: string | null
 }
 
 type MedRefResult = {
@@ -4694,13 +4698,22 @@ const SEVERITY_COLORS: Record<string, string> = {
 }
 
 function MedicationsTab({ participantId }: { participantId: number }) {
-  const [medications, setMedications]     = useState<MedicationRow[]>([])
-  const [alerts, setAlerts]               = useState<InteractionAlert[]>([])
-  const [loading, setLoading]             = useState(false)
-  const [showAddForm, setShowAddForm]     = useState(false)
-  const [saving, setSaving]               = useState(false)
-  const [searchQuery, setSearchQuery]     = useState('')
-  const [searchResults, setSearchResults] = useState<MedRefResult[]>([])
+  const [medications, setMedications]       = useState<MedicationRow[]>([])
+  const [alerts, setAlerts]                 = useState<InteractionAlert[]>([])
+  const [reviewedAlerts, setReviewedAlerts] = useState<InteractionAlert[]>([])
+  const [showReviewed, setShowReviewed]     = useState(false)
+  const [loading, setLoading]               = useState(false)
+  const [showAddForm, setShowAddForm]       = useState(false)
+  const [saving, setSaving]                 = useState(false)
+  const [searchQuery, setSearchQuery]       = useState('')
+  const [searchResults, setSearchResults]   = useState<MedRefResult[]>([])
+
+  // Acknowledgement note modal state
+  const [ackModal, setAckModal] = useState<{ open: boolean; alert: InteractionAlert | null; note: string }>({
+    open: false, alert: null, note: '',
+  })
+  const [ackSaving, setAckSaving] = useState(false)
+  const [ackError, setAckError]   = useState('')
 
   const blankForm = {
     drug_name: '', rxnorm_code: '', dose: '', dose_unit: 'mg', route: 'oral',
@@ -4709,7 +4722,7 @@ function MedicationsTab({ participantId }: { participantId: number }) {
   }
   const [form, setForm] = useState(blankForm)
 
-  // Load medications + unacknowledged interaction alerts on first activation
+  // Load medications + interaction alerts (active + reviewed) on first activation
   useEffect(() => {
     if (loading || medications.length > 0) return
     setLoading(true)
@@ -4718,7 +4731,8 @@ function MedicationsTab({ participantId }: { participantId: number }) {
       axios.get(`/participants/${participantId}/medications/interactions`),
     ]).then(([medResp, alertResp]) => {
       setMedications(medResp.data.medications ?? medResp.data)
-      setAlerts(alertResp.data)
+      setAlerts(alertResp.data.active ?? [])
+      setReviewedAlerts(alertResp.data.reviewed ?? [])
     }).catch(() => {}).finally(() => setLoading(false))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -4782,14 +4796,30 @@ function MedicationsTab({ participantId }: { participantId: number }) {
     } catch {/* noop */}
   }
 
-  const handleAcknowledgeAlert = async (alert: InteractionAlert) => {
+  const openAckModal = (alert: InteractionAlert) => {
+    setAckModal({ open: true, alert, note: '' })
+    setAckError('')
+  }
+
+  const submitAcknowledgement = async () => {
+    if (!ackModal.alert) return
+    if (!ackModal.note.trim()) { setAckError('A clinical note is required before acknowledging.'); return }
+    setAckSaving(true)
+    setAckError('')
     try {
-      await axios.post(
-        `/participants/${participantId}/medications/interactions/${alert.id}/acknowledge`,
-        { acknowledgement_note: 'Reviewed and accepted' }
+      const acked = await axios.post(
+        `/participants/${participantId}/medications/interactions/${ackModal.alert.id}/acknowledge`,
+        { acknowledgement_note: ackModal.note.trim() }
       )
-      setAlerts(prev => prev.filter(a => a.id !== alert.id))
-    } catch {/* noop */}
+      // Move the alert from active → reviewed (with acknowledgement metadata)
+      setAlerts(prev => prev.filter(a => a.id !== ackModal.alert!.id))
+      setReviewedAlerts(prev => [{ ...acked.data, acknowledgement_note: ackModal.note.trim() } as InteractionAlert, ...prev])
+      setAckModal({ open: false, alert: null, note: '' })
+    } catch {
+      setAckError('Failed to save acknowledgement. Please try again.')
+    } finally {
+      setAckSaving(false)
+    }
   }
 
   if (loading) return <LoadingSpinner />
@@ -4800,7 +4830,49 @@ function MedicationsTab({ participantId }: { participantId: number }) {
   return (
     <div className="space-y-6">
 
-      {/* Interaction alert banner */}
+      {/* Acknowledgement note modal */}
+      {ackModal.open && ackModal.alert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-slate-100 mb-1">
+              Acknowledge Drug Interaction
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
+              <span className="font-medium">{ackModal.alert.drug_name_1} + {ackModal.alert.drug_name_2}</span>
+              {' '}&mdash; {ackModal.alert.severity}
+            </p>
+            <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">
+              Clinical note <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              rows={4}
+              className="w-full text-sm border border-gray-300 dark:border-slate-600 rounded-lg p-2 dark:bg-slate-700 resize-none"
+              placeholder="Describe why continuing both medications is clinically appropriate (e.g. dose adjusted, monitoring plan in place, benefit outweighs risk)..."
+              value={ackModal.note}
+              onChange={e => { setAckModal(m => ({ ...m, note: e.target.value })); setAckError('') }}
+            />
+            {ackError && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{ackError}</p>}
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                onClick={() => setAckModal({ open: false, alert: null, note: '' })}
+                disabled={ackSaving}
+                className="text-sm px-4 py-2 text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitAcknowledgement}
+                disabled={ackSaving}
+                className="text-sm px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
+              >
+                {ackSaving ? 'Saving...' : 'Acknowledge & Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Active interaction alert banners */}
       {alerts.length > 0 && (
         <div className="space-y-2">
           {alerts.map(alert => (
@@ -4811,13 +4883,52 @@ function MedicationsTab({ participantId }: { participantId: number }) {
                 <p className="text-xs mt-0.5 opacity-80">{alert.description}</p>
               </div>
               <button
-                onClick={() => handleAcknowledgeAlert(alert)}
+                onClick={() => openAckModal(alert)}
                 className="text-xs px-2 py-1 bg-white dark:bg-slate-800 border border-current rounded hover:opacity-80 whitespace-nowrap shrink-0"
               >
                 Acknowledge
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Reviewed interactions — collapsible, shows acknowledgement notes */}
+      {reviewedAlerts.length > 0 && (
+        <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
+          <button
+            onClick={() => setShowReviewed(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-slate-700/50 text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+          >
+            <span>Reviewed Interactions ({reviewedAlerts.length})</span>
+            <span className="text-xs text-gray-400 dark:text-slate-500">{showReviewed ? 'Hide' : 'Show'}</span>
+          </button>
+          {showReviewed && (
+            <div className="divide-y divide-gray-100 dark:divide-slate-700">
+              {reviewedAlerts.map(alert => (
+                <div key={alert.id} className="px-4 py-3">
+                  <div className="flex items-start gap-2">
+                    <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${SEVERITY_COLORS[alert.severity] ?? 'bg-gray-100 border-gray-200'}`}>
+                      {alert.severity}
+                    </span>
+                    <span className="text-sm font-medium text-gray-800 dark:text-slate-200">
+                      {alert.drug_name_1} + {alert.drug_name_2}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{alert.description}</p>
+                  <div className="mt-2 bg-gray-50 dark:bg-slate-700/40 rounded p-2 text-xs">
+                    <p className="text-gray-600 dark:text-slate-300 italic">
+                      &ldquo;{alert.acknowledgement_note ?? 'No note recorded.'}&rdquo;
+                    </p>
+                    <p className="text-gray-400 dark:text-slate-500 mt-1">
+                      Acknowledged by {alert.acknowledged_by_name ?? 'Unknown'}{' '}
+                      {alert.acknowledged_at ? `on ${new Date(alert.acknowledged_at).toLocaleDateString()}` : ''}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

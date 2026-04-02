@@ -267,7 +267,7 @@ class MedicationTest extends TestCase
         ]);
 
         $this->actingAs($this->prescriber)
-            ->postJson("/participants/{$this->participant->id}/medications/{$med1->id}/interactions/{$alert->id}/acknowledge", [
+            ->postJson("/participants/{$this->participant->id}/medications/interactions/{$alert->id}/acknowledge", [
                 'acknowledgement_note' => 'Benefit outweighs risk',
             ])
             ->assertStatus(200);
@@ -276,5 +276,72 @@ class MedicationTest extends TestCase
             'id'              => $alert->id,
             'is_acknowledged' => true,
         ]);
+    }
+
+    public function test_interactions_endpoint_returns_active_and_reviewed_keys(): void
+    {
+        $med1 = Medication::factory()->forParticipant($this->participant->id)->forTenant($this->tenant->id)->create(['drug_name' => 'Warfarin']);
+        $med2 = Medication::factory()->forParticipant($this->participant->id)->forTenant($this->tenant->id)->create(['drug_name' => 'Aspirin']);
+
+        // Unacknowledged alert
+        DrugInteractionAlert::factory()->create([
+            'participant_id'  => $this->participant->id,
+            'tenant_id'       => $this->tenant->id,
+            'medication_id_1' => $med1->id,
+            'medication_id_2' => $med2->id,
+            'is_acknowledged' => false,
+        ]);
+
+        $this->actingAs($this->prescriber)
+            ->getJson("/participants/{$this->participant->id}/medications/interactions")
+            ->assertOk()
+            ->assertJsonStructure(['active', 'reviewed']);
+    }
+
+    public function test_acknowledged_alerts_appear_in_reviewed_section(): void
+    {
+        $med1 = Medication::factory()->forParticipant($this->participant->id)->forTenant($this->tenant->id)->create(['drug_name' => 'Warfarin']);
+        $med2 = Medication::factory()->forParticipant($this->participant->id)->forTenant($this->tenant->id)->create(['drug_name' => 'Aspirin']);
+        $alert = DrugInteractionAlert::factory()->create([
+            'participant_id'          => $this->participant->id,
+            'tenant_id'               => $this->tenant->id,
+            'medication_id_1'         => $med1->id,
+            'medication_id_2'         => $med2->id,
+            'is_acknowledged'         => true,
+            'acknowledged_by_user_id' => $this->prescriber->id,
+            'acknowledged_at'         => now()->subDay(),
+            'acknowledgement_note'    => 'Benefit outweighs risk — low dose aspirin only.',
+        ]);
+
+        $response = $this->actingAs($this->prescriber)
+            ->getJson("/participants/{$this->participant->id}/medications/interactions")
+            ->assertOk();
+
+        $this->assertCount(0, $response->json('active'));
+        $this->assertCount(1, $response->json('reviewed'));
+        $this->assertEquals($alert->id, $response->json('reviewed.0.id'));
+        $this->assertNotNull($response->json('reviewed.0.acknowledged_by_name'));
+    }
+
+    public function test_acknowledged_alerts_older_than_90_days_excluded_from_reviewed(): void
+    {
+        $med1 = Medication::factory()->forParticipant($this->participant->id)->forTenant($this->tenant->id)->create(['drug_name' => 'Warfarin']);
+        $med2 = Medication::factory()->forParticipant($this->participant->id)->forTenant($this->tenant->id)->create(['drug_name' => 'Aspirin']);
+        DrugInteractionAlert::factory()->create([
+            'participant_id'          => $this->participant->id,
+            'tenant_id'               => $this->tenant->id,
+            'medication_id_1'         => $med1->id,
+            'medication_id_2'         => $med2->id,
+            'is_acknowledged'         => true,
+            'acknowledged_by_user_id' => $this->prescriber->id,
+            'acknowledged_at'         => now()->subDays(91),
+            'acknowledgement_note'    => 'Old acknowledgement.',
+        ]);
+
+        $response = $this->actingAs($this->prescriber)
+            ->getJson("/participants/{$this->participant->id}/medications/interactions")
+            ->assertOk();
+
+        $this->assertCount(0, $response->json('reviewed'));
     }
 }

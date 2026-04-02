@@ -133,7 +133,7 @@ class WoundCareTest extends TestCase
         $nurse       = $this->makeNurse();
         $participant = $this->makeParticipant($nurse);
 
-        WoundRecord::factory()->count(3)->create([
+        WoundRecord::factory()->count(3)->open()->create([
             'participant_id'        => $participant->id,
             'tenant_id'             => $nurse->tenant_id,
             'site_id'               => $participant->site_id,

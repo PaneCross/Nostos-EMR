@@ -159,16 +159,35 @@ class MedicationController extends Controller
     // ── Drug Interaction Alerts ───────────────────────────────────────────────
 
     /**
-     * List all unacknowledged drug interaction alerts for a participant.
-     * Ordered by severity (contraindicated first).
+     * List drug interaction alerts for a participant.
+     * Returns:
+     *   active   — unacknowledged alerts, ordered by severity
+     *   reviewed — acknowledged alerts from the last 90 days, with acknowledger name
      */
     public function interactions(Request $request, Participant $participant): JsonResponse
     {
         $this->authorizeForTenant($participant, $request->user());
 
-        $alerts = $this->interactionService->getUnacknowledgedAlerts($participant);
+        $active = $this->interactionService->getUnacknowledgedAlerts($participant);
 
-        return response()->json($alerts);
+        // Return acknowledged alerts from the last 90 days so clinicians can
+        // review the acknowledgement notes without digging into the audit log.
+        $reviewed = DrugInteractionAlert::where('participant_id', $participant->id)
+            ->where('is_acknowledged', true)
+            ->where('acknowledged_at', '>=', now()->subDays(90))
+            ->with('acknowledgedBy:id,first_name,last_name')
+            ->orderByDesc('acknowledged_at')
+            ->get()
+            ->map(fn ($a) => array_merge($a->toArray(), [
+                'acknowledged_by_name' => $a->acknowledgedBy
+                    ? $a->acknowledgedBy->first_name . ' ' . $a->acknowledgedBy->last_name
+                    : null,
+            ]));
+
+        return response()->json([
+            'active'   => $active,
+            'reviewed' => $reviewed,
+        ]);
     }
 
     /**
